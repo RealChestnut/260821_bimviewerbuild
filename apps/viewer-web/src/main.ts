@@ -6,10 +6,12 @@ import { createKernel } from './kernel/index.js';
 import { createModelPanel } from './shell/modelPanel.js';
 import { createSelectionPanel } from './shell/selectionPanel.js';
 import { createPropertyPanel } from './shell/propertyPanel.js';
+import { createSectionPanel } from './shell/sectionPanel.js';
 import { createSpatialPanel } from './shell/spatialPanel.js';
 import { createVisibilityPanel } from './shell/visibilityPanel.js';
 import { createStatusComponent } from './shell/statusComponent.js';
 import { createModelLoadingComponent } from './viewer/model/modelLoadingComponent.js';
+import { createSectionComponent } from './viewer/section/sectionComponent.js';
 import { createSelectionComponent } from './viewer/selection/selectionComponent.js';
 import { createVisibilityComponent } from './viewer/visibility/visibilityComponent.js';
 import { createViewerWorldComponent } from './viewer/viewerWorldComponent.js';
@@ -46,6 +48,7 @@ const bootstrap = async (): Promise<void> => {
     }),
   );
   kernel.register(createVisibilityComponent({ port: viewer.visibility }));
+  kernel.register(createSectionComponent({ port: viewer.section }));
   kernel.register(
     createModelPanel({
       fileInputSelector: '[data-testid="model-file"]',
@@ -58,6 +61,14 @@ const bootstrap = async (): Promise<void> => {
     createSpatialPanel({
       selector: '[data-testid="spatial-tree"]',
       port: viewer.spatialTree,
+    }),
+  );
+  kernel.register(
+    createSectionPanel({
+      axisButtonSelector: '[data-testid="section-axis"]',
+      toggleButtonSelector: '[data-testid="section-toggle"]',
+      clearButtonSelector: '[data-testid="section-clear"]',
+      statusSelector: '[data-testid="section-status"]',
     }),
   );
   kernel.register(
