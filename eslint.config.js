@@ -7,6 +7,8 @@ export default tseslint.config(
     ignores: [
       '**/dist/**',
       '**/dist-types/**',
+      // 빌드 시 node_modules에서 복사하는 vendor 자산 (ADR-0004)
+      'apps/viewer-web/public/vendor/**',
       '**/node_modules/**',
       'coverage/**',
       'playwright-report/**',
