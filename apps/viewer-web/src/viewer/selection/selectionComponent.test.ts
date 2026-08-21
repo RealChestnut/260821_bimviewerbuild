@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { beforeEach, describe, expect, it } from 'vitest';
 
-import type { AppEvent, GlobalId, ModelId } from '@bim4d/contracts';
+import type { AppEvent, GlobalId, ModelId, ProductKey } from '@bim4d/contracts';
 
 import { createTestContext } from '../../kernel/testing/testContext.js';
 import type { TestContext } from '../../kernel/testing/testContext.js';
@@ -20,6 +20,8 @@ const hit = (globalId: string, localId = 1, modelId = 'model-1'): SelectionHit =
 
 interface FakePort extends SelectionPort {
   next: SelectionHit | null;
+  /** `resolve`가 돌려줄 객체. 영구 키로 찾을 수 있는 것만 넣는다. */
+  readonly known: SelectionHit[];
   /** 강조 호출 기록. 빈 배열은 강조 해제다. */
   readonly highlighted: (readonly SelectionHit[])[];
   failWith?: Error;
@@ -28,7 +30,16 @@ interface FakePort extends SelectionPort {
 const createFakePort = (): FakePort => {
   const port: FakePort = {
     next: null,
+    known: [],
     highlighted: [],
+    resolve: (products) =>
+      Promise.resolve(
+        products.flatMap((product) =>
+          port.known.filter(
+            (item) => item.modelId === product.modelId && item.globalId === product.globalId,
+          ),
+        ),
+      ),
     pickAt: () => {
       if (port.failWith !== undefined) return Promise.reject(port.failWith);
       return Promise.resolve(port.next);
@@ -292,5 +303,46 @@ describe('createSelectionComponent', () => {
     expect(events.at(-1)?.payload.selected).toEqual([
       { modelId: 'model-2', globalId: '0ZQeYb8Yr9UfXcM1kTPvJd' },
     ]);
+  });
+  it('영구 키로 고른 객체를 선택하고 강조한다', async () => {
+    const { context, port, events } = await setup();
+    const wall = hit('3vB2_1Ks9E1QF$aVJ0Zt_h');
+    const slab = hit('0ZQeYb8Yr9UfXcM1kTPvJd', 2);
+    port.known.push(wall, slab);
+
+    const products: ProductKey[] = [
+      { modelId: wall.modelId, globalId: wall.globalId },
+      { modelId: slab.modelId, globalId: slab.globalId },
+    ];
+    const result = await context.commands.dispatch('viewer/select-products', { products });
+
+    expect(result).toEqual({ ok: true, value: { selected: products } });
+    expect(port.highlighted.at(-1)).toEqual([wall, slab]);
+    expect(events.at(-1)?.payload.selected).toEqual(products);
+  });
+
+  it('화면에 없는 영구 키만 주면 선택을 비운다', async () => {
+    const { context, port, events } = await setup();
+    port.next = hit('3vB2_1Ks9E1QF$aVJ0Zt_h');
+    await clickViewer(context);
+
+    await context.commands.dispatch('viewer/select-products', {
+      products: [{ modelId: 'model-1' as ModelId, globalId: '0ZQeYb8Yr9UfXcM1kTPvJd' as GlobalId }],
+    });
+
+    expect(events.at(-1)?.payload.selected).toEqual([]);
+    expect(port.highlighted.at(-1)).toEqual([]);
+  });
+
+  it('같은 객체를 영구 키로 다시 골라도 Event를 다시 발행하지 않는다', async () => {
+    const { context, port, events } = await setup();
+    const wall = hit('3vB2_1Ks9E1QF$aVJ0Zt_h');
+    port.known.push(wall);
+    const products: ProductKey[] = [{ modelId: wall.modelId, globalId: wall.globalId }];
+
+    await context.commands.dispatch('viewer/select-products', { products });
+    await context.commands.dispatch('viewer/select-products', { products });
+
+    expect(events).toHaveLength(1);
   });
 });

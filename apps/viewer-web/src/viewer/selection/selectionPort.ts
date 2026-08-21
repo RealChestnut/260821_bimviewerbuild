@@ -1,4 +1,4 @@
-import type { GlobalId, ModelId } from '@bim4d/contracts';
+import type { GlobalId, ModelId, ProductKey } from '@bim4d/contracts';
 
 /**
  * 화면에서 객체를 집고 강조하는 Port.
@@ -19,6 +19,13 @@ export interface SelectionPort {
     readonly clientX: number;
     readonly clientY: number;
   }): Promise<SelectionHit | null>;
+  /**
+   * 영구 키로 가리킨 객체를 Adapter 내부 번호까지 풀어낸다.
+   *
+   * 적재되지 않은 모델이나 파일에 없는 GlobalId는 건너뛴다. 트리나 외부 목록에서
+   * 고른 객체를 화면 선택으로 옮길 때 쓴다.
+   */
+  resolve(products: readonly ProductKey[]): Promise<readonly SelectionHit[]>;
   /** 주어진 객체만 강조한다. 이전 강조는 지운다. */
   highlight(hits: readonly SelectionHit[]): Promise<void>;
   clearHighlight(): Promise<void>;

@@ -1,4 +1,4 @@
-import type { AppComponent, AppContext, ModelId, Unsubscribe } from '@bim4d/contracts';
+import type { AppComponent, AppContext, ModelId, ProductKey, Unsubscribe } from '@bim4d/contracts';
 
 import '../model/modelEvents.js';
 
@@ -86,6 +86,20 @@ export const createSelectionComponent = (options: SelectionComponentOptions): Ap
     return { selected: selected.map(toProduct) };
   };
 
+  /**
+   * 영구 키로 가리킨 객체를 선택한다.
+   *
+   * 적재되지 않은 모델이나 파일에 없는 GlobalId는 Adapter가 걸러 낸다. 하나도 남지 않으면
+   * 선택을 비운다. 화면에 없는 것을 고른 채로 두면 이후 조회가 빈 값을 돌려준다.
+   */
+  const selectProducts = async (
+    products: readonly ProductKey[],
+  ): Promise<{ readonly selected: readonly SelectedProduct[] }> => {
+    const hits = await port.resolve(products);
+    await applySelection([...hits]);
+    return { selected: selected.map(toProduct) };
+  };
+
   const onContainerClick = (event: MouseEvent): void => {
     if (context === null) return;
     void context.commands.dispatch('viewer/select-at', {
@@ -127,6 +141,7 @@ export const createSelectionComponent = (options: SelectionComponentOptions): Ap
 
       if (!registered) {
         app.commands.register('viewer/select-at', (input) => selectAt(input));
+        app.commands.register('viewer/select-products', ({ products }) => selectProducts(products));
         app.commands.register('viewer/clear-selection', async () => ({
           cleared: await applySelection([]),
         }));
