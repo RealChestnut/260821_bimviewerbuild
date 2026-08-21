@@ -7,7 +7,7 @@
 - IFC 기술 기준서: [docs/IFC_통합_정리_2026-08-20.md](docs/IFC_통합_정리_2026-08-20.md)
 - 결정 기록: [docs/adr/](docs/adr/)
 
-현재 단계는 **Phase 0 — 저장소와 품질 기반**이다.
+현재 단계는 **Phase 1 — Viewer Kernel**이다.
 
 ## 요구 환경
 
@@ -73,6 +73,16 @@ kernel.register(myComponent);
 await kernel.start();
 // ...
 await kernel.shutdown();
+```
+
+Viewer는 Port 뒤에 둔다. `@thatopen/components`를 직접 참조하는 곳은 `src/adapters/thatopen/`뿐이고, Feature는 `ViewerWorldPort`만 본다.
+
+```text
+src/
+ ├─ kernel/       Event Bus, Command Dispatcher, Component Registry, 로깅
+ ├─ viewer/       Viewer 슬라이스 (Port, Event 선언, World Component)
+ ├─ adapters/     That Open World Factory, 메모리 ModelRepository
+ └─ shell/        상태 표시 등 앱 셸
 ```
 
 Event와 Command 이름은 문자열로 흩어 쓰지 않는다. Feature 슬라이스가 `AppEventMap`, `AppCommandMap`에 선언 병합으로 등록한다.
