@@ -8,7 +8,7 @@
     "noEmit": false,
     "types": ["vite/client"]
   },
-  "include": ["src/**/*.ts"],
+  "include": ["src/**/*.ts", "../../types/**/*.d.ts"],
   "exclude": ["src/**/*.test.ts", "src/**/testing/**"],
   "references": [{ "path": "../../packages/contracts" }, { "path": "../../packages/domain" }]
 }

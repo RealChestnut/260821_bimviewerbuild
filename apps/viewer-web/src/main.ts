@@ -1,23 +1,40 @@
 import { createKernel } from './kernel/index.js';
 import { createStatusComponent } from './shell/statusComponent.js';
+import { createThatOpenWorldFactory } from './adapters/thatopen/thatOpenWorldFactory.js';
+import { createViewerWorldComponent } from './viewer/viewerWorldComponent.js';
 
 /**
  * 애플리케이션 진입점.
  *
- * Phase 0에서는 Kernel 기동과 해제 경로만 확인한다.
- * Viewer Component는 Phase 1에서 이 자리에 등록한다.
+ * Phase 1 범위는 Kernel 기동과 Viewer World 생성·해제까지다.
+ * 모델 적재는 Phase 2에서 이 자리에 Component로 추가한다.
  */
 const bootstrap = async (): Promise<void> => {
   const kernel = createKernel();
+
   kernel.register(createStatusComponent({ selector: '[data-testid="kernel-status"]' }));
+  kernel.register(
+    createViewerWorldComponent({
+      selector: '[data-testid="viewer-container"]',
+      factory: createThatOpenWorldFactory(),
+    }),
+  );
 
   await kernel.start();
 
-  // WebView2 창이 닫히거나 새로고침될 때 자원을 해제한다.
+  let shuttingDown: Promise<void> | null = null;
+  const shutdown = (): Promise<void> => {
+    shuttingDown ??= kernel.shutdown();
+    return shuttingDown;
+  };
+
+  window.bim4d = { shutdown };
+
+  // 창이 닫히거나 새로고침될 때도 자원을 반납한다.
   window.addEventListener(
     'pagehide',
     () => {
-      void kernel.shutdown();
+      void shutdown();
     },
     { once: true },
   );

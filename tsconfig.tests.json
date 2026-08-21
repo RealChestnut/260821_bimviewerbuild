@@ -15,6 +15,7 @@
     }
   },
   "include": [
+    "types/**/*.d.ts",
     "packages/*/src/**/*.test.ts",
     "apps/viewer-web/src/**/*.test.ts",
     "apps/viewer-web/src/kernel/testing/**/*.ts",
