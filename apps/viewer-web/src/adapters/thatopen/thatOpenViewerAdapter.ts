@@ -4,10 +4,17 @@ import * as THREE from 'three';
 
 import type { GlobalId, ModelId, ProductKey } from '@bim4d/contracts';
 import type { RawSpatialNode } from '@bim4d/domain';
+import { formatIfcValue } from '@bim4d/domain';
 
 import type { ModelLoaderPort, ModelLoadRequest } from '../../viewer/model/modelLoaderPort.js';
 import type { VisibilityPort } from '../../viewer/visibility/visibilityPort.js';
 import type { SelectionHit, SelectionPort } from '../../viewer/selection/selectionPort.js';
+import type {
+  ProductProperties,
+  PropertyEntry,
+  PropertyPort,
+  PropertySetEntry,
+} from '../../viewer/property/propertyPort.js';
 import type { SpatialTreePort } from '../../viewer/spatial/spatialTreePort.js';
 import type { ViewerWorld, ViewerWorldFactory } from '../../viewer/viewerWorldPort.js';
 
@@ -51,7 +58,69 @@ export interface ThatOpenViewerAdapter {
   readonly selection: SelectionPort;
   readonly visibility: VisibilityPort;
   readonly spatialTree: SpatialTreePort;
+  readonly properties: PropertyPort;
 }
+
+/**
+ * fragments가 돌려주는 항목의 값 표현. 속성 하나는 `{ value, type }` 꼴이고,
+ * 관계로 딸려 온 객체는 같은 모양의 항목 배열이다.
+ */
+type ItemField = { readonly value?: unknown; readonly type?: unknown } | readonly unknown[];
+
+/** fragments가 붙이는 내부 필드와 속성 이름 자리. 값 자리를 찾을 때 건너뛴다. */
+const NON_VALUE_FIELDS = new Set([
+  '_category',
+  '_localId',
+  '_guid',
+  'Name',
+  'Description',
+  'Specification',
+  'Unit',
+]);
+
+const fieldOf = (item: Readonly<Record<string, unknown>>, key: string): ItemField | null => {
+  const found: unknown = item[key];
+  if (found === null || typeof found !== 'object') return null;
+  return found;
+};
+
+const stringField = (item: Readonly<Record<string, unknown>>, key: string): string | null => {
+  const field = fieldOf(item, key);
+  if (field === null || Array.isArray(field)) return null;
+
+  const value = (field as { readonly value?: unknown }).value;
+  return typeof value === 'string' && value.trim().length > 0 ? value : null;
+};
+
+const typeOf = (field: { readonly type?: unknown }): string | null =>
+  typeof field.type === 'string' ? field.type : null;
+
+/**
+ * 속성 항목 하나에서 값 자리를 찾는다.
+ *
+ * 값이 들어가는 필드 이름은 Property Entity와 Quantity Class마다 다르다
+ * (`NominalValue`, `AreaValue`, `LengthValue` …, 기준서 10.1절과 11절).
+ * 이름 목록을 코드에 굳히면 새 Entity가 나올 때마다 값이 사라진다. 이름 대신
+ * "내부 필드도 이름 자리도 아닌 첫 필드"를 값으로 본다.
+ */
+const readPropertyEntry = (item: Readonly<Record<string, unknown>>): PropertyEntry | null => {
+  const name = stringField(item, 'Name');
+  if (name === null) return null;
+
+  for (const key of Object.keys(item)) {
+    if (NON_VALUE_FIELDS.has(key)) continue;
+
+    const field = fieldOf(item, key);
+    if (field === null) continue;
+
+    if (Array.isArray(field)) {
+      return { name, value: formatIfcValue(field), type: null };
+    }
+    const single = field as { readonly value?: unknown; readonly type?: unknown };
+    return { name, value: formatIfcValue(single.value, typeOf(single)), type: typeOf(single) };
+  }
+  return { name, value: '', type: null };
+};
 
 /**
  * `getItemsData`가 돌려준 항목에서 이름을 읽는다.
@@ -492,5 +561,88 @@ export const createThatOpenViewerAdapter = (
     },
   };
 
-  return { worldFactory, modelLoader, selection, visibility, spatialTree };
+  /**
+   * 부재 하나의 Attribute와 PropertySet / QuantitySet을 읽는다.
+   *
+   * `IsDefinedBy` 관계만 따라간다 (기준서 12절). 원본에 있는 Set은 이름이나 접두어로
+   * 거르지 않고 전량 싣는다 (AGENTS.md 2.4절).
+   */
+  const properties: PropertyPort = {
+    read: async (product): Promise<ProductProperties | null> => {
+      const current = state;
+      const fragmentsModelId = current?.models.get(product.modelId);
+      if (current === null || fragmentsModelId === undefined) return null;
+
+      const fragments = current.components.get(OBC.FragmentsManager);
+      const model = fragments.list.get(fragmentsModelId);
+      if (model === undefined) return null;
+
+      const [localId] = await model.getLocalIdsByGuids([product.globalId]);
+      if (localId === null || localId === undefined) return null;
+
+      const [data] = await model.getItemsData([localId], {
+        attributesDefault: true,
+        relations: {
+          IsDefinedBy: { attributes: true, relations: true },
+          DefinesOccurrence: { attributes: false, relations: false },
+        },
+        relationsDefault: { attributes: false, relations: false },
+      });
+      if (data === undefined) return null;
+
+      const item: Readonly<Record<string, unknown>> = data;
+
+      const attributes: PropertyEntry[] = [];
+      for (const key of Object.keys(item)) {
+        // 내부 필드와 관계는 Attribute가 아니다. 관계는 아래에서 따로 다룬다.
+        if (key.startsWith('_')) continue;
+
+        const field = fieldOf(item, key);
+        if (field === null || Array.isArray(field)) continue;
+
+        const single = field as { readonly value?: unknown; readonly type?: unknown };
+        attributes.push({
+          name: key,
+          value: formatIfcValue(single.value, typeOf(single)),
+          type: typeOf(single),
+        });
+      }
+
+      const sets: PropertySetEntry[] = [];
+      const definitions = fieldOf(item, 'IsDefinedBy');
+      if (definitions !== null && Array.isArray(definitions)) {
+        for (const raw of definitions) {
+          if (raw === null || typeof raw !== 'object') continue;
+
+          const definition: Readonly<Record<string, unknown>> = raw as Record<string, unknown>;
+          const name = stringField(definition, 'Name');
+
+          // PropertySet은 HasProperties, QuantitySet은 Quantities에 항목을 담는다.
+          const entries: PropertyEntry[] = [];
+          for (const key of Object.keys(definition)) {
+            const field = fieldOf(definition, key);
+            if (field === null || !Array.isArray(field)) continue;
+
+            for (const member of field) {
+              if (member === null || typeof member !== 'object') continue;
+              const entry = readPropertyEntry(member as Record<string, unknown>);
+              if (entry !== null) entries.push(entry);
+            }
+          }
+
+          sets.push({ name: name ?? '(이름 없는 Set)', properties: entries });
+        }
+      }
+
+      return {
+        product,
+        category: stringField(item, '_category'),
+        name: stringField(item, 'Name'),
+        attributes,
+        sets,
+      };
+    },
+  };
+
+  return { worldFactory, modelLoader, selection, visibility, spatialTree, properties };
 };
