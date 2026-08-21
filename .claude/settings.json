@@ -1,0 +1,6 @@
+{
+  "enabledPlugins": {
+    "caveman@caveman": true,
+    "bmad-method-analyze-plan-build@bmad-method": true
+  }
+}

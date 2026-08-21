@@ -1,0 +1,33 @@
+# Node
+node_modules/
+dist/
+.vite/
+*.tsbuildinfo
+
+# .NET
+bin/
+obj/
+*.user
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# Test / build output
+playwright-report/
+test-results/
+coverage/
+
+# Tooling state
+.omc/
+.DS_Store
+Thumbs.db
+
+# Local secrets
+.env
+.env.local
+
+# Merge sources (review then delete)
+docs/_source/
