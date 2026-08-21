@@ -1,24 +1,54 @@
+import type { AppEventName, ModelId } from '@bim4d/contracts';
+
+import { createInMemoryModelRepository } from './adapters/inMemoryModelRepository.js';
+import { createThatOpenViewerAdapter } from './adapters/thatopen/thatOpenViewerAdapter.js';
 import { createKernel } from './kernel/index.js';
+import { createModelPanel } from './shell/modelPanel.js';
+import { createSelectionPanel } from './shell/selectionPanel.js';
 import { createStatusComponent } from './shell/statusComponent.js';
-import { createThatOpenWorldFactory } from './adapters/thatopen/thatOpenWorldFactory.js';
+import { createModelLoadingComponent } from './viewer/model/modelLoadingComponent.js';
+import { createSelectionComponent } from './viewer/selection/selectionComponent.js';
 import { createViewerWorldComponent } from './viewer/viewerWorldComponent.js';
 
 /**
  * 애플리케이션 진입점.
  *
- * Phase 1 범위는 Kernel 기동과 Viewer World 생성·해제까지다.
- * 모델 적재는 Phase 2에서 이 자리에 Component로 추가한다.
+ * Component 등록 순서가 곧 생명주기 순서다. World가 먼저 서야 모델을 올릴 수 있고,
+ * 해제는 역순으로 진행되므로 모델이 먼저 내려간 뒤 World가 사라진다.
  */
 const bootstrap = async (): Promise<void> => {
   const kernel = createKernel();
+  const viewer = createThatOpenViewerAdapter();
+  const repository = createInMemoryModelRepository();
 
   kernel.register(createStatusComponent({ selector: '[data-testid="kernel-status"]' }));
   kernel.register(
     createViewerWorldComponent({
       selector: '[data-testid="viewer-container"]',
-      factory: createThatOpenWorldFactory(),
+      factory: viewer.worldFactory,
     }),
   );
+  kernel.register(
+    createModelLoadingComponent({
+      loader: viewer.modelLoader,
+      repository,
+      newModelId: () => globalThis.crypto.randomUUID() as ModelId,
+    }),
+  );
+  kernel.register(
+    createSelectionComponent({
+      selector: '[data-testid="viewer-container"]',
+      port: viewer.selection,
+    }),
+  );
+  kernel.register(
+    createModelPanel({
+      fileInputSelector: '[data-testid="model-file"]',
+      unloadButtonSelector: '[data-testid="model-unload"]',
+      statusSelector: '[data-testid="model-status"]',
+    }),
+  );
+  kernel.register(createSelectionPanel({ selector: '[data-testid="selection-globalid"]' }));
 
   await kernel.start();
 
@@ -28,7 +58,14 @@ const bootstrap = async (): Promise<void> => {
     return shuttingDown;
   };
 
-  window.bim4d = { shutdown };
+  window.bim4d = {
+    shutdown,
+    // Shell은 이름을 문자열로 넘긴다. 계약의 키인지는 여기서 좁힌다.
+    subscribe: (eventName, handler) =>
+      kernel.context.events.subscribe(eventName as AppEventName, (event) => {
+        handler(event.payload);
+      }),
+  };
 
   // 창이 닫히거나 새로고침될 때도 자원을 반납한다.
   window.addEventListener(
