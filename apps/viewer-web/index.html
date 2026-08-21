@@ -84,6 +84,67 @@
         margin: 0;
       }
 
+      #workspace {
+        display: grid;
+        grid-template-columns: 18rem 1fr;
+        min-height: 0;
+      }
+
+      #spatial-tree {
+        border-right: 1px solid rgb(0 0 0 / 15%);
+        overflow: auto;
+        padding: 0.5rem;
+        font-size: 0.8rem;
+      }
+
+      #spatial-tree ul {
+        list-style: none;
+        margin: 0;
+        padding-left: 0.9rem;
+      }
+
+      #spatial-tree > ul {
+        padding-left: 0;
+      }
+
+      .spatial-row {
+        display: flex;
+        align-items: center;
+        gap: 0.15rem;
+      }
+
+      .spatial-toggle {
+        width: 1.1rem;
+        flex: none;
+        border: 0;
+        background: none;
+        padding: 0;
+        cursor: pointer;
+        color: inherit;
+        font: inherit;
+        text-align: center;
+      }
+
+      .spatial-node {
+        border: 0;
+        background: none;
+        padding: 0.1rem 0.2rem;
+        cursor: pointer;
+        color: inherit;
+        font: inherit;
+        text-align: left;
+        white-space: nowrap;
+      }
+
+      .spatial-node:hover {
+        background: rgb(47 125 225 / 15%);
+      }
+
+      .spatial-empty {
+        margin: 0;
+        opacity: 0.7;
+      }
+
       #viewer-container {
         position: relative;
         min-height: 0;
@@ -110,7 +171,10 @@
         <p id="model-status" data-testid="model-status">열린 모델 없음</p>
         <p id="selection-globalid" data-testid="selection-globalid">선택 없음</p>
       </header>
-      <main id="viewer-container" data-testid="viewer-container"></main>
+      <div id="workspace">
+        <aside id="spatial-tree" data-testid="spatial-tree"></aside>
+        <main id="viewer-container" data-testid="viewer-container"></main>
+      </div>
     </div>
     <script type="module" src="/src/main.ts"></script>
   </body>

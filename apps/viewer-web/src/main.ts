@@ -5,6 +5,7 @@ import { createThatOpenViewerAdapter } from './adapters/thatopen/thatOpenViewerA
 import { createKernel } from './kernel/index.js';
 import { createModelPanel } from './shell/modelPanel.js';
 import { createSelectionPanel } from './shell/selectionPanel.js';
+import { createSpatialPanel } from './shell/spatialPanel.js';
 import { createVisibilityPanel } from './shell/visibilityPanel.js';
 import { createStatusComponent } from './shell/statusComponent.js';
 import { createModelLoadingComponent } from './viewer/model/modelLoadingComponent.js';
@@ -52,6 +53,12 @@ const bootstrap = async (): Promise<void> => {
     }),
   );
   kernel.register(createSelectionPanel({ selector: '[data-testid="selection-globalid"]' }));
+  kernel.register(
+    createSpatialPanel({
+      selector: '[data-testid="spatial-tree"]',
+      port: viewer.spatialTree,
+    }),
+  );
   kernel.register(
     createVisibilityPanel({
       hideButtonSelector: '[data-testid="hide-selected"]',

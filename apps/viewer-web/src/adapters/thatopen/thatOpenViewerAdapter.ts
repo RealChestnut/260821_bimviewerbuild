@@ -3,10 +3,12 @@ import * as FRAGS from '@thatopen/fragments';
 import * as THREE from 'three';
 
 import type { GlobalId, ModelId, ProductKey } from '@bim4d/contracts';
+import type { RawSpatialNode } from '@bim4d/domain';
 
 import type { ModelLoaderPort, ModelLoadRequest } from '../../viewer/model/modelLoaderPort.js';
 import type { VisibilityPort } from '../../viewer/visibility/visibilityPort.js';
 import type { SelectionHit, SelectionPort } from '../../viewer/selection/selectionPort.js';
+import type { SpatialTreePort } from '../../viewer/spatial/spatialTreePort.js';
 import type { ViewerWorld, ViewerWorldFactory } from '../../viewer/viewerWorldPort.js';
 
 export interface ThatOpenViewerAdapterOptions {
@@ -48,7 +50,22 @@ export interface ThatOpenViewerAdapter {
   readonly modelLoader: ModelLoaderPort;
   readonly selection: SelectionPort;
   readonly visibility: VisibilityPort;
+  readonly spatialTree: SpatialTreePort;
 }
+
+/**
+ * `getItemsData`가 돌려준 항목에서 이름을 읽는다.
+ *
+ * 속성 값의 타입은 파일마다 다르므로 문자열일 때만 받는다. 이름이 없는 객체는 정상이다
+ * (기준서 7절). 없으면 null을 돌려주고 표시 이름은 상위에서 정한다.
+ */
+const readItemName = (item: Readonly<Record<string, unknown>>): string | null => {
+  const attribute = item['Name'];
+  if (typeof attribute !== 'object' || attribute === null) return null;
+
+  const value: unknown = (attribute as { value?: unknown }).value;
+  return typeof value === 'string' && value.trim().length > 0 ? value : null;
+};
 
 /**
  * That Open Components Adapter.
@@ -256,6 +273,38 @@ export const createThatOpenViewerAdapter = (
       return { modelId, globalId: globalId as GlobalId, localId: result.localId };
     },
 
+    resolve: async (products): Promise<readonly SelectionHit[]> => {
+      const current = state;
+      if (current === null || products.length === 0) return [];
+
+      const fragments = current.components.get(OBC.FragmentsManager);
+      // 모델별로 나눠 묻는다. 한 번에 물으면 어느 GlobalId가 어느 번호인지 짝을 잃는다.
+      const byModel = new Map<ModelId, GlobalId[]>();
+      for (const product of products) {
+        const bucket = byModel.get(product.modelId);
+        if (bucket === undefined) byModel.set(product.modelId, [product.globalId]);
+        else bucket.push(product.globalId);
+      }
+
+      const hits: SelectionHit[] = [];
+      for (const [modelId, globalIds] of byModel) {
+        const fragmentsModelId = current.models.get(modelId);
+        if (fragmentsModelId === undefined) continue;
+
+        const model = fragments.list.get(fragmentsModelId);
+        if (model === undefined) continue;
+
+        // getLocalIdsByGuids는 입력 순서를 지킨다. 없는 GlobalId 자리에는 null이 온다.
+        const localIds = await model.getLocalIdsByGuids([...globalIds]);
+        localIds.forEach((localId, index) => {
+          const globalId = globalIds[index];
+          if (localId === null || globalId === undefined) return;
+          hits.push({ modelId, globalId, localId });
+        });
+      }
+      return hits;
+    },
+
     highlight: async (hits): Promise<void> => {
       const current = state;
       if (current === null) return;
@@ -361,5 +410,87 @@ export const createThatOpenViewerAdapter = (
     },
   };
 
-  return { worldFactory, modelLoader, selection, visibility };
+  /**
+   * fragments가 읽어 둔 공간 구조를 Port 계약의 모양으로 옮긴다.
+   *
+   * 계층 자체는 fragments가 `IfcRelAggregates`와 `IfcRelContainedInSpatialStructure`를
+   * 풀어 만든 결과다. 여기서는 Adapter 내부 번호를 영구 키(GlobalId)와 이름으로 바꾼다.
+   */
+  const spatialTree: SpatialTreePort = {
+    read: async (modelId: ModelId): Promise<RawSpatialNode | null> => {
+      const current = state;
+      const fragmentsModelId = current?.models.get(modelId);
+      if (current === null || fragmentsModelId === undefined) return null;
+
+      const fragments = current.components.get(OBC.FragmentsManager);
+      const model = fragments.list.get(fragmentsModelId);
+      if (model === undefined) return null;
+
+      const structure = await model.getSpatialStructure();
+
+      const localIds: number[] = [];
+      const collect = (item: FRAGS.SpatialTreeItem): void => {
+        if (item.localId !== null) localIds.push(item.localId);
+        for (const child of item.children ?? []) collect(child);
+      };
+      collect(structure);
+
+      const globalIds = new Map<number, GlobalId>();
+      const names = new Map<number, string>();
+
+      // 빈 배열을 넘기면 모델 전체를 돌려주므로 (fragments 3.4.7) 길이를 먼저 본다.
+      if (localIds.length > 0) {
+        const guids = await model.getGuidsByLocalIds(localIds);
+        guids.forEach((guid, index) => {
+          const localId = localIds[index];
+          if (guid === null || localId === undefined) return;
+          globalIds.set(localId, guid as GlobalId);
+        });
+
+        // 이름 하나만 읽는다. Pset까지 따라가면 트리 한 번 그리는 데 파일 전체를 훑는다.
+        const items = await model.getItemsData(localIds, {
+          attributesDefault: false,
+          attributes: ['Name'],
+          relationsDefault: { attributes: false, relations: false },
+        });
+        items.forEach((item, index) => {
+          const localId = localIds[index];
+          const name = readItemName(item);
+          if (localId === undefined || name === null) return;
+          names.set(localId, name);
+        });
+      }
+
+      /**
+       * fragments의 트리는 분류 마디와 객체 마디를 번갈아 놓는다. 분류 마디는 `localId`가
+       * 없고 `category`만 있으며, 그 아래에 같은 분류의 객체가 온다. 분류는 객체에 물려주고
+       * 마디 자체는 없앤다. 묶는 방식은 도메인이 정한다.
+       */
+      const flatten = (item: FRAGS.SpatialTreeItem, inherited: string | null): RawSpatialNode[] => {
+        const children = item.children ?? [];
+        const category = item.category ?? inherited;
+
+        if (item.localId === null) {
+          return children.flatMap((child) => flatten(child, category));
+        }
+        return [
+          {
+            category,
+            name: names.get(item.localId) ?? null,
+            globalId: globalIds.get(item.localId) ?? null,
+            children: children.flatMap((child) => flatten(child, null)),
+          },
+        ];
+      };
+
+      const roots = flatten(structure, null);
+      const [first] = roots;
+      if (roots.length === 1 && first !== undefined) return first;
+
+      // IfcProject가 여럿이거나 하나도 없는 파일이다. 화면에서는 한 뿌리로 묶어 보여 준다.
+      return { category: null, name: null, globalId: null, children: roots };
+    },
+  };
+
+  return { worldFactory, modelLoader, selection, visibility, spatialTree };
 };

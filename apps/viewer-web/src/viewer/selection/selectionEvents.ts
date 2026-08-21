@@ -5,7 +5,7 @@
  * payload에는 영구 키(modelId + GlobalId)만 싣는다. Adapter 내부 번호는 넘기지 않는다.
  */
 
-import type { GlobalId, ModelId } from '@bim4d/contracts';
+import type { GlobalId, ModelId, ProductKey } from '@bim4d/contracts';
 
 interface SelectedProduct {
   readonly modelId: ModelId;
@@ -31,6 +31,14 @@ declare module '@bim4d/contracts' {
         readonly clientY: number;
         readonly mode?: SelectionMode;
       };
+      output: { readonly selected: readonly SelectedProduct[] };
+    };
+    /**
+     * 영구 키로 가리킨 객체를 선택한다. 공간 구조 트리처럼 화면 밖에서 고른 경우다.
+     * 기존 선택은 교체한다.
+     */
+    'viewer/select-products': {
+      input: { readonly products: readonly ProductKey[] };
       output: { readonly selected: readonly SelectedProduct[] };
     };
     'viewer/clear-selection': {
