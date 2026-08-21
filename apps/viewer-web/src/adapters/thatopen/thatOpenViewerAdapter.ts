@@ -2,9 +2,10 @@ import * as OBC from '@thatopen/components';
 import * as FRAGS from '@thatopen/fragments';
 import * as THREE from 'three';
 
-import type { GlobalId, ModelId } from '@bim4d/contracts';
+import type { GlobalId, ModelId, ProductKey } from '@bim4d/contracts';
 
 import type { ModelLoaderPort, ModelLoadRequest } from '../../viewer/model/modelLoaderPort.js';
+import type { VisibilityPort } from '../../viewer/visibility/visibilityPort.js';
 import type { SelectionHit, SelectionPort } from '../../viewer/selection/selectionPort.js';
 import type { ViewerWorld, ViewerWorldFactory } from '../../viewer/viewerWorldPort.js';
 
@@ -46,6 +47,7 @@ export interface ThatOpenViewerAdapter {
   readonly worldFactory: ViewerWorldFactory;
   readonly modelLoader: ModelLoaderPort;
   readonly selection: SelectionPort;
+  readonly visibility: VisibilityPort;
 }
 
 /**
@@ -297,5 +299,67 @@ export const createThatOpenViewerAdapter = (
     },
   };
 
-  return { worldFactory, modelLoader, selection };
+  /** 영구 키 목록을 Adapter 내부 식별자 묶음으로 되돌린다. */
+  const toItems = async (
+    current: ViewerState,
+    products: readonly ProductKey[],
+  ): Promise<Record<string, Set<number>>> => {
+    const fragments = current.components.get(OBC.FragmentsManager);
+    const globalIds = products.map((product) => product.globalId);
+    return globalIds.length === 0 ? {} : await fragments.guidsToModelIdMap(globalIds);
+  };
+
+  const setVisibility = async (
+    products: readonly ProductKey[],
+    visible: boolean,
+  ): Promise<void> => {
+    const current = state;
+    if (current === null || current.models.size === 0) return;
+
+    const fragments = current.components.get(OBC.FragmentsManager);
+    const items = await toItems(current, products);
+
+    for (const [fragmentsModelId, localIds] of Object.entries(items)) {
+      const model = fragments.list.get(fragmentsModelId);
+      await model?.setVisible([...localIds], visible);
+    }
+    await fragments.core.update(true);
+  };
+
+  const visibility: VisibilityPort = {
+    hide: (products) => setVisibility(products, false),
+
+    show: (products) => setVisibility(products, true),
+
+    isolate: async (products): Promise<void> => {
+      const current = state;
+      if (current === null || current.models.size === 0) return;
+
+      const fragments = current.components.get(OBC.FragmentsManager);
+      const items = await toItems(current, products);
+
+      // 먼저 모두 감춘 뒤 대상만 되돌린다. 남길 부재가 없는 모델도 함께 가려진다.
+      for (const model of fragments.list.values()) {
+        await model.setVisible(undefined, false);
+      }
+      for (const [fragmentsModelId, localIds] of Object.entries(items)) {
+        const model = fragments.list.get(fragmentsModelId);
+        await model?.setVisible([...localIds], true);
+      }
+      await fragments.core.update(true);
+    },
+
+    showAll: async (): Promise<void> => {
+      const current = state;
+      if (current === null || current.models.size === 0) return;
+
+      const fragments = current.components.get(OBC.FragmentsManager);
+      for (const model of fragments.list.values()) {
+        await model.resetVisible();
+      }
+      await fragments.core.update(true);
+    },
+  };
+
+  return { worldFactory, modelLoader, selection, visibility };
 };
