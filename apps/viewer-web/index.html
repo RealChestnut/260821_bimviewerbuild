@@ -64,6 +64,13 @@
         background: rgb(128 128 128 / 35%);
       }
 
+      #section-status {
+        font-size: 0.8rem;
+        margin: 0;
+        min-width: 6rem;
+        opacity: 0.75;
+      }
+
       #visibility-status {
         font-size: 0.8rem;
         margin: 0;
@@ -216,6 +223,13 @@
         <button type="button" data-testid="isolate-selected" disabled>격리</button>
         <button type="button" data-testid="show-all" disabled>전체 표시</button>
         <p id="visibility-status" data-testid="visibility-status"></p>
+        <span class="divider"></span>
+        <button type="button" data-testid="section-axis" data-axis="x">X 단면</button>
+        <button type="button" data-testid="section-axis" data-axis="y">Y 단면</button>
+        <button type="button" data-testid="section-axis" data-axis="z">Z 단면</button>
+        <button type="button" data-testid="section-toggle" disabled>단면 끄기</button>
+        <button type="button" data-testid="section-clear" disabled>단면 해제</button>
+        <p id="section-status" data-testid="section-status"></p>
         <p id="model-status" data-testid="model-status">열린 모델 없음</p>
         <p id="selection-globalid" data-testid="selection-globalid">선택 없음</p>
       </header>
