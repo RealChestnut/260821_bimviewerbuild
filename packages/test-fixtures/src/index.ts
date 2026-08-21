@@ -24,4 +24,12 @@ export const minimalWallIfc4: IfcFixture = {
   path: fixturePath('minimal-wall-ifc4.ifc'),
 };
 
-export const ifcFixtures: readonly IfcFixture[] = [minimalWallIfc4];
+export const threeElementsIfc4: IfcFixture = {
+  id: 'three-elements-ifc4',
+  schema: 'IFC4',
+  description:
+    'IfcWall 2개와 IfcSlab 1개가 같은 층에 있다. 다중 선택, 분류, 속성 패널 테스트용이며 표준 Pset, 자체 접두어 Pset, Qto를 함께 담는다.',
+  path: fixturePath('three-elements-ifc4.ifc'),
+};
+
+export const ifcFixtures: readonly IfcFixture[] = [minimalWallIfc4, threeElementsIfc4];

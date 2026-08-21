@@ -254,14 +254,22 @@ export const createThatOpenViewerAdapter = (
       return { modelId, globalId: globalId as GlobalId, localId: result.localId };
     },
 
-    highlight: async (hit): Promise<void> => {
+    highlight: async (hits): Promise<void> => {
       const current = state;
       if (current === null) return;
-      const fragmentsModelId = current.models.get(hit.modelId);
-      if (fragmentsModelId === undefined) return;
+
+      // 여러 모델에 걸친 선택도 한 번의 호출로 강조한다.
+      const items: Record<string, Set<number>> = {};
+      for (const hit of hits) {
+        const fragmentsModelId = current.models.get(hit.modelId);
+        if (fragmentsModelId === undefined) continue;
+        (items[fragmentsModelId] ??= new Set()).add(hit.localId);
+      }
 
       const fragments = current.components.get(OBC.FragmentsManager);
       await fragments.resetHighlight();
+      if (Object.keys(items).length === 0) return;
+
       await fragments.highlight(
         {
           color: new THREE.Color(highlightColor),
@@ -269,7 +277,7 @@ export const createThatOpenViewerAdapter = (
           transparent: false,
           renderedFaces: FRAGS.RenderedFaces.TWO,
         },
-        { [fragmentsModelId]: new Set([hit.localId]) },
+        items,
       );
       await fragments.core.update(true);
     },
