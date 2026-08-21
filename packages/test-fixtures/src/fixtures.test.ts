@@ -1,4 +1,6 @@
-import { readFileSync } from 'node:fs';
+import { readdirSync, readFileSync, statSync } from 'node:fs';
+import { basename, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 import { describe, expect, it } from 'vitest';
 
@@ -15,6 +17,24 @@ const GLOBAL_ID_PATTERN = /^[0-3][0-9A-Za-z_$]{21}$/;
  */
 const globalIdsOf = (content: string): string[] =>
   [...content.matchAll(/^#\d+=IFC[A-Z0-9]+\('([^']*)',#\d+,/gmu)].map((match) => match[1] ?? '');
+
+const fixtureDirectory = fileURLToPath(new URL('../ifc/', import.meta.url));
+
+describe('fixture 디렉터리', () => {
+  const trackedFiles = readdirSync(fixtureDirectory).filter((name) => name.endsWith('.ifc'));
+
+  it('디렉터리에 있는 모든 IFC가 fixture 목록에 등록돼 있다', () => {
+    const registered = new Set(ifcFixtures.map((fixture) => basename(fixture.path)));
+    expect([...trackedFiles].sort()).toEqual([...registered].sort());
+  });
+
+  it('저장소에 두는 fixture는 1MB를 넘지 않는다', () => {
+    // 실모델은 local/에 두고 커밋하지 않는다. 큰 파일이 여기 들어오면 CI가 막는다.
+    for (const name of trackedFiles) {
+      expect(statSync(join(fixtureDirectory, name)).size).toBeLessThan(1_000_000);
+    }
+  });
+});
 
 describe('IFC fixtures', () => {
   it('등록된 fixture 파일을 모두 읽을 수 있다', () => {

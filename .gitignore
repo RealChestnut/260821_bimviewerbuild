@@ -39,9 +39,9 @@ Thumbs.db
 docs/_source/
 
 # 실프로젝트 IFC 모델은 저장소에 넣지 않는다. GitHub 파일 상한(100MB)을 넘고 원본은 로컬 보관이다.
-# 저장소에 두는 fixture는 minimal-* 소형 파일만이다 (AGENTS.md 2.8절).
-packages/test-fixtures/ifc/*.ifc
-!packages/test-fixtures/ifc/minimal-*.ifc
+# 실모델은 local/에 두고, 저장소에는 직접 작성한 소형 fixture만 커밋한다 (AGENTS.md 2.8절).
+# 소형 fixture 여부는 fixtures.test.ts가 크기와 등록 여부로 검사한다.
+packages/test-fixtures/ifc/local/
 
 # vendor 자산은 빌드 시 node_modules에서 복사한다 (ADR-0004)
 apps/viewer-web/public/vendor/
