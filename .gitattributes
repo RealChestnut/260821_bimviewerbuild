@@ -1,0 +1,35 @@
+# 개행 정규화의 기본값. 텍스트는 저장소에 LF로 보관한다.
+* text=auto eol=lf
+
+# Windows 도구 체인이 CRLF를 요구하는 파일
+*.sln       text eol=crlf
+*.csproj    text eol=crlf
+*.props     text eol=crlf
+*.targets   text eol=crlf
+*.cmd       text eol=crlf
+*.bat       text eol=crlf
+*.ps1       text eol=crlf
+
+# IFC fixture는 정규화하지 않는다.
+# git이 개행을 바꾸면 파일 바이트가 달라지고, AGENTS.md 2.1절이 모델 버전
+# 식별에 쓰는 fingerprint가 플랫폼마다 달라진다.
+*.ifc       -text
+*.ifcXML    -text
+
+# 바이너리
+*.frag      binary
+*.ifcZIP    binary
+*.png       binary
+*.jpg       binary
+*.jpeg      binary
+*.gif       binary
+*.ico       binary
+*.pdf       binary
+*.zip       binary
+*.dll       binary
+*.exe       binary
+*.pdb       binary
+*.msi       binary
+*.wasm      binary
+*.glb       binary
+*.gltf      text eol=lf
