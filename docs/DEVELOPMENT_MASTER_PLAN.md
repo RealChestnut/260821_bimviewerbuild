@@ -1,6 +1,6 @@
 # BIM 4D Viewer 개발 마스터 계획
 
-> 상태: **승인 대기 (Pending Approval)**  
+> 상태: **승인됨 (Approved)** — 2026-08-21 승인, Phase 0 실행 중  
 > 작성일: 2026-08-21  
 > 대상 저장소: `RealChestnut/260821_bimviewerbuild`
 

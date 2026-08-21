@@ -1,0 +1,27 @@
+import { fileURLToPath } from 'node:url';
+
+/**
+ * 테스트용 IFC fixture 경로.
+ *
+ * 새 fixture를 추가하기 전에 IFC 기준서 20절 수령 체크리스트를 수행하고 결과를 기록한다.
+ */
+export interface IfcFixture {
+  readonly id: string;
+  readonly schema: 'IFC2X3' | 'IFC4' | 'IFC4X3';
+  /** fixture가 담고 있는 것에 대한 짧은 설명. */
+  readonly description: string;
+  readonly path: string;
+}
+
+const fixturePath = (name: string): string =>
+  fileURLToPath(new URL(`../ifc/${name}`, import.meta.url));
+
+export const minimalWallIfc4: IfcFixture = {
+  id: 'minimal-wall-ifc4',
+  schema: 'IFC4',
+  description:
+    'Project–Site–Building–Storey 공간 계층 1개씩과 IfcWall 1개. 압출 형상과 Pset_WallCommon 포함.',
+  path: fixturePath('minimal-wall-ifc4.ifc'),
+};
+
+export const ifcFixtures: readonly IfcFixture[] = [minimalWallIfc4];

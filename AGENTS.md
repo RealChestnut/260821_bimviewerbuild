@@ -70,6 +70,7 @@ apps/viewer-web/**              모델 로딩, Selection, Property Panel, 4D Sim
 | 항목 | 결정 | 근거 |
 |---|---|---|
 | Web Rendering 출력 포맷 (기준서 19절 `.frag / GLB / XKT 등`) | Fragments(`.frag`), `@thatopen/fragments` 3.x | `docs/adr/0001-web-rendering-asset-format.md` |
+| 패키지 관리자와 라이브러리 버전 (마스터 계획 13절 `npm 또는 pnpm`) | pnpm 10.34.5 workspace, That Open 3.4.x 조합 고정, TypeScript 5.9.3 | `docs/adr/0003-toolchain-baseline.md` |
 | 4D 액션 어휘 (기준서 17절 `appear/temporary` vs 19.2절 `SHOW/HIDE/REMOVE`) | `TaskOperation` 4값 + `ElementDisplayState` 3값으로 분리 | `docs/adr/0002-4d-operation-vocabulary.md` |
 
 **아직 미결정** — 해당 영역을 구현할 때 임의로 정하지 말고 결정을 먼저 요청한다.
@@ -173,7 +174,8 @@ Schema 판별 → Entity/Attribute 추출 → Geometry/Placement 추출
 - 개발은 TDD를 따른다 (마스터 계획 10절). 테스트 없이 기능 코드를 추가하지 않는다.
 - `docs/_source/`는 병합 대상 원본이며 `.gitignore` 대상이다. 참조는 하되 수정하지 않는다.
 - 결정 사항은 `docs/adr/`에 ADR로 남긴다.
-- 마스터 계획은 현재 "승인 대기" 상태다. 계획 자체를 바꾸는 변경은 먼저 확인을 받는다.
+- 마스터 계획은 2026-08-21에 승인됐다. 계획 자체를 바꾸는 변경은 먼저 확인을 받는다.
+- 검증 게이트는 `pnpm verify`(typecheck → lint → test → build)와 `pnpm test:e2e`다. 완료를 주장하기 전에 실행 결과를 제시한다.
 
 ## 5. 문서 갱신
 

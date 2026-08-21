@@ -1,6 +1,7 @@
 # Node
 node_modules/
 dist/
+dist-types/
 .vite/
 *.tsbuildinfo
 
@@ -18,14 +19,26 @@ venv/
 # Test / build output
 playwright-report/
 test-results/
+blob-report/
+.playwright/
 coverage/
 
 # Tooling state
 .omc/
+!.omc/skills/
 .DS_Store
 Thumbs.db
+*.swp
 
 # Local secrets
 .env
 .env.local
+.env.*.local
 
+# 병합 대상 원본 문서 (AGENTS.md 4절)
+docs/_source/
+
+# 실프로젝트 IFC 모델은 저장소에 넣지 않는다. GitHub 파일 상한(100MB)을 넘고 원본은 로컬 보관이다.
+# 저장소에 두는 fixture는 minimal-* 소형 파일만이다 (AGENTS.md 2.8절).
+packages/test-fixtures/ifc/*.ifc
+!packages/test-fixtures/ifc/minimal-*.ifc

@@ -1,0 +1,17 @@
+{
+  "files": [],
+  "references": [
+    {
+      "path": "./packages/contracts"
+    },
+    {
+      "path": "./packages/domain"
+    },
+    {
+      "path": "./packages/test-fixtures"
+    },
+    {
+      "path": "./apps/viewer-web"
+    }
+  ]
+}
