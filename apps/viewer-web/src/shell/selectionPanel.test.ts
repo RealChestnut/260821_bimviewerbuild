@@ -24,6 +24,11 @@ const selected = {
   globalId: '0ZQeYb8Yr9UfXcM1kTPvJd' as GlobalId,
 };
 
+const other = {
+  modelId: 'model-1' as ModelId,
+  globalId: '3vB2_1Ks9E1QF$aVJ0Zt_h' as GlobalId,
+};
+
 describe('createSelectionPanel', () => {
   beforeEach(() => {
     document.body.innerHTML = `<p data-testid="selection-globalid"></p>`;
@@ -40,17 +45,26 @@ describe('createSelectionPanel', () => {
     const context = createTestContext();
     await startPanel(context);
 
-    await context.events.publish('selection/changed', { selected });
+    await context.events.publish('selection/changed', { selected: [selected] });
 
     expect(text()).toBe('GlobalId: 0ZQeYb8Yr9UfXcM1kTPvJd');
+  });
+
+  it('여러 개를 선택하면 개수를 보여 준다', async () => {
+    const context = createTestContext();
+    await startPanel(context);
+
+    await context.events.publish('selection/changed', { selected: [selected, other] });
+
+    expect(text()).toBe('2개 선택');
   });
 
   it('선택을 풀면 안내 문구로 돌아간다', async () => {
     const context = createTestContext();
     await startPanel(context);
 
-    await context.events.publish('selection/changed', { selected });
-    await context.events.publish('selection/changed', { selected: null });
+    await context.events.publish('selection/changed', { selected: [selected] });
+    await context.events.publish('selection/changed', { selected: [] });
 
     expect(text()).toBe('선택 없음');
   });
@@ -61,7 +75,7 @@ describe('createSelectionPanel', () => {
 
     await panel.stop();
     await panel.dispose();
-    await context.events.publish('selection/changed', { selected });
+    await context.events.publish('selection/changed', { selected: [selected] });
 
     expect(text()).toBe('선택 없음');
   });

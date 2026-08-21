@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 
 import { describe, expect, it } from 'vitest';
 
-import { ifcFixtures, minimalWallIfc4 } from './index.js';
+import { ifcFixtures, minimalWallIfc4, threeElementsIfc4 } from './index.js';
 
 const readFixture = (path: string): string => readFileSync(path, 'utf8');
 
@@ -54,6 +54,20 @@ describe('IFC fixtures', () => {
     expect(content).toMatch(/=IFCBUILDINGSTOREY\(/u);
     expect([...content.matchAll(/=IFCWALL\(/gu)]).toHaveLength(1);
     expect(content).toMatch(/=IFCRELCONTAINEDINSPATIALSTRUCTURE\(/u);
+  });
+
+  it('three-elements-ifc4는 서로 다른 Entity 3개를 담는다', () => {
+    const content = readFixture(threeElementsIfc4.path);
+    expect([...content.matchAll(/=IFCWALL\(/gu)]).toHaveLength(2);
+    expect([...content.matchAll(/=IFCSLAB\(/gu)]).toHaveLength(1);
+  });
+
+  it('three-elements-ifc4는 표준 Pset과 자체 접두어 Pset, Qto를 함께 담는다', () => {
+    const content = readFixture(threeElementsIfc4.path);
+    expect(content).toContain("'Pset_WallCommon'");
+    // 내부에서 만드는 Pset은 예약 접두어 Pset_을 쓰지 않는다 (AGENTS.md 2.4).
+    expect(content).toContain("'BIM4D_Custom'");
+    expect(content).toContain("'Qto_WallBaseQuantities'");
   });
 
   it('원본 Pset을 보존하는지 확인할 수 있게 Pset을 담는다', () => {

@@ -19,6 +19,7 @@ export interface SelectionPort {
     readonly clientX: number;
     readonly clientY: number;
   }): Promise<SelectionHit | null>;
-  highlight(hit: SelectionHit): Promise<void>;
+  /** 주어진 객체만 강조한다. 이전 강조는 지운다. */
+  highlight(hits: readonly SelectionHit[]): Promise<void>;
   clearHighlight(): Promise<void>;
 }

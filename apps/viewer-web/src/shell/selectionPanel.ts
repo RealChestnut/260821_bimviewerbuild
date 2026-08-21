@@ -40,7 +40,17 @@ export const createSelectionPanel = (options: SelectionPanelOptions): AppCompone
     start: () => {
       if (context === null) throw new Error('initialize를 먼저 호출해야 한다.');
       subscription ??= context.events.subscribe('selection/changed', ({ payload }) => {
-        write(payload.selected === null ? IDLE_TEXT : `GlobalId: ${payload.selected.globalId}`);
+        const [first] = payload.selected;
+        if (first === undefined) {
+          write(IDLE_TEXT);
+          return;
+        }
+        // 여러 개를 고른 경우 GlobalId를 나열하면 헤더가 넘친다. 개수만 보여 준다.
+        write(
+          payload.selected.length === 1
+            ? `GlobalId: ${first.globalId}`
+            : `${String(payload.selected.length)}개 선택`,
+        );
       });
       return Promise.resolve();
     },
