@@ -1,0 +1,109 @@
+# BIM 4D Viewer
+
+다양한 도구에서 내보낸 IFC 모델을 불러와 공정과 연결하고 4D 시뮬레이션을 수행하는 Windows용 독립 실행형 애플리케이션이다.
+
+- 제품 목표와 로드맵: [docs/DEVELOPMENT_MASTER_PLAN.md](docs/DEVELOPMENT_MASTER_PLAN.md)
+- 에이전트 작업 규칙: [AGENTS.md](AGENTS.md)
+- IFC 기술 기준서: [docs/IFC_통합_정리_2026-08-20.md](docs/IFC_통합_정리_2026-08-20.md)
+- 결정 기록: [docs/adr/](docs/adr/)
+
+현재 단계는 **Phase 0 — 저장소와 품질 기반**이다.
+
+## 요구 환경
+
+- Node.js 22 이상
+- pnpm 10.34.5 (`npm i -g pnpm@10`)
+- Playwright 브라우저 (`pnpm exec playwright install chromium`)
+
+## 시작하기
+
+```bash
+pnpm install
+pnpm verify        # typecheck + lint + unit test + build
+pnpm --filter @bim4d/viewer-web dev
+```
+
+## 명령
+
+| 명령                | 설명                                                   |
+| ------------------- | ------------------------------------------------------ |
+| `pnpm typecheck`    | 빌드 대상과 테스트 코드의 strict 타입 검사             |
+| `pnpm lint`         | ESLint (type-aware)                                    |
+| `pnpm format:check` | Prettier 형식 검사                                     |
+| `pnpm test`         | Vitest 단위·계약 테스트                                |
+| `pnpm test:e2e`     | Playwright 브라우저 테스트 (빌드 후 preview 서버 기동) |
+| `pnpm build`        | 패키지와 Viewer 웹 앱 빌드                             |
+| `pnpm verify`       | 위 게이트를 순서대로 실행                              |
+
+## 저장소 구조
+
+```text
+apps/
+ ├─ viewer-web/          TypeScript Viewer와 Scheduler UI (Kernel 포함)
+ └─ desktop/             C# WPF Shell (Phase 8)
+services/
+ └─ ifc-worker/          Python IfcOpenShell Worker (Phase 7)
+packages/
+ ├─ contracts/           Command, Event, DTO 타입 계약
+ ├─ domain/              순수 도메인 규칙
+ └─ test-fixtures/       IFC와 일정 fixture
+tests/
+ ├─ e2e/                 Playwright 시나리오
+ ├─ integration/         모듈 간 통합 테스트
+ └─ performance/         성능 측정
+docs/
+ ├─ DEVELOPMENT_MASTER_PLAN.md
+ └─ adr/                 아키텍처 결정 기록
+```
+
+## 아키텍처 요약
+
+- Typed Event-Driven Modular Monolith + Ports/Adapters + Vertical Slice
+- Domain은 That Open Components, WPF, IfcOpenShell을 직접 참조하지 않는다
+- 모듈 간 영구 식별자는 `modelId + IfcRoot.GlobalId`다
+- 모든 장기 실행 기능은 `AppComponent` 생명주기(`initialize` → `start` → `stop` → `dispose`)를 구현한다
+
+Kernel 사용 예:
+
+```ts
+import { createKernel } from './kernel/index.js';
+
+const kernel = createKernel();
+kernel.register(myComponent);
+await kernel.start();
+// ...
+await kernel.shutdown();
+```
+
+Event와 Command 이름은 문자열로 흩어 쓰지 않는다. Feature 슬라이스가 `AppEventMap`, `AppCommandMap`에 선언 병합으로 등록한다.
+
+```ts
+declare module '@bim4d/contracts' {
+  interface AppEventMap {
+    'viewer/model-loaded': { readonly modelId: ModelId };
+  }
+}
+```
+
+## 라이브러리 버전 고정
+
+That Open 계열은 peer 범위가 `~`로 묶여 있어 개별 업그레이드하지 않는다. Phase 0에서 확인한 조합:
+
+| 패키지                       | 버전    | 비고                              |
+| ---------------------------- | ------- | --------------------------------- |
+| `@thatopen/components`       | 3.4.8   | peer `@thatopen/fragments ~3.4.7` |
+| `@thatopen/components-front` | 3.4.4   | peer `@thatopen/fragments ~3.4.0` |
+| `@thatopen/fragments`        | 3.4.7   | 위 두 peer 범위를 동시에 만족     |
+| `three`                      | 0.185.1 | peer `>=0.182.0`                  |
+| `web-ifc`                    | 0.0.77  | peer `>=0.0.77`                   |
+| `camera-controls`            | 3.1.2   | peer `>=3.1.2`                    |
+
+TypeScript는 5.9.3으로 고정한다. typescript-eslint 8.67의 peer 범위(`>=4.8.4 <6.1.0`)를 벗어나지 않기 위해서다.
+
+## 기여 규칙
+
+- 테스트 없이 기능 코드를 추가하지 않는다 (TDD).
+- 기능 하나를 하나의 브랜치와 작은 PR로 다룬다. 브랜치 이름은 `feature/`, `fix/`, `chore/`를 쓴다.
+- 커밋 메시지는 Conventional Commits를 따른다.
+- 결정은 `docs/adr/`에 ADR로 남긴다. ADR이 기준서보다 우선한다.
+- 작업 시작 전 [AGENTS.md](AGENTS.md)를 읽는다. IFC 관련 작업은 1절과 2절을 먼저 확인한다.

@@ -1,0 +1,32 @@
+{
+  "name": "bim-4d-viewer",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@10.34.5",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "build": "pnpm --filter \"./packages/**\" --filter ./apps/viewer-web -r build",
+    "typecheck": "tsc --build --force && tsc -p tsconfig.tests.json",
+    "lint": "eslint .",
+    "format:check": "prettier --check .",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:e2e": "playwright test",
+    "verify": "pnpm typecheck && pnpm lint && pnpm test && pnpm build"
+  },
+  "devDependencies": {
+    "@eslint/js": "10.0.1",
+    "@playwright/test": "1.62.1",
+    "@types/node": "26.2.0",
+    "eslint": "10.8.1",
+    "eslint-config-prettier": "10.1.8",
+    "jsdom": "30.0.1",
+    "prettier": "3.9.6",
+    "typescript": "5.9.3",
+    "typescript-eslint": "8.67.0",
+    "vitest": "4.1.11"
+  }
+}

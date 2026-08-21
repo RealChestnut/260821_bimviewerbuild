@@ -1,0 +1,6 @@
+packages:
+  - 'apps/viewer-web'
+  - 'packages/*'
+
+onlyBuiltDependencies:
+  - esbuild

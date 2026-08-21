@@ -1,0 +1,26 @@
+{
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "types": ["node"],
+    "noEmit": true,
+    "composite": false,
+    "incremental": false,
+    "declaration": false,
+    "declarationMap": false,
+    "paths": {
+      "@bim4d/contracts": ["./packages/contracts/src/index.ts"],
+      "@bim4d/domain": ["./packages/domain/src/index.ts"],
+      "@bim4d/test-fixtures": ["./packages/test-fixtures/src/index.ts"]
+    }
+  },
+  "include": [
+    "packages/*/src/**/*.test.ts",
+    "apps/viewer-web/src/**/*.test.ts",
+    "apps/viewer-web/src/kernel/testing/**/*.ts",
+    "tests/e2e/**/*.ts",
+    "vitest.config.ts",
+    "playwright.config.ts",
+    "apps/viewer-web/vite.config.ts"
+  ]
+}

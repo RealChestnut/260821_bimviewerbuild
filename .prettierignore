@@ -1,0 +1,12 @@
+dist
+coverage
+node_modules
+playwright-report
+test-results
+pnpm-lock.yaml
+packages/test-fixtures/ifc
+
+# 기존 문서는 형식을 그대로 둔다. Prettier가 표를 다시 정렬하면 무관한 변경이 섞인다.
+docs/
+AGENTS.md
+CLAUDE.md

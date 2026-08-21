@@ -1,0 +1,14 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "rootDir": "./src",
+    "outDir": "./dist-types",
+    "tsBuildInfoFile": "./dist-types/.tsbuildinfo",
+    "noEmit": false,
+    "types": ["vite/client"]
+  },
+  "include": ["src/**/*.ts"],
+  "exclude": ["src/**/*.test.ts", "src/**/testing/**"],
+  "references": [{ "path": "../../packages/contracts" }, { "path": "../../packages/domain" }]
+}

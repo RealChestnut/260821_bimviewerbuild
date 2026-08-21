@@ -1,6 +1,7 @@
 # Node
 node_modules/
 dist/
+dist-types/
 .vite/
 *.tsbuildinfo
 
@@ -18,14 +19,21 @@ venv/
 # Test / build output
 playwright-report/
 test-results/
+blob-report/
+.playwright/
 coverage/
 
 # Tooling state
 .omc/
+!.omc/skills/
 .DS_Store
 Thumbs.db
+*.swp
 
 # Local secrets
 .env
 .env.local
+.env.*.local
 
+# 병합 대상 원본 문서 (AGENTS.md 4절)
+docs/_source/
