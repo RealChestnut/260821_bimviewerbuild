@@ -39,6 +39,25 @@
         margin: 0;
       }
 
+      .spacer {
+        flex: 1;
+      }
+
+      .file-label {
+        font-size: 0.85rem;
+        cursor: pointer;
+      }
+
+      .file-label input {
+        max-width: 12rem;
+      }
+
+      #model-status {
+        font-size: 0.8rem;
+        margin: 0;
+        min-width: 14rem;
+      }
+
       #kernel-status {
         font-size: 0.8rem;
         opacity: 0.7;
@@ -57,6 +76,13 @@
       <header>
         <h1 data-testid="app-title">BIM 4D Viewer</h1>
         <p id="kernel-status" data-testid="kernel-status">kernel: booting</p>
+        <div class="spacer"></div>
+        <label class="file-label">
+          IFC 열기
+          <input type="file" accept=".ifc" data-testid="model-file" />
+        </label>
+        <button type="button" data-testid="model-unload" disabled>모델 해제</button>
+        <p id="model-status" data-testid="model-status">열린 모델 없음</p>
       </header>
       <main id="viewer-container" data-testid="viewer-container"></main>
     </div>

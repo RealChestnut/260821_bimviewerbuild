@@ -42,3 +42,6 @@ docs/_source/
 # 저장소에 두는 fixture는 minimal-* 소형 파일만이다 (AGENTS.md 2.8절).
 packages/test-fixtures/ifc/*.ifc
 !packages/test-fixtures/ifc/minimal-*.ifc
+
+# vendor 자산은 빌드 시 node_modules에서 복사한다 (ADR-0004)
+apps/viewer-web/public/vendor/

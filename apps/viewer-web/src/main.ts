@@ -1,22 +1,43 @@
+import type { ModelId } from '@bim4d/contracts';
+
+import { createInMemoryModelRepository } from './adapters/inMemoryModelRepository.js';
+import { createThatOpenViewerAdapter } from './adapters/thatopen/thatOpenViewerAdapter.js';
 import { createKernel } from './kernel/index.js';
+import { createModelPanel } from './shell/modelPanel.js';
 import { createStatusComponent } from './shell/statusComponent.js';
-import { createThatOpenWorldFactory } from './adapters/thatopen/thatOpenWorldFactory.js';
+import { createModelLoadingComponent } from './viewer/model/modelLoadingComponent.js';
 import { createViewerWorldComponent } from './viewer/viewerWorldComponent.js';
 
 /**
  * 애플리케이션 진입점.
  *
- * Phase 1 범위는 Kernel 기동과 Viewer World 생성·해제까지다.
- * 모델 적재는 Phase 2에서 이 자리에 Component로 추가한다.
+ * Component 등록 순서가 곧 생명주기 순서다. World가 먼저 서야 모델을 올릴 수 있고,
+ * 해제는 역순으로 진행되므로 모델이 먼저 내려간 뒤 World가 사라진다.
  */
 const bootstrap = async (): Promise<void> => {
   const kernel = createKernel();
+  const viewer = createThatOpenViewerAdapter();
+  const repository = createInMemoryModelRepository();
 
   kernel.register(createStatusComponent({ selector: '[data-testid="kernel-status"]' }));
   kernel.register(
     createViewerWorldComponent({
       selector: '[data-testid="viewer-container"]',
-      factory: createThatOpenWorldFactory(),
+      factory: viewer.worldFactory,
+    }),
+  );
+  kernel.register(
+    createModelLoadingComponent({
+      loader: viewer.modelLoader,
+      repository,
+      newModelId: () => globalThis.crypto.randomUUID() as ModelId,
+    }),
+  );
+  kernel.register(
+    createModelPanel({
+      fileInputSelector: '[data-testid="model-file"]',
+      unloadButtonSelector: '[data-testid="model-unload"]',
+      statusSelector: '[data-testid="model-status"]',
     }),
   );
 
