@@ -86,8 +86,56 @@
 
       #workspace {
         display: grid;
-        grid-template-columns: 18rem 1fr;
+        grid-template-columns: 18rem 1fr 20rem;
         min-height: 0;
+      }
+
+      #property-panel {
+        border-left: 1px solid rgb(0 0 0 / 15%);
+        overflow: auto;
+        padding: 0.5rem 0.75rem;
+        font-size: 0.8rem;
+      }
+
+      #property-panel h2 {
+        font-size: 0.95rem;
+        margin: 0;
+      }
+
+      #property-panel h3 {
+        font-size: 0.8rem;
+        margin: 0.9rem 0 0.25rem;
+        opacity: 0.75;
+      }
+
+      #property-panel table {
+        width: 100%;
+        border-collapse: collapse;
+      }
+
+      #property-panel th,
+      #property-panel td {
+        text-align: left;
+        vertical-align: top;
+        padding: 0.1rem 0.3rem 0.1rem 0;
+        font-weight: 400;
+        word-break: break-word;
+      }
+
+      #property-panel th {
+        width: 45%;
+        opacity: 0.75;
+      }
+
+      .property-category {
+        margin: 0.1rem 0 0;
+        opacity: 0.7;
+        font-family: ui-monospace, 'Cascadia Mono', Consolas, monospace;
+      }
+
+      .property-empty {
+        margin: 0;
+        opacity: 0.7;
       }
 
       #spatial-tree {
@@ -174,6 +222,7 @@
       <div id="workspace">
         <aside id="spatial-tree" data-testid="spatial-tree"></aside>
         <main id="viewer-container" data-testid="viewer-container"></main>
+        <aside id="property-panel" data-testid="property-panel"></aside>
       </div>
     </div>
     <script type="module" src="/src/main.ts"></script>
