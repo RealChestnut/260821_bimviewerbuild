@@ -5,9 +5,11 @@ import { createThatOpenViewerAdapter } from './adapters/thatopen/thatOpenViewerA
 import { createKernel } from './kernel/index.js';
 import { createModelPanel } from './shell/modelPanel.js';
 import { createSelectionPanel } from './shell/selectionPanel.js';
+import { createVisibilityPanel } from './shell/visibilityPanel.js';
 import { createStatusComponent } from './shell/statusComponent.js';
 import { createModelLoadingComponent } from './viewer/model/modelLoadingComponent.js';
 import { createSelectionComponent } from './viewer/selection/selectionComponent.js';
+import { createVisibilityComponent } from './viewer/visibility/visibilityComponent.js';
 import { createViewerWorldComponent } from './viewer/viewerWorldComponent.js';
 
 /**
@@ -41,6 +43,7 @@ const bootstrap = async (): Promise<void> => {
       port: viewer.selection,
     }),
   );
+  kernel.register(createVisibilityComponent({ port: viewer.visibility }));
   kernel.register(
     createModelPanel({
       fileInputSelector: '[data-testid="model-file"]',
@@ -49,6 +52,14 @@ const bootstrap = async (): Promise<void> => {
     }),
   );
   kernel.register(createSelectionPanel({ selector: '[data-testid="selection-globalid"]' }));
+  kernel.register(
+    createVisibilityPanel({
+      hideButtonSelector: '[data-testid="hide-selected"]',
+      isolateButtonSelector: '[data-testid="isolate-selected"]',
+      showAllButtonSelector: '[data-testid="show-all"]',
+      statusSelector: '[data-testid="visibility-status"]',
+    }),
+  );
 
   await kernel.start();
 
