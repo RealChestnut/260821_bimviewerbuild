@@ -6,6 +6,12 @@
 interface Bim4dHostApi {
   /** Component를 stop → dispose 순서로 해제한다. 여러 번 불러도 한 번만 수행한다. */
   shutdown(): Promise<void>;
+
+  /**
+   * 애플리케이션 Event를 구독한다. Shell이 창 제목이나 메뉴 상태를 갱신할 때 쓴다.
+   * 이름은 `AppEventMap`의 키다. 반환값을 호출하면 구독을 해지한다.
+   */
+  subscribe(eventName: string, handler: (payload: unknown) => void): () => void;
 }
 
 interface Window {

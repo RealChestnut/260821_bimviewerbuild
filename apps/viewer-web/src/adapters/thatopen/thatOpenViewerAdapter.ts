@@ -1,8 +1,11 @@
 import * as OBC from '@thatopen/components';
+import * as FRAGS from '@thatopen/fragments';
+import * as THREE from 'three';
 
-import type { ModelId } from '@bim4d/contracts';
+import type { GlobalId, ModelId } from '@bim4d/contracts';
 
 import type { ModelLoaderPort, ModelLoadRequest } from '../../viewer/model/modelLoaderPort.js';
+import type { SelectionHit, SelectionPort } from '../../viewer/selection/selectionPort.js';
 import type { ViewerWorld, ViewerWorldFactory } from '../../viewer/viewerWorldPort.js';
 
 export interface ThatOpenViewerAdapterOptions {
@@ -18,6 +21,8 @@ export interface ThatOpenViewerAdapterOptions {
     readonly position: readonly [number, number, number];
     readonly target: readonly [number, number, number];
   };
+  /** 선택 강조 색. 기본값은 파랑이다. */
+  readonly highlightColor?: number;
 }
 
 const DEFAULTS = {
@@ -27,6 +32,7 @@ const DEFAULTS = {
     position: [12, 8, 12],
     target: [0, 0, 0],
   },
+  highlightColor: 0x2f7de1,
 } as const;
 
 interface ViewerState {
@@ -39,6 +45,7 @@ interface ViewerState {
 export interface ThatOpenViewerAdapter {
   readonly worldFactory: ViewerWorldFactory;
   readonly modelLoader: ModelLoaderPort;
+  readonly selection: SelectionPort;
 }
 
 /**
@@ -53,6 +60,7 @@ export const createThatOpenViewerAdapter = (
   const wasmPath = options.wasmPath ?? DEFAULTS.wasmPath;
   const workerUrl = options.workerUrl ?? DEFAULTS.workerUrl;
   const initialCamera = options.initialCamera ?? DEFAULTS.initialCamera;
+  const highlightColor = options.highlightColor ?? DEFAULTS.highlightColor;
 
   let state: ViewerState | null = null;
 
@@ -124,6 +132,49 @@ export const createThatOpenViewerAdapter = (
     },
   };
 
+  /** Adapter 내부의 fragments 모델 id를 우리 ModelId로 되돌린다. */
+  const toModelId = (current: ViewerState, fragmentsModelId: string): ModelId | undefined => {
+    for (const [modelId, id] of current.models) {
+      if (id === fragmentsModelId) return modelId;
+    }
+    return undefined;
+  };
+
+  /**
+   * 적재한 모델 전체가 보이도록 카메라를 맞춘다.
+   *
+   * 측량 좌표계로 저장된 모델은 원점에서 수 킬로미터 떨어져 있어, 맞추지 않으면 화면에
+   * 아무것도 보이지 않는다.
+   */
+  const fitToLoadedModels = async (current: ViewerState): Promise<void> => {
+    const boxer = current.components.get(OBC.BoundingBoxer);
+    boxer.dispose();
+    boxer.addFromModels();
+    const box = boxer.get();
+    boxer.dispose();
+
+    if (box.isEmpty()) return;
+
+    // fitToBox는 카메라를 축에 맞춰 돌려 버려서 모델을 정면이나 옆면으로 보게 된다.
+    // 방향은 초기 시점과 같은 대각선으로 유지하고 거리만 모델 크기에 맞춘다.
+    const center = box.getCenter(new THREE.Vector3());
+    const radius = Math.max(box.getSize(new THREE.Vector3()).length() / 2, 1);
+    const direction = new THREE.Vector3(...initialCamera.position)
+      .sub(new THREE.Vector3(...initialCamera.target))
+      .normalize();
+    const position = center.clone().add(direction.multiplyScalar(radius * 2.5));
+
+    await current.world.camera.controls.setLookAt(
+      position.x,
+      position.y,
+      position.z,
+      center.x,
+      center.y,
+      center.z,
+      false,
+    );
+  };
+
   const modelLoader: ModelLoaderPort = {
     load: async (request: ModelLoadRequest): Promise<void> => {
       const current = requireState();
@@ -145,6 +196,7 @@ export const createThatOpenViewerAdapter = (
       current.models.set(request.modelId, model.modelId);
 
       await fragments.core.update(true);
+      await fitToLoadedModels(current);
     },
 
     unload: async (modelId: ModelId): Promise<boolean> => {
@@ -170,5 +222,72 @@ export const createThatOpenViewerAdapter = (
     loadedModelIds: (): readonly ModelId[] => [...(state?.models.keys() ?? [])],
   };
 
-  return { worldFactory, modelLoader };
+  const selection: SelectionPort = {
+    pickAt: async (point): Promise<SelectionHit | null> => {
+      const current = state;
+      if (current === null || current.models.size === 0) return null;
+
+      const canvas = current.world.renderer?.three.domElement;
+      if (canvas === undefined) return null;
+
+      const fragments = current.components.get(OBC.FragmentsManager);
+      if (!fragments.initialized) return null;
+
+      // raycast의 mouse는 client 좌표를 그대로 받는다. 내부에서 캔버스 사각형으로 정규화한다.
+      const result = await fragments.raycast({
+        camera: current.world.camera.three,
+        mouse: new THREE.Vector2(point.clientX, point.clientY),
+        dom: canvas,
+      });
+      if (result === undefined) return null;
+
+      const modelId = toModelId(current, result.fragments.modelId);
+      if (modelId === undefined) return null;
+
+      const guids = await fragments.modelIdMapToGuids({
+        [result.fragments.modelId]: new Set([result.localId]),
+      });
+      const globalId = guids[0];
+      // GlobalId가 없는 객체는 영구 키를 만들 수 없으므로 선택 대상에서 제외한다.
+      if (globalId === undefined) return null;
+
+      return { modelId, globalId: globalId as GlobalId, localId: result.localId };
+    },
+
+    highlight: async (hit): Promise<void> => {
+      const current = state;
+      if (current === null) return;
+      const fragmentsModelId = current.models.get(hit.modelId);
+      if (fragmentsModelId === undefined) return;
+
+      const fragments = current.components.get(OBC.FragmentsManager);
+      await fragments.resetHighlight();
+      await fragments.highlight(
+        {
+          color: new THREE.Color(highlightColor),
+          opacity: 1,
+          transparent: false,
+          renderedFaces: FRAGS.RenderedFaces.TWO,
+        },
+        { [fragmentsModelId]: new Set([hit.localId]) },
+      );
+      await fragments.core.update(true);
+    },
+
+    clearHighlight: async (): Promise<void> => {
+      const current = state;
+      if (current === null) return;
+
+      const fragments = current.components.get(OBC.FragmentsManager);
+      if (!fragments.initialized) return;
+      await fragments.resetHighlight();
+
+      // 남은 모델이 없을 때의 강제 update는 돌아오지 않을 수 있다 (ADR-0004).
+      if (current.models.size > 0) {
+        await fragments.core.update(true);
+      }
+    },
+  };
+
+  return { worldFactory, modelLoader, selection };
 };
