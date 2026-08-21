@@ -29,5 +29,3 @@ Thumbs.db
 .env
 .env.local
 
-# Merge sources (review then delete)
-docs/_source/
