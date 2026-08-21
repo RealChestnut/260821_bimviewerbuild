@@ -18,7 +18,8 @@ export default defineConfig({
   },
   projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'] } }],
   webServer: {
-    command: 'pnpm --filter @bim4d/viewer-web build && pnpm --filter @bim4d/viewer-web preview',
+    // 워크스페이스 패키지(contracts, domain)는 dist를 통해 참조되므로 앱보다 먼저 빌드해야 한다.
+    command: 'pnpm build && pnpm --filter @bim4d/viewer-web preview',
     url: baseURL,
     reuseExistingServer: !isCI,
     timeout: 120_000,
