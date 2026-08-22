@@ -9,12 +9,14 @@ import { createModelPanel } from './shell/modelPanel.js';
 import { createSelectionPanel } from './shell/selectionPanel.js';
 import { createVisibilityPanel } from './shell/visibilityPanel.js';
 import { createSimulationPanel } from './shell/simulationPanel.js';
+import { createViewpointPanel } from './shell/viewpointPanel.js';
 import { createStatusComponent } from './shell/statusComponent.js';
 import { createSimulationComponent } from './simulation/simulationComponent.js';
 import { createModelLoadingComponent } from './viewer/model/modelLoadingComponent.js';
 import { createCameraComponent } from './viewer/camera/cameraComponent.js';
 import { createClippingComponent } from './viewer/clipping/clippingComponent.js';
 import { createSelectionComponent } from './viewer/selection/selectionComponent.js';
+import { createViewpointComponent } from './viewer/viewpoint/viewpointComponent.js';
 import { createVisibilityComponent } from './viewer/visibility/visibilityComponent.js';
 import { createViewerWorldComponent } from './viewer/viewerWorldComponent.js';
 
@@ -52,6 +54,12 @@ const bootstrap = async (): Promise<void> => {
   kernel.register(createVisibilityComponent({ port: viewer.visibility }));
   kernel.register(createClippingComponent({ port: viewer.clipping }));
   kernel.register(createCameraComponent({ port: viewer.camera }));
+  kernel.register(
+    createViewpointComponent({
+      port: viewer.viewpoint,
+      newViewpointId: () => globalThis.crypto.randomUUID(),
+    }),
+  );
   kernel.register(createSimulationComponent({ port: viewer.simulation }));
   kernel.register(
     createModelPanel({
@@ -79,6 +87,14 @@ const bootstrap = async (): Promise<void> => {
         TOP: '[data-testid="view-top"]',
         ISO: '[data-testid="view-iso"]',
       },
+    }),
+  );
+  kernel.register(
+    createViewpointPanel({
+      saveButtonSelector: '[data-testid="viewpoint-save"]',
+      listSelector: '[data-testid="viewpoint-list"]',
+      restoreButtonSelector: '[data-testid="viewpoint-restore"]',
+      removeButtonSelector: '[data-testid="viewpoint-remove"]',
     }),
   );
   kernel.register(createSelectionPanel({ selector: '[data-testid="selection-globalid"]' }));

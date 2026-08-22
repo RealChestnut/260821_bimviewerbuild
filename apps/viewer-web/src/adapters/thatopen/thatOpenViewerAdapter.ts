@@ -9,6 +9,7 @@ import type { DisplayStateChange, SimulationViewPort } from '../../simulation/si
 import type { CameraPort, StandardView } from '../../viewer/camera/cameraPort.js';
 import type { ClipAxis, ClippingPort } from '../../viewer/clipping/clippingPort.js';
 import type { VisibilityPort } from '../../viewer/visibility/visibilityPort.js';
+import type { CameraPose, ViewpointPort } from '../../viewer/viewpoint/viewpointPort.js';
 import type { SelectionHit, SelectionPort } from '../../viewer/selection/selectionPort.js';
 import type { ViewerWorld, ViewerWorldFactory } from '../../viewer/viewerWorldPort.js';
 
@@ -57,6 +58,7 @@ export interface ThatOpenViewerAdapter {
   readonly simulation: SimulationViewPort;
   readonly clipping: ClippingPort;
   readonly camera: CameraPort;
+  readonly viewpoint: ViewpointPort;
 }
 
 /**
@@ -579,5 +581,40 @@ export const createThatOpenViewerAdapter = (
     },
   };
 
-  return { worldFactory, modelLoader, selection, visibility, simulation, clipping, camera };
+  const viewpoint: ViewpointPort = {
+    capture: (): Promise<CameraPose | null> => {
+      const current = state;
+      if (current === null) return Promise.resolve(null);
+
+      const controls = current.world.camera.controls;
+      const position = controls.getPosition(new THREE.Vector3());
+      const target = controls.getTarget(new THREE.Vector3());
+
+      return Promise.resolve({
+        position: [position.x, position.y, position.z],
+        target: [target.x, target.y, target.z],
+      });
+    },
+
+    restore: async (pose): Promise<boolean> => {
+      const current = state;
+      if (current === null) return false;
+
+      const [px, py, pz] = pose.position;
+      const [tx, ty, tz] = pose.target;
+      await current.world.camera.controls.setLookAt(px, py, pz, tx, ty, tz, false);
+      return true;
+    },
+  };
+
+  return {
+    worldFactory,
+    modelLoader,
+    selection,
+    visibility,
+    simulation,
+    clipping,
+    camera,
+    viewpoint,
+  };
 };
