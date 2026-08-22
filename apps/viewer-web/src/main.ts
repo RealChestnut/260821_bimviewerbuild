@@ -47,7 +47,7 @@ const bootstrap = async (): Promise<void> => {
   kernel.register(
     createModelPanel({
       fileInputSelector: '[data-testid="model-file"]',
-      unloadButtonSelector: '[data-testid="model-unload"]',
+      listSelector: '[data-testid="model-list"]',
       statusSelector: '[data-testid="model-status"]',
     }),
   );

@@ -55,7 +55,27 @@
       #model-status {
         font-size: 0.8rem;
         margin: 0;
-        min-width: 14rem;
+        min-width: 8rem;
+      }
+
+      /* 열린 모델은 여러 개일 수 있다. 줄마다 이름과 자기 해제 버튼을 갖는다. */
+      #model-list {
+        display: flex;
+        align-items: baseline;
+        gap: 0.75rem;
+        list-style: none;
+        margin: 0;
+        padding: 0;
+        min-width: 0;
+        overflow-x: auto;
+      }
+
+      #model-list li {
+        display: flex;
+        align-items: baseline;
+        gap: 0.35rem;
+        font-size: 0.8rem;
+        white-space: nowrap;
       }
 
       .divider {
@@ -101,7 +121,7 @@
           IFC 열기
           <input type="file" accept=".ifc" data-testid="model-file" />
         </label>
-        <button type="button" data-testid="model-unload" disabled>모델 해제</button>
+        <ul id="model-list" data-testid="model-list"></ul>
         <span class="divider"></span>
         <button type="button" data-testid="hide-selected" disabled>숨기기</button>
         <button type="button" data-testid="isolate-selected" disabled>격리</button>

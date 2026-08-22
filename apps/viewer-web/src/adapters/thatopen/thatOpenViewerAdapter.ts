@@ -185,7 +185,10 @@ export const createThatOpenViewerAdapter = (
       const ifcLoader = current.components.get(OBC.IfcLoader);
       const fragments = current.components.get(OBC.FragmentsManager);
 
-      const model = await ifcLoader.load(request.bytes, true, request.displayName, {
+      // fragments는 세 번째 인자를 모델 식별자로 쓴다. 연합 모델에서는 같은 파일을 두 번
+      // 열 수 있으므로 파일명만으로는 충돌한다. 우리 modelId를 덧붙여 고유하게 만든다.
+      const fragmentsModelName = `${request.displayName}#${request.modelId}`;
+      const model = await ifcLoader.load(request.bytes, true, fragmentsModelName, {
         processData: {
           progressCallback: (progress: number) => {
             request.onProgress?.(progress);
@@ -299,14 +302,41 @@ export const createThatOpenViewerAdapter = (
     },
   };
 
-  /** 영구 키 목록을 Adapter 내부 식별자 묶음으로 되돌린다. */
+  /**
+   * 영구 키 목록을 Adapter 내부 식별자 묶음으로 되돌린다.
+   *
+   * GlobalId는 파일 안에서만 고유하다. 연합 모델에서 같은 파일이 두 번 열려 있으면
+   * 같은 GlobalId가 두 모델에 존재하는데, `guidsToModelIdMap`은 열린 모델을 전부 뒤진다.
+   * 영구 키가 지목한 모델의 것만 남겨야 한쪽만 숨기거나 격리할 수 있다.
+   */
   const toItems = async (
     current: ViewerState,
     products: readonly ProductKey[],
   ): Promise<Record<string, Set<number>>> => {
+    if (products.length === 0) return {};
+
+    const byModel = new Map<ModelId, GlobalId[]>();
+    for (const product of products) {
+      const bucket = byModel.get(product.modelId);
+      if (bucket === undefined) {
+        byModel.set(product.modelId, [product.globalId]);
+      } else {
+        bucket.push(product.globalId);
+      }
+    }
+
     const fragments = current.components.get(OBC.FragmentsManager);
-    const globalIds = products.map((product) => product.globalId);
-    return globalIds.length === 0 ? {} : await fragments.guidsToModelIdMap(globalIds);
+    const items: Record<string, Set<number>> = {};
+
+    for (const [modelId, globalIds] of byModel) {
+      const fragmentsModelId = current.models.get(modelId);
+      if (fragmentsModelId === undefined) continue;
+
+      const found = await fragments.guidsToModelIdMap(globalIds);
+      const localIds = found[fragmentsModelId];
+      if (localIds !== undefined) items[fragmentsModelId] = localIds;
+    }
+    return items;
   };
 
   const setVisibility = async (
