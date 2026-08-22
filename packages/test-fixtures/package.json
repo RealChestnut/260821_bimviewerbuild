@@ -13,12 +13,14 @@
   },
   "files": [
     "dist",
-    "ifc"
+    "ifc",
+    "schedule"
   ],
   "scripts": {
     "build": "tsc --build"
   },
   "devDependencies": {
+    "@bim4d/domain": "workspace:*",
     "@types/node": "26.2.0"
   }
 }

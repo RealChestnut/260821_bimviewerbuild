@@ -5,6 +5,7 @@ import * as THREE from 'three';
 import type { GlobalId, ModelId, ProductKey } from '@bim4d/contracts';
 
 import type { ModelLoaderPort, ModelLoadRequest } from '../../viewer/model/modelLoaderPort.js';
+import type { DisplayStateChange, SimulationViewPort } from '../../simulation/simulationPort.js';
 import type { VisibilityPort } from '../../viewer/visibility/visibilityPort.js';
 import type { SelectionHit, SelectionPort } from '../../viewer/selection/selectionPort.js';
 import type { ViewerWorld, ViewerWorldFactory } from '../../viewer/viewerWorldPort.js';
@@ -24,6 +25,8 @@ export interface ThatOpenViewerAdapterOptions {
   };
   /** 선택 강조 색. 기본값은 파랑이다. */
   readonly highlightColor?: number;
+  /** 4D 시뮬레이션에서 작업 진행 중인 부재의 색. 기본값은 주황이다. */
+  readonly inProgressColor?: number;
 }
 
 const DEFAULTS = {
@@ -34,6 +37,7 @@ const DEFAULTS = {
     target: [0, 0, 0],
   },
   highlightColor: 0x2f7de1,
+  inProgressColor: 0xf59e0b,
 } as const;
 
 interface ViewerState {
@@ -48,6 +52,7 @@ export interface ThatOpenViewerAdapter {
   readonly modelLoader: ModelLoaderPort;
   readonly selection: SelectionPort;
   readonly visibility: VisibilityPort;
+  readonly simulation: SimulationViewPort;
 }
 
 /**
@@ -63,6 +68,15 @@ export const createThatOpenViewerAdapter = (
   const workerUrl = options.workerUrl ?? DEFAULTS.workerUrl;
   const initialCamera = options.initialCamera ?? DEFAULTS.initialCamera;
   const highlightColor = options.highlightColor ?? DEFAULTS.highlightColor;
+  const inProgressColor = options.inProgressColor ?? DEFAULTS.inProgressColor;
+
+  /**
+   * 선택이 지금 강조하고 있는 항목.
+   *
+   * `resetHighlight()`를 인자 없이 부르면 화면의 모든 강조가 지워진다. 시뮬레이션도 같은
+   * 강조 통로를 쓰므로, 선택은 자기가 건 것만 지워야 서로를 밀어내지 않는다.
+   */
+  let selectionItems: Record<string, Set<number>> = {};
 
   let state: ViewerState | null = null;
 
@@ -110,6 +124,7 @@ export const createThatOpenViewerAdapter = (
       const [tx, ty, tz] = initialCamera.target;
       void world.camera.controls.setLookAt(px, py, pz, tx, ty, tz);
 
+      selectionItems = {};
       state = { components, world, models: new Map(), loaderReady: null };
       const created = state;
       let disposed = false;
@@ -272,8 +287,13 @@ export const createThatOpenViewerAdapter = (
       }
 
       const fragments = current.components.get(OBC.FragmentsManager);
-      await fragments.resetHighlight();
-      if (Object.keys(items).length === 0) return;
+      if (Object.keys(selectionItems).length > 0) await fragments.resetHighlight(selectionItems);
+      selectionItems = items;
+
+      if (Object.keys(items).length === 0) {
+        await fragments.core.update(true);
+        return;
+      }
 
       await fragments.highlight(
         {
@@ -293,7 +313,9 @@ export const createThatOpenViewerAdapter = (
 
       const fragments = current.components.get(OBC.FragmentsManager);
       if (!fragments.initialized) return;
-      await fragments.resetHighlight();
+
+      if (Object.keys(selectionItems).length > 0) await fragments.resetHighlight(selectionItems);
+      selectionItems = {};
 
       // 남은 모델이 없을 때의 강제 update는 돌아오지 않을 수 있다 (ADR-0004).
       if (current.models.size > 0) {
@@ -339,12 +361,13 @@ export const createThatOpenViewerAdapter = (
     return items;
   };
 
-  const setVisibility = async (
+  /** 화면 갱신 없이 표시 여부만 바꾼다. 여러 묶음을 모아 한 번에 갱신할 때 쓴다. */
+  const applyVisibility = async (
+    current: ViewerState,
     products: readonly ProductKey[],
     visible: boolean,
   ): Promise<void> => {
-    const current = state;
-    if (current === null || current.models.size === 0) return;
+    if (products.length === 0) return;
 
     const fragments = current.components.get(OBC.FragmentsManager);
     const items = await toItems(current, products);
@@ -353,7 +376,17 @@ export const createThatOpenViewerAdapter = (
       const model = fragments.list.get(fragmentsModelId);
       await model?.setVisible([...localIds], visible);
     }
-    await fragments.core.update(true);
+  };
+
+  const setVisibility = async (
+    products: readonly ProductKey[],
+    visible: boolean,
+  ): Promise<void> => {
+    const current = state;
+    if (current === null || current.models.size === 0) return;
+
+    await applyVisibility(current, products, visible);
+    await current.components.get(OBC.FragmentsManager).core.update(true);
   };
 
   const visibility: VisibilityPort = {
@@ -391,5 +424,62 @@ export const createThatOpenViewerAdapter = (
     },
   };
 
-  return { worldFactory, modelLoader, selection, visibility };
+  const productsWith = (
+    changes: readonly DisplayStateChange[],
+    ...states: readonly DisplayStateChange['state'][]
+  ): readonly ProductKey[] =>
+    changes.filter((change) => states.includes(change.state)).map((change) => change.product);
+
+  /**
+   * 4D 시뮬레이션 표현 (ADR-0006).
+   *
+   * `HIDDEN`은 렌더링하지 않고, `IN_PROGRESS`는 반투명 주황으로 덧칠하며, `PRESENT`는
+   * 원래 표현으로 되돌린다. 강조 통로는 선택과 공유하므로, 한 부재가 선택된 채로 시뮬레이션
+   * 상태가 바뀌면 선택 강조가 지워진다. 알려진 한계이며 다시 누르면 복원된다.
+   */
+  const simulation: SimulationViewPort = {
+    apply: async (changes): Promise<void> => {
+      const current = state;
+      if (current === null || current.models.size === 0 || changes.length === 0) return;
+
+      const fragments = current.components.get(OBC.FragmentsManager);
+      const inProgress = productsWith(changes, 'IN_PROGRESS');
+      const settled = productsWith(changes, 'HIDDEN', 'PRESENT');
+
+      // 진행 중에서 벗어난 부재의 덧칠을 먼저 지운다. 지우지 않으면 완료된 부재가 계속 주황이다.
+      const cleared = await toItems(current, settled);
+      if (Object.keys(cleared).length > 0) await fragments.resetHighlight(cleared);
+
+      await applyVisibility(current, productsWith(changes, 'HIDDEN'), false);
+      await applyVisibility(current, productsWith(changes, 'IN_PROGRESS', 'PRESENT'), true);
+
+      const items = await toItems(current, inProgress);
+      if (Object.keys(items).length > 0) {
+        await fragments.highlight(
+          {
+            color: new THREE.Color(inProgressColor),
+            opacity: 0.6,
+            transparent: true,
+            renderedFaces: FRAGS.RenderedFaces.TWO,
+          },
+          items,
+        );
+      }
+      await fragments.core.update(true);
+    },
+
+    reset: async (products): Promise<void> => {
+      const current = state;
+      if (current === null || current.models.size === 0 || products.length === 0) return;
+
+      const fragments = current.components.get(OBC.FragmentsManager);
+      const items = await toItems(current, products);
+      if (Object.keys(items).length > 0) await fragments.resetHighlight(items);
+
+      await applyVisibility(current, products, true);
+      await fragments.core.update(true);
+    },
+  };
+
+  return { worldFactory, modelLoader, selection, visibility, simulation };
 };

@@ -22,7 +22,7 @@
 
       #app {
         display: grid;
-        grid-template-rows: auto 1fr;
+        grid-template-rows: auto 1fr auto;
         height: 100%;
       }
 
@@ -91,6 +91,33 @@
         opacity: 0.75;
       }
 
+      /* 4D 시뮬레이션 조작은 화면 아래 한 줄에 모은다. */
+      #simulation-bar {
+        display: flex;
+        align-items: center;
+        gap: 0.6rem;
+        padding: 0.4rem 1rem;
+        border-top: 1px solid rgb(0 0 0 / 15%);
+        font-size: 0.8rem;
+      }
+
+      #simulation-time {
+        flex: 1;
+        min-width: 8rem;
+      }
+
+      #simulation-date {
+        margin: 0;
+        min-width: 6rem;
+        font-family: ui-monospace, 'Cascadia Mono', Consolas, monospace;
+      }
+
+      #simulation-status {
+        margin: 0;
+        min-width: 12rem;
+        opacity: 0.75;
+      }
+
       #selection-globalid {
         font-size: 0.8rem;
         margin: 0;
@@ -131,6 +158,21 @@
         <p id="selection-globalid" data-testid="selection-globalid">선택 없음</p>
       </header>
       <main id="viewer-container" data-testid="viewer-container"></main>
+      <footer id="simulation-bar">
+        <label class="file-label">
+          일정 열기
+          <input type="file" accept=".json" data-testid="schedule-file" />
+        </label>
+        <button type="button" data-testid="simulation-play" disabled>재생</button>
+        <select data-testid="simulation-speed" disabled aria-label="배속">
+          <option value="1">1일/틱</option>
+          <option value="2">2일/틱</option>
+          <option value="4">4일/틱</option>
+        </select>
+        <input type="range" data-testid="simulation-time" disabled aria-label="시뮬레이션 시각" />
+        <p id="simulation-date" data-testid="simulation-date">일정 없음</p>
+        <p id="simulation-status" data-testid="simulation-status"></p>
+      </footer>
     </div>
     <script type="module" src="/src/main.ts"></script>
   </body>

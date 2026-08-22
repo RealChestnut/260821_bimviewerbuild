@@ -72,14 +72,17 @@ apps/viewer-web/**              모델 로딩, Selection, Property Panel, 4D Sim
 | Web Rendering 출력 포맷 (기준서 19절 `.frag / GLB / XKT 등`) | Fragments(`.frag`), `@thatopen/fragments` 3.x | `docs/adr/0001-web-rendering-asset-format.md` |
 | 패키지 관리자와 라이브러리 버전 (마스터 계획 13절 `npm 또는 pnpm`) | pnpm 10.34.5 workspace, That Open 3.4.x 조합 고정, TypeScript 5.9.3 | `docs/adr/0003-toolchain-baseline.md` |
 | 4D 액션 어휘 (기준서 17절 `appear/temporary` vs 19.2절 `SHOW/HIDE/REMOVE`) | `TaskOperation` 4값 + `ElementDisplayState` 3값으로 분리 | `docs/adr/0002-4d-operation-vocabulary.md` |
+| Schedule / Task–Element Mapping 필드 스키마 (기준서 19.2절에 ID만 있음) | `schemaVersion` 1 스키마 확정. 날짜는 UTC `YYYY-MM-DD`, 연결은 `modelRef + productGlobalId + operation` | `docs/adr/0006-schedule-schema.md` |
+| `ElementDisplayState`의 화면 표현 (ADR-0002가 Phase 4로 미룸) | `HIDDEN` 미렌더링, `IN_PROGRESS` 반투명 주황, `PRESENT` 원래 표현 | `docs/adr/0006-schedule-schema.md` |
 
 **아직 미결정** — 해당 영역을 구현할 때 임의로 정하지 말고 결정을 먼저 요청한다.
 
-- Schedule / Task–Element Mapping의 필드 수준 스키마 (19.2절에 ID만 있고 필드가 없다). `Assignments.operation`의 값 집합만 ADR-0002로 확정됐다
 - 성능 목표 수치 — 삼각형 수, 파일 크기 상한, 목표 FPS, 최대 Element 수 (20절에 정량 기준이 없다)
 - Split / Group 전처리의 책임 주체와 규칙
 - 검증 체크리스트 20절 각 항목의 자동/수동 구분과 실패 시 reject / warn 게이트
 - ADR-0002의 IFC Export 매핑은 잠정값이다. fixture 왕복 테스트 전까지 확정으로 취급하지 않는다
+- 일정 스키마의 WBS·선후행·캘린더 필드는 ADR-0006이 Phase 5로 미뤘다. 추가할 때 `schemaVersion`을 올린다
+- ADR-0006의 `modelRef` 바인딩(파일명 대조)은 잠정이다. Phase 6에서 fingerprint 기반으로 교체한다
 
 또한 기준서 16.4절의 Codemill fallback Entity(`IfcEquipmentElement`)와 16.3절 iConstruct 문서 불일치는 기준서 자체가 미해결로 표시한 항목이다. 이 값들을 코드 상수로 굳히지 않는다.
 

@@ -1,0 +1,51 @@
+{
+  "scheduleId": "mock-three-elements",
+  "name": "three-elements-ifc4 Mock 4D 일정",
+  "schemaVersion": 1,
+  "tasks": [
+    { "taskId": "T001", "name": "슬래브 타설", "start": "2026-03-02", "finish": "2026-03-06" },
+    { "taskId": "T002", "name": "벽 A 시공", "start": "2026-03-09", "finish": "2026-03-13" },
+    { "taskId": "T003", "name": "벽 B 시공", "start": "2026-03-16", "finish": "2026-03-20" },
+    { "taskId": "T004", "name": "벽 A 마감", "start": "2026-03-23", "finish": "2026-03-25" },
+    { "taskId": "T005", "name": "벽 B 철거", "start": "2026-03-30", "finish": "2026-04-01" },
+    { "taskId": "T006", "name": "슬래브 검사 (일정 미정)" }
+  ],
+  "assignments": [
+    {
+      "taskId": "T001",
+      "modelRef": "three-elements-ifc4.ifc",
+      "productGlobalId": "2YsHnV6bk3PgZdL9uCxWtM",
+      "operation": "CONSTRUCT"
+    },
+    {
+      "taskId": "T002",
+      "modelRef": "three-elements-ifc4.ifc",
+      "productGlobalId": "0BnKdW4tq7SfUcM3vHxZgR",
+      "operation": "CONSTRUCT"
+    },
+    {
+      "taskId": "T003",
+      "modelRef": "three-elements-ifc4.ifc",
+      "productGlobalId": "1MjTgR8dp5NkXbC2wFyQsA",
+      "operation": "CONSTRUCT"
+    },
+    {
+      "taskId": "T004",
+      "modelRef": "three-elements-ifc4.ifc",
+      "productGlobalId": "0BnKdW4tq7SfUcM3vHxZgR",
+      "operation": "MODIFY"
+    },
+    {
+      "taskId": "T005",
+      "modelRef": "three-elements-ifc4.ifc",
+      "productGlobalId": "1MjTgR8dp5NkXbC2wFyQsA",
+      "operation": "DEMOLISH"
+    },
+    {
+      "taskId": "T006",
+      "modelRef": "three-elements-ifc4.ifc",
+      "productGlobalId": "2YsHnV6bk3PgZdL9uCxWtM",
+      "operation": "MODIFY"
+    }
+  ]
+}

@@ -52,6 +52,25 @@
 | Granularity        | 부재 3개. 공정 단위 시험에는 여전히 부족하다                                         |
 | 웹 성능            | 삼각형 수십 개                                                                       |
 
+## 일정 fixture
+
+일정 파일의 필드 스키마는 `docs/adr/0006-schedule-schema.md`가 정본이다.
+
+### mock-three-elements.json
+
+직접 작성. `three-elements-ifc4.ifc`의 부재 3개에 Task 6개를 건다.
+
+| 항목           | 내용                                                                            |
+| -------------- | ------------------------------------------------------------------------------- |
+| 대상 모델      | `three-elements-ifc4.ifc` (`modelRef`가 이 파일명과 일치해야 바인딩된다)        |
+| 타임라인       | 2026-03-02 ~ 2026-04-01                                                         |
+| operation      | `CONSTRUCT` 3, `MODIFY` 2, `DEMOLISH` 1                                         |
+| 연쇄           | 벽 B는 시공(T003) 후 철거(T005)된다. ADR-0002 다중 할당 규칙을 실제로 밟는다    |
+| 시간 미정 Task | T006. 시뮬레이션에서 제외되는지 확인한다 (ADR-0002 경계 규칙 4)                 |
+| GlobalId 대조  | `fixtures.test.ts`가 모든 `productGlobalId`가 대상 IFC에 실제로 있는지 검사한다 |
+
+`TEMPORARY`는 담지 않았다. 부재가 셋뿐이라 가설 부재를 따로 둘 수 없고, 이미 다른 operation이 걸린 부재에 겹쳐 넣으면 fixture가 무엇을 시험하는지 흐려진다. `TEMPORARY`의 파생 규칙은 `packages/domain/src/simulation.test.ts`가 단위 테스트로 덮는다.
+
 ## 아직 확인하지 못한 것
 
 두 fixture 모두 직접 작성한 파일이라, 실제 Exporter(Revit, Navisworks, Tekla 등)가 만드는 구조적 특징은 담고 있지 않다. 다음은 실모델을 파이프라인에 넣을 때 별도로 확인한다.

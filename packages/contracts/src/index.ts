@@ -1,5 +1,13 @@
 export type { GlobalId, ModelFingerprint, ModelId, ProductKey } from './identity.js';
 export type { AppError, AppErrorKind, TraceId } from './errors.js';
+export type {
+  ElementDisplayState,
+  Schedule,
+  ScheduleAssignment,
+  ScheduleTask,
+  TaskId,
+  TaskOperation,
+} from './schedule.js';
 export type { IfcSchemaVersion, ModelRecord, ModelRepositoryPort } from './model.js';
 export type {
   AppEvent,

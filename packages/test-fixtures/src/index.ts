@@ -33,3 +33,25 @@ export const threeElementsIfc4: IfcFixture = {
 };
 
 export const ifcFixtures: readonly IfcFixture[] = [minimalWallIfc4, threeElementsIfc4];
+
+/** 테스트용 일정 fixture 경로. 필드 스키마는 `docs/adr/0006-schedule-schema.md`가 정본이다. */
+export interface ScheduleFixture {
+  readonly id: string;
+  /** 이 일정이 가리키는 IFC fixture. `modelRef`가 이 파일명과 맞아야 바인딩된다. */
+  readonly modelRef: string;
+  readonly description: string;
+  readonly path: string;
+}
+
+const schedulePath = (name: string): string =>
+  fileURLToPath(new URL(`../schedule/${name}`, import.meta.url));
+
+export const mockThreeElementsSchedule: ScheduleFixture = {
+  id: 'mock-three-elements',
+  modelRef: 'three-elements-ifc4.ifc',
+  description:
+    'three-elements-ifc4의 부재 3개에 걸린 Task 6개. CONSTRUCT·MODIFY·DEMOLISH와 시간 미정 Task를 담는다.',
+  path: schedulePath('mock-three-elements.json'),
+};
+
+export const scheduleFixtures: readonly ScheduleFixture[] = [mockThreeElementsSchedule];

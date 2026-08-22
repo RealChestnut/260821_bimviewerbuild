@@ -6,7 +6,9 @@ import { createKernel } from './kernel/index.js';
 import { createModelPanel } from './shell/modelPanel.js';
 import { createSelectionPanel } from './shell/selectionPanel.js';
 import { createVisibilityPanel } from './shell/visibilityPanel.js';
+import { createSimulationPanel } from './shell/simulationPanel.js';
 import { createStatusComponent } from './shell/statusComponent.js';
+import { createSimulationComponent } from './simulation/simulationComponent.js';
 import { createModelLoadingComponent } from './viewer/model/modelLoadingComponent.js';
 import { createSelectionComponent } from './viewer/selection/selectionComponent.js';
 import { createVisibilityComponent } from './viewer/visibility/visibilityComponent.js';
@@ -44,6 +46,7 @@ const bootstrap = async (): Promise<void> => {
     }),
   );
   kernel.register(createVisibilityComponent({ port: viewer.visibility }));
+  kernel.register(createSimulationComponent({ port: viewer.simulation }));
   kernel.register(
     createModelPanel({
       fileInputSelector: '[data-testid="model-file"]',
@@ -52,6 +55,16 @@ const bootstrap = async (): Promise<void> => {
     }),
   );
   kernel.register(createSelectionPanel({ selector: '[data-testid="selection-globalid"]' }));
+  kernel.register(
+    createSimulationPanel({
+      fileInputSelector: '[data-testid="schedule-file"]',
+      timeSliderSelector: '[data-testid="simulation-time"]',
+      playButtonSelector: '[data-testid="simulation-play"]',
+      speedSelectSelector: '[data-testid="simulation-speed"]',
+      dateSelector: '[data-testid="simulation-date"]',
+      statusSelector: '[data-testid="simulation-status"]',
+    }),
+  );
   kernel.register(
     createVisibilityPanel({
       hideButtonSelector: '[data-testid="hide-selected"]',
