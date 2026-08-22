@@ -4,6 +4,7 @@ import { createInMemoryModelRepository } from './adapters/inMemoryModelRepositor
 import { createThatOpenViewerAdapter } from './adapters/thatopen/thatOpenViewerAdapter.js';
 import { createKernel } from './kernel/index.js';
 import { createModelPanel } from './shell/modelPanel.js';
+import { createModelListPanel } from './shell/modelListPanel.js';
 import { createSelectionPanel } from './shell/selectionPanel.js';
 import { createPropertyPanel } from './shell/propertyPanel.js';
 import { createSectionPanel } from './shell/sectionPanel.js';
@@ -61,6 +62,7 @@ const bootstrap = async (): Promise<void> => {
       statusSelector: '[data-testid="model-status"]',
     }),
   );
+  kernel.register(createModelListPanel({ selector: '[data-testid="model-list"]' }));
   kernel.register(createSelectionPanel({ selector: '[data-testid="selection-globalid"]' }));
   kernel.register(
     createSpatialPanel({

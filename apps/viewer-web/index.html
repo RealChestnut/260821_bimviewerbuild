@@ -191,7 +191,7 @@
 
       #left-panel {
         display: grid;
-        grid-template-rows: 1fr auto;
+        grid-template-rows: auto 1fr auto;
         border-right: 1px solid rgb(0 0 0 / 15%);
         min-height: 0;
         font-size: 0.8rem;
@@ -206,6 +206,43 @@
         padding: 0.5rem;
         max-height: 40%;
         overflow: auto;
+      }
+
+      #models {
+        padding: 0.5rem;
+        border-bottom: 1px solid rgb(0 0 0 / 15%);
+        max-height: 30%;
+        overflow: auto;
+      }
+
+      #models h2 {
+        font-size: 0.8rem;
+        margin: 0 0 0.35rem;
+        opacity: 0.75;
+      }
+
+      .model-list {
+        list-style: none;
+        margin: 0;
+        padding: 0;
+      }
+
+      .model-list li {
+        display: flex;
+        align-items: center;
+        gap: 0.3rem;
+      }
+
+      .model-name {
+        flex: 1;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .model-empty {
+        margin: 0;
+        opacity: 0.7;
       }
 
       #spatial-tree ul {
@@ -271,7 +308,7 @@
         <div class="spacer"></div>
         <label class="file-label">
           IFC 열기
-          <input type="file" accept=".ifc" data-testid="model-file" />
+          <input type="file" accept=".ifc" multiple data-testid="model-file" />
         </label>
         <button type="button" data-testid="model-unload" disabled>모델 해제</button>
         <span class="divider"></span>
@@ -291,6 +328,10 @@
       </header>
       <div id="workspace">
         <div id="left-panel">
+          <section id="models">
+            <h2>열린 모델</h2>
+            <div data-testid="model-list"></div>
+          </section>
           <aside id="spatial-tree" data-testid="spatial-tree"></aside>
           <section id="viewpoints">
             <h2>시점</h2>
