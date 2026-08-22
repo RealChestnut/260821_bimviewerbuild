@@ -19,12 +19,22 @@ const wallB = product('1MjTgR8dp5NkXbC2wFyQsA');
 
 interface FakePort extends VisibilityPort {
   readonly calls: { readonly kind: string; readonly products: readonly ProductKey[] }[];
+  /** 통째로 감춘 모델. Adapter가 무엇을 감췄는지 확인한다. */
+  readonly hiddenModels: Set<string>;
 }
 
 const createFakePort = (): FakePort => {
   const calls: { kind: string; products: readonly ProductKey[] }[] = [];
+  const hiddenModels = new Set<string>();
   return {
     calls,
+    hiddenModels,
+    setModelVisible: (modelId, visible) => {
+      calls.push({ kind: `model:${visible ? 'show' : 'hide'}`, products: [] });
+      if (visible) hiddenModels.delete(modelId);
+      else hiddenModels.add(modelId);
+      return Promise.resolve();
+    },
     hide: (products) => {
       calls.push({ kind: 'hide', products });
       return Promise.resolve();
@@ -39,6 +49,7 @@ const createFakePort = (): FakePort => {
     },
     showAll: () => {
       calls.push({ kind: 'showAll', products: [] });
+      hiddenModels.clear();
       return Promise.resolve();
     },
   };
@@ -220,5 +231,70 @@ describe('createVisibilityComponent', () => {
 
     expect(events.at(-1)?.payload.hidden).toEqual([]);
     expect(events.at(-1)?.payload.isolatedProducts).toEqual([wallB]);
+  });
+  it('모델을 통째로 감추고 Event에 싣는다', async () => {
+    const { context, port, events } = await setup();
+
+    const result = await context.commands.dispatch('viewer/set-model-visible', {
+      modelId: 'model-1' as ModelId,
+      visible: false,
+    });
+
+    expect(result).toEqual({ ok: true, value: { visible: false } });
+    expect(port.hiddenModels.has('model-1')).toBe(true);
+    expect(events.at(-1)?.payload.hiddenModels).toEqual(['model-1']);
+  });
+
+  it('같은 상태를 다시 요청하면 아무 일도 하지 않는다', async () => {
+    const { context, port, events } = await setup();
+
+    await context.commands.dispatch('viewer/set-model-visible', {
+      modelId: 'model-1' as ModelId,
+      visible: true,
+    });
+
+    expect(port.calls).toEqual([]);
+    expect(events).toHaveLength(0);
+  });
+
+  it('모델을 되돌리면 그 안에서 따로 감춘 부재는 감춘 채로 둔다', async () => {
+    const { context, port } = await setup();
+    await context.commands.dispatch('viewer/hide-products', { products: [wallA] });
+    await context.commands.dispatch('viewer/set-model-visible', {
+      modelId: 'model-1' as ModelId,
+      visible: false,
+    });
+
+    await context.commands.dispatch('viewer/set-model-visible', {
+      modelId: 'model-1' as ModelId,
+      visible: true,
+    });
+
+    expect(port.calls.at(-1)).toEqual({ kind: 'hide', products: [wallA] });
+  });
+
+  it('전체 표시가 모델 단위 숨김도 되돌린다', async () => {
+    const { context, port, events } = await setup();
+    await context.commands.dispatch('viewer/set-model-visible', {
+      modelId: 'model-1' as ModelId,
+      visible: false,
+    });
+
+    await context.commands.dispatch('viewer/show-all', {});
+
+    expect(port.hiddenModels.size).toBe(0);
+    expect(events.at(-1)?.payload.hiddenModels).toEqual([]);
+  });
+
+  it('감춘 모델이 해제되면 목록에서 지운다', async () => {
+    const { context, events } = await setup();
+    await context.commands.dispatch('viewer/set-model-visible', {
+      modelId: 'model-1' as ModelId,
+      visible: false,
+    });
+
+    await context.events.publish('model/unloaded', { modelId: 'model-1' as ModelId });
+
+    expect(events.at(-1)?.payload.hiddenModels).toEqual([]);
   });
 });

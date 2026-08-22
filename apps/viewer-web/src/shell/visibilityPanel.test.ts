@@ -111,6 +111,7 @@ describe('createVisibilityPanel', () => {
       isolated: false,
       hidden: [],
       isolatedProducts: [],
+      hiddenModels: [],
     });
 
     expect(button('show-all').disabled).toBe(false);
@@ -126,6 +127,7 @@ describe('createVisibilityPanel', () => {
       isolated: true,
       hidden: [],
       isolatedProducts: [],
+      hiddenModels: [],
     });
 
     expect(button('show-all').disabled).toBe(false);
@@ -140,6 +142,7 @@ describe('createVisibilityPanel', () => {
       isolated: false,
       hidden: [],
       isolatedProducts: [],
+      hiddenModels: [],
     });
 
     await context.events.publish('visibility/changed', {
@@ -147,6 +150,7 @@ describe('createVisibilityPanel', () => {
       isolated: false,
       hidden: [],
       isolatedProducts: [],
+      hiddenModels: [],
     });
 
     expect(button('show-all').disabled).toBe(true);
@@ -163,6 +167,7 @@ describe('createVisibilityPanel', () => {
       isolated: false,
       hidden: [],
       isolatedProducts: [],
+      hiddenModels: [],
     });
 
     button('show-all').click();
@@ -182,6 +187,7 @@ describe('createVisibilityPanel', () => {
       isolated: false,
       hidden: [],
       isolatedProducts: [],
+      hiddenModels: [],
     });
 
     await panel.stop();

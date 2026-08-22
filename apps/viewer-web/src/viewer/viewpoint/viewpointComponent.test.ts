@@ -77,6 +77,7 @@ interface Harness {
   readonly setVisibility: (
     hidden: readonly ProductKey[],
     isolatedProducts: readonly ProductKey[],
+    hiddenModels?: readonly ModelId[],
   ) => Promise<void>;
   readonly dispose: () => Promise<void>;
 }
@@ -105,6 +106,10 @@ const setup = async (): Promise<Harness> => {
     dispatched.push({ name: 'isolate-products', input });
     return Promise.resolve({ isolated: true });
   });
+  context.commands.register('viewer/set-model-visible', (input) => {
+    dispatched.push({ name: 'set-model-visible', input });
+    return Promise.resolve({ visible: input.visible });
+  });
   context.commands.register('viewer/restore-sections', (input) => {
     dispatched.push({ name: 'restore-sections', input });
     return Promise.resolve({ count: input.planes.length });
@@ -125,12 +130,13 @@ const setup = async (): Promise<Harness> => {
     section,
     events,
     dispatched,
-    setVisibility: (hidden, isolatedProducts) =>
+    setVisibility: (hidden, isolatedProducts, hiddenModels = []) =>
       context.events.publish('visibility/changed', {
         hiddenCount: hidden.length,
         isolated: isolatedProducts.length > 0,
         hidden,
         isolatedProducts,
+        hiddenModels,
       }),
     dispose: () => component.dispose(),
   };
@@ -251,5 +257,20 @@ describe('createViewpointComponent', () => {
     await harness.dispose();
 
     expect(harness.events.at(-1)?.payload.items).toHaveLength(1);
+  });
+  it('통째로 감춰 두었던 모델도 되살린다', async () => {
+    const harness = await setup();
+    await harness.setVisibility([], [], ['model-2' as ModelId]);
+
+    await harness.context.commands.dispatch('viewer/save-viewpoint', {});
+    await harness.setVisibility([], []);
+    harness.dispatched.length = 0;
+    await harness.context.commands.dispatch('viewer/restore-viewpoint', { id: 'vp-1' });
+
+    expect(harness.dispatched).toEqual([
+      { name: 'show-all', input: {} },
+      { name: 'set-model-visible', input: { modelId: 'model-2', visible: false } },
+      { name: 'restore-sections', input: { planes: [] } },
+    ]);
   });
 });

@@ -63,13 +63,16 @@ export const createModelPanel = (options: ModelPanelOptions): AppComponent => {
   };
 
   const onFileChosen = (): void => {
-    const file = fileInput?.files?.[0];
-    if (file === undefined || context === null) return;
+    const files = [...(fileInput?.files ?? [])];
+    if (files.length === 0 || context === null) return;
     const app = context;
 
     void (async () => {
-      const bytes = new Uint8Array(await file.arrayBuffer());
-      await app.commands.dispatch('viewer/load-model', { bytes, displayName: file.name });
+      // 한 번에 여러 파일을 고를 수 있다. 하나씩 순서대로 올려 진행률이 섞이지 않게 한다.
+      for (const file of files) {
+        const bytes = new Uint8Array(await file.arrayBuffer());
+        await app.commands.dispatch('viewer/load-model', { bytes, displayName: file.name });
+      }
       // 같은 파일을 다시 고를 수 있도록 값을 비운다. change 이벤트는 값이 바뀔 때만 난다.
       if (fileInput !== null) fileInput.value = '';
     })();
@@ -138,7 +141,10 @@ export const createModelPanel = (options: ModelPanelOptions): AppComponent => {
           setUnloadEnabled(false);
           setFileInputEnabled(true);
         }),
-        context.events.subscribe('model/unloaded', () => {
+        context.events.subscribe('model/unloaded', ({ payload }) => {
+          // 여러 모델을 연 경우 방금 연 모델만 이 버튼의 대상이다. 다른 모델이 해제된
+          // 것이라면 표시를 바꾸지 않는다.
+          if (payload.modelId !== currentModelId) return;
           currentModelId = null;
           write(IDLE_TEXT);
           setUnloadEnabled(false);

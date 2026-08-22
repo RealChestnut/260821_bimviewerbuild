@@ -475,6 +475,20 @@ export const createThatOpenViewerAdapter = (
       await fragments.core.update(true);
     },
 
+    setModelVisible: async (modelId, visible): Promise<void> => {
+      const current = state;
+      const fragmentsModelId = current?.models.get(modelId);
+      if (current === null || fragmentsModelId === undefined) return;
+
+      const fragments = current.components.get(OBC.FragmentsManager);
+      const model = fragments.list.get(fragmentsModelId);
+      if (model === undefined) return;
+
+      // localId를 주지 않으면 모델 전체가 대상이다.
+      await model.setVisible(undefined, visible);
+      await fragments.core.update(true);
+    },
+
     showAll: async (): Promise<void> => {
       const current = state;
       if (current === null || current.models.size === 0) return;
