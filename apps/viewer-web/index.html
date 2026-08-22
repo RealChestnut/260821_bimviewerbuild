@@ -28,10 +28,17 @@
 
       header {
         display: flex;
+        flex-wrap: wrap;
         align-items: baseline;
-        gap: 0.75rem;
+        gap: 0.4rem 0.6rem;
         padding: 0.5rem 1rem;
         border-bottom: 1px solid rgb(0 0 0 / 15%);
+      }
+
+      /* 버튼 글자가 세로로 눌리지 않게 한다. 자리가 모자라면 헤더가 다음 줄로 넘어간다. */
+      header button {
+        white-space: nowrap;
+        flex: none;
       }
 
       h1 {
@@ -55,7 +62,7 @@
       #model-status {
         font-size: 0.8rem;
         margin: 0;
-        min-width: 14rem;
+        min-width: 10rem;
       }
 
       .divider {
@@ -81,7 +88,7 @@
       #selection-globalid {
         font-size: 0.8rem;
         margin: 0;
-        min-width: 16rem;
+        min-width: 12rem;
         font-family: ui-monospace, 'Cascadia Mono', Consolas, monospace;
       }
 
@@ -191,7 +198,8 @@
 
       #left-panel {
         display: grid;
-        grid-template-rows: 1fr auto;
+        /* 가운데(트리)만 늘어난다. minmax(0, 1fr)이라야 트리가 넘칠 때 위아래가 밀리지 않는다. */
+        grid-template-rows: auto minmax(0, 1fr) auto;
         border-right: 1px solid rgb(0 0 0 / 15%);
         min-height: 0;
         font-size: 0.8rem;
@@ -199,13 +207,52 @@
 
       #spatial-tree {
         overflow: auto;
+        min-height: 0;
         padding: 0.5rem;
       }
 
       #viewpoints {
         padding: 0.5rem;
-        max-height: 40%;
+        max-height: 14rem;
         overflow: auto;
+      }
+
+      #models {
+        padding: 0.5rem;
+        border-bottom: 1px solid rgb(0 0 0 / 15%);
+        /* 퍼센트로 주면 grid 트랙이 내용을 못 세어 목록이 통째로 잘린다. 고정 상한을 쓴다. */
+        max-height: 12rem;
+        overflow: auto;
+      }
+
+      #models h2 {
+        font-size: 0.8rem;
+        margin: 0 0 0.35rem;
+        opacity: 0.75;
+      }
+
+      .model-list {
+        list-style: none;
+        margin: 0;
+        padding: 0;
+      }
+
+      .model-list li {
+        display: flex;
+        align-items: center;
+        gap: 0.3rem;
+      }
+
+      .model-name {
+        flex: 1;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .model-empty {
+        margin: 0;
+        opacity: 0.7;
       }
 
       #spatial-tree ul {
@@ -271,7 +318,7 @@
         <div class="spacer"></div>
         <label class="file-label">
           IFC 열기
-          <input type="file" accept=".ifc" data-testid="model-file" />
+          <input type="file" accept=".ifc" multiple data-testid="model-file" />
         </label>
         <button type="button" data-testid="model-unload" disabled>모델 해제</button>
         <span class="divider"></span>
@@ -291,6 +338,10 @@
       </header>
       <div id="workspace">
         <div id="left-panel">
+          <section id="models">
+            <h2>열린 모델</h2>
+            <div data-testid="model-list"></div>
+          </section>
           <aside id="spatial-tree" data-testid="spatial-tree"></aside>
           <section id="viewpoints">
             <h2>시점</h2>

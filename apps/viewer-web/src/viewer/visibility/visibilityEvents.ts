@@ -5,7 +5,7 @@
  * 무엇이 감춰져 있었는지를 알아야 한다. 형상 데이터는 싣지 않는다.
  */
 
-import type { ProductKey } from '@bim4d/contracts';
+import type { ModelId, ProductKey } from '@bim4d/contracts';
 
 declare module '@bim4d/contracts' {
   interface AppEventMap {
@@ -17,6 +17,8 @@ declare module '@bim4d/contracts' {
       readonly hidden: readonly ProductKey[];
       /** 격리 중이면 그 대상. 격리가 아니면 빈 배열이다. */
       readonly isolatedProducts: readonly ProductKey[];
+      /** 통째로 감춘 모델. */
+      readonly hiddenModels: readonly ModelId[];
     };
   }
 
@@ -32,6 +34,10 @@ declare module '@bim4d/contracts' {
     'viewer/isolate-products': {
       input: { readonly products: readonly ProductKey[] };
       output: { readonly isolated: boolean };
+    };
+    'viewer/set-model-visible': {
+      input: { readonly modelId: ModelId; readonly visible: boolean };
+      output: { readonly visible: boolean };
     };
     'viewer/show-all': {
       input: Record<string, never>;
