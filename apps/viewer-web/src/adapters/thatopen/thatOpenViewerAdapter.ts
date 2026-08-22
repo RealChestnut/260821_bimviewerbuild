@@ -6,6 +6,8 @@ import type { GlobalId, ModelId, ProductKey } from '@bim4d/contracts';
 
 import type { ModelLoaderPort, ModelLoadRequest } from '../../viewer/model/modelLoaderPort.js';
 import type { DisplayStateChange, SimulationViewPort } from '../../simulation/simulationPort.js';
+import type { CameraPort, StandardView } from '../../viewer/camera/cameraPort.js';
+import type { ClipAxis, ClippingPort } from '../../viewer/clipping/clippingPort.js';
 import type { VisibilityPort } from '../../viewer/visibility/visibilityPort.js';
 import type { SelectionHit, SelectionPort } from '../../viewer/selection/selectionPort.js';
 import type { ViewerWorld, ViewerWorldFactory } from '../../viewer/viewerWorldPort.js';
@@ -53,6 +55,8 @@ export interface ThatOpenViewerAdapter {
   readonly selection: SelectionPort;
   readonly visibility: VisibilityPort;
   readonly simulation: SimulationViewPort;
+  readonly clipping: ClippingPort;
+  readonly camera: CameraPort;
 }
 
 /**
@@ -157,29 +161,42 @@ export const createThatOpenViewerAdapter = (
     return undefined;
   };
 
-  /**
-   * 적재한 모델 전체가 보이도록 카메라를 맞춘다.
-   *
-   * 측량 좌표계로 저장된 모델은 원점에서 수 킬로미터 떨어져 있어, 맞추지 않으면 화면에
-   * 아무것도 보이지 않는다.
-   */
-  const fitToLoadedModels = async (current: ViewerState): Promise<void> => {
+  /** 열려 있는 모델 전체를 감싸는 상자. 아무것도 없으면 null. */
+  const boundsOfModels = (current: ViewerState): THREE.Box3 | null => {
     const boxer = current.components.get(OBC.BoundingBoxer);
     boxer.dispose();
     boxer.addFromModels();
     const box = boxer.get();
     boxer.dispose();
 
-    if (box.isEmpty()) return;
+    return box.isEmpty() ? null : box;
+  };
 
-    // fitToBox는 카메라를 축에 맞춰 돌려 버려서 모델을 정면이나 옆면으로 보게 된다.
-    // 방향은 초기 시점과 같은 대각선으로 유지하고 거리만 모델 크기에 맞춘다.
-    const center = box.getCenter(new THREE.Vector3());
-    const radius = Math.max(box.getSize(new THREE.Vector3()).length() / 2, 1);
-    const direction = new THREE.Vector3(...initialCamera.position)
+  /** 초기 시점과 같은 대각선 방향. 등각 시점의 기준이기도 하다. */
+  const isoDirection = (): THREE.Vector3 =>
+    new THREE.Vector3(...initialCamera.position)
       .sub(new THREE.Vector3(...initialCamera.target))
       .normalize();
-    const position = center.clone().add(direction.multiplyScalar(radius * 2.5));
+
+  /**
+   * 주어진 방향에서 모델 전체가 보이도록 카메라를 놓는다.
+   *
+   * `fitToBox`는 카메라를 축에 맞춰 돌려 버리므로 쓰지 않는다. 방향은 호출자가 정하고
+   * 거리만 모델 크기에 맞춘다. 측량 좌표계로 저장된 모델은 원점에서 수 킬로미터 떨어져
+   * 있어, 맞추지 않으면 화면에 아무것도 보이지 않는다.
+   */
+  const frameModels = async (current: ViewerState, direction: THREE.Vector3): Promise<boolean> => {
+    const box = boundsOfModels(current);
+    if (box === null) return false;
+
+    const center = box.getCenter(new THREE.Vector3());
+    const radius = Math.max(box.getSize(new THREE.Vector3()).length() / 2, 1);
+    const position = center.clone().add(
+      direction
+        .clone()
+        .normalize()
+        .multiplyScalar(radius * 2.5),
+    );
 
     await current.world.camera.controls.setLookAt(
       position.x,
@@ -190,6 +207,11 @@ export const createThatOpenViewerAdapter = (
       center.z,
       false,
     );
+    return true;
+  };
+
+  const fitToLoadedModels = async (current: ViewerState): Promise<void> => {
+    await frameModels(current, isoDirection());
   };
 
   const modelLoader: ModelLoaderPort = {
@@ -481,5 +503,81 @@ export const createThatOpenViewerAdapter = (
     },
   };
 
-  return { worldFactory, modelLoader, selection, visibility, simulation };
+  /**
+   * 자를 방향의 법선. Viewer 좌표계 기준이며 Y가 수직이다.
+   *
+   * `Clipper.create(world)`는 마우스가 가리키는 곳에 평면을 만든다. 같은 조작이 화면 상태에
+   * 따라 다른 결과를 내므로 쓰지 않고, 모델 중앙을 지나는 축 정렬 평면으로 만든다.
+   */
+  const AXIS_NORMALS: Readonly<Record<ClipAxis, readonly [number, number, number]>> = {
+    X: [1, 0, 0],
+    Y: [0, 1, 0],
+    Z: [0, 0, 1],
+  };
+
+  const clipping: ClippingPort = {
+    addAxisPlane: async (axis): Promise<string | null> => {
+      const current = state;
+      if (current === null || current.models.size === 0) return null;
+
+      const box = boundsOfModels(current);
+      if (box === null) return null;
+
+      const clipper = current.components.get(OBC.Clipper);
+      if (!clipper.isSetup) clipper.setup();
+      clipper.enabled = true;
+
+      // 평면은 재질 단위로 적용된다. 렌더러가 국소 클리핑을 켜 두지 않으면 아무것도 잘리지 않는다.
+      const renderer = current.world.renderer;
+      if (renderer !== null) renderer.three.localClippingEnabled = true;
+
+      const [nx, ny, nz] = AXIS_NORMALS[axis];
+      const center = box.getCenter(new THREE.Vector3());
+
+      const planeId = clipper.createFromNormalAndCoplanarPoint(
+        current.world,
+        new THREE.Vector3(nx, ny, nz),
+        center,
+      );
+      await current.components.get(OBC.FragmentsManager).core.update(true);
+      return planeId;
+    },
+
+    removeAll: async (): Promise<void> => {
+      const current = state;
+      if (current === null) return;
+
+      const clipper = current.components.get(OBC.Clipper);
+      clipper.deleteAll();
+      clipper.enabled = false;
+
+      if (current.models.size > 0) {
+        await current.components.get(OBC.FragmentsManager).core.update(true);
+      }
+    },
+  };
+
+  const camera: CameraPort = {
+    fitToModels: async (): Promise<boolean> => {
+      const current = state;
+      if (current === null) return false;
+      return await frameModels(current, isoDirection());
+    },
+
+    setStandardView: async (view: StandardView): Promise<boolean> => {
+      const current = state;
+      if (current === null) return false;
+
+      // 평면도는 정확히 수직으로 내려다보면 카메라의 up 벡터와 시선이 겹쳐 방향이 불안정해진다.
+      // 아주 조금 기울여 그 축퇴를 피한다.
+      const directions: Readonly<Record<StandardView, THREE.Vector3>> = {
+        FRONT: new THREE.Vector3(0, 0, 1),
+        TOP: new THREE.Vector3(0, 1, 0.0001),
+        ISO: isoDirection(),
+      };
+      return await frameModels(current, directions[view]);
+    },
+  };
+
+  return { worldFactory, modelLoader, selection, visibility, simulation, clipping, camera };
 };

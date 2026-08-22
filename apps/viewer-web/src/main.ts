@@ -3,6 +3,8 @@ import type { AppEventName, ModelId } from '@bim4d/contracts';
 import { createInMemoryModelRepository } from './adapters/inMemoryModelRepository.js';
 import { createThatOpenViewerAdapter } from './adapters/thatopen/thatOpenViewerAdapter.js';
 import { createKernel } from './kernel/index.js';
+import { createCameraPanel } from './shell/cameraPanel.js';
+import { createClippingPanel } from './shell/clippingPanel.js';
 import { createModelPanel } from './shell/modelPanel.js';
 import { createSelectionPanel } from './shell/selectionPanel.js';
 import { createVisibilityPanel } from './shell/visibilityPanel.js';
@@ -10,6 +12,8 @@ import { createSimulationPanel } from './shell/simulationPanel.js';
 import { createStatusComponent } from './shell/statusComponent.js';
 import { createSimulationComponent } from './simulation/simulationComponent.js';
 import { createModelLoadingComponent } from './viewer/model/modelLoadingComponent.js';
+import { createCameraComponent } from './viewer/camera/cameraComponent.js';
+import { createClippingComponent } from './viewer/clipping/clippingComponent.js';
 import { createSelectionComponent } from './viewer/selection/selectionComponent.js';
 import { createVisibilityComponent } from './viewer/visibility/visibilityComponent.js';
 import { createViewerWorldComponent } from './viewer/viewerWorldComponent.js';
@@ -46,12 +50,35 @@ const bootstrap = async (): Promise<void> => {
     }),
   );
   kernel.register(createVisibilityComponent({ port: viewer.visibility }));
+  kernel.register(createClippingComponent({ port: viewer.clipping }));
+  kernel.register(createCameraComponent({ port: viewer.camera }));
   kernel.register(createSimulationComponent({ port: viewer.simulation }));
   kernel.register(
     createModelPanel({
       fileInputSelector: '[data-testid="model-file"]',
       listSelector: '[data-testid="model-list"]',
       statusSelector: '[data-testid="model-status"]',
+    }),
+  );
+  kernel.register(
+    createClippingPanel({
+      axisButtonSelectors: {
+        X: '[data-testid="clip-x"]',
+        Y: '[data-testid="clip-y"]',
+        Z: '[data-testid="clip-z"]',
+      },
+      clearButtonSelector: '[data-testid="clip-clear"]',
+      statusSelector: '[data-testid="clipping-status"]',
+    }),
+  );
+  kernel.register(
+    createCameraPanel({
+      fitButtonSelector: '[data-testid="view-fit"]',
+      viewButtonSelectors: {
+        FRONT: '[data-testid="view-front"]',
+        TOP: '[data-testid="view-top"]',
+        ISO: '[data-testid="view-iso"]',
+      },
     }),
   );
   kernel.register(createSelectionPanel({ selector: '[data-testid="selection-globalid"]' }));

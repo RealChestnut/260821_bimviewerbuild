@@ -3,7 +3,7 @@ import { fileURLToPath } from 'node:url';
 import { expect, test } from '@playwright/test';
 import type { Page } from '@playwright/test';
 
-import { clickViewerAt } from './support/picking.js';
+import { clickViewerAt, findPickPoint } from './support/picking.js';
 
 const modelFixture = fileURLToPath(
   new URL('../../packages/test-fixtures/ifc/three-elements-ifc4.ifc', import.meta.url),
@@ -47,47 +47,6 @@ const boundsOf = async (page: Page): Promise<{ min: string; max: string }> => {
   return { min, max };
 };
 
-/**
- * 주어진 부재가 집히는 화면 지점을 찾는다.
- *
- * 카메라 배치와 화면 비율에 따라 어디에 무엇이 오는지 달라지므로, 지점을 고정하지 않고
- * 후보를 훑는다. 찾지 못하면 실패한다.
- */
-const findPointFor = async (page: Page, globalId: string): Promise<[number, number]> => {
-  const candidates: readonly (readonly [number, number])[] = [
-    [0.4, 0.65],
-    [0.35, 0.6],
-    [0.45, 0.7],
-    [0.3, 0.55],
-    [0.5, 0.6],
-    [0.4, 0.5],
-  ];
-
-  let matchedIndex = -1;
-  let cursor = 0;
-
-  await expect
-    .poll(
-      async () => {
-        const index = cursor % candidates.length;
-        const point = candidates[index];
-        cursor += 1;
-        if (point === undefined) return '';
-
-        await clickViewerAt(page, point[0], point[1]);
-        const label = (await page.getByTestId('selection-globalid').textContent()) ?? '';
-        if (label.includes(globalId)) matchedIndex = index;
-        return label;
-      },
-      { timeout: 30_000 },
-    )
-    .toContain(globalId);
-
-  const matched = candidates[matchedIndex];
-  if (matched === undefined) throw new Error(`${globalId}가 집히는 지점을 찾지 못했다.`);
-  return [matched[0], matched[1]];
-};
-
 test.describe('Mock 4D Simulation', () => {
   test('일정을 열면 타임라인이 열리고 시작 시각의 상태를 계산한다', async ({ page }) => {
     await openModelAndSchedule(page);
@@ -112,7 +71,7 @@ test.describe('Mock 4D Simulation', () => {
 
     // 먼저 벽 A가 보이는 시점에서 그것이 집히는 지점을 확정한다.
     await moveTo(page, max);
-    const [ratioX, ratioY] = await findPointFor(page, WALL_A);
+    const [ratioX, ratioY] = await findPickPoint(page, WALL_A);
 
     // 같은 지점이 시공 전 시점에서는 벽 A를 내주지 않아야 한다.
     await moveTo(page, min);
