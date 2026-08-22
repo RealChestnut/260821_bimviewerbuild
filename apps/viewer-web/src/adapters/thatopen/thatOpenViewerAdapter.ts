@@ -15,7 +15,12 @@ import type {
   PropertyPort,
   PropertySetEntry,
 } from '../../viewer/property/propertyPort.js';
-import type { SectionAxis, SectionPort } from '../../viewer/section/sectionPort.js';
+import type { CameraPort, CameraView } from '../../viewer/camera/cameraPort.js';
+import type {
+  SectionAxis,
+  SectionPlaneState,
+  SectionPort,
+} from '../../viewer/section/sectionPort.js';
 import type { SpatialTreePort } from '../../viewer/spatial/spatialTreePort.js';
 import type { ViewerWorld, ViewerWorldFactory } from '../../viewer/viewerWorldPort.js';
 
@@ -61,6 +66,7 @@ export interface ThatOpenViewerAdapter {
   readonly spatialTree: SpatialTreePort;
   readonly properties: PropertyPort;
   readonly section: SectionPort;
+  readonly camera: CameraPort;
 }
 
 /**
@@ -703,6 +709,43 @@ export const createThatOpenViewerAdapter = (
       return Promise.resolve(removed);
     },
 
+    describe: (): Promise<readonly SectionPlaneState[]> => {
+      const current = state;
+      if (current === null) return Promise.resolve([]);
+
+      const clipper = current.components.get(OBC.Clipper);
+      const planes: SectionPlaneState[] = [];
+      for (const plane of clipper.list.values()) {
+        // 사용자가 gizmo로 끌어 옮긴 위치가 그대로 담긴다.
+        planes.push({
+          normal: [plane.normal.x, plane.normal.y, plane.normal.z],
+          origin: [plane.origin.x, plane.origin.y, plane.origin.z],
+        });
+      }
+      return Promise.resolve(planes);
+    },
+
+    restore: (planes): Promise<readonly string[]> => {
+      const current = state;
+      if (current === null) return Promise.resolve([]);
+
+      const clipper = current.components.get(OBC.Clipper);
+      clipper.deleteAll();
+      if (planes.length === 0) return Promise.resolve([]);
+
+      clipper.enabled = true;
+      clipper.visible = true;
+
+      const ids = planes.map((plane) =>
+        clipper.createFromNormalAndCoplanarPoint(
+          current.world,
+          new THREE.Vector3(...plane.normal),
+          new THREE.Vector3(...plane.origin),
+        ),
+      );
+      return Promise.resolve(ids);
+    },
+
     setEnabled: (enabled): Promise<void> => {
       const current = state;
       if (current === null) return Promise.resolve();
@@ -715,5 +758,61 @@ export const createThatOpenViewerAdapter = (
     },
   };
 
-  return { worldFactory, modelLoader, selection, visibility, spatialTree, properties, section };
+  /**
+   * 카메라를 다룬다.
+   *
+   * 상태를 여기에 따로 기억하지 않는다. 사용자가 마우스로 돌린 뒤에도 진실은 controls
+   * 하나뿐이고, 물어볼 때마다 지금 값을 읽는다.
+   */
+  const camera: CameraPort = {
+    getView: (): Promise<CameraView | null> => {
+      const current = state;
+      if (current === null) return Promise.resolve(null);
+
+      const controls = current.world.camera.controls;
+      const position = controls.getPosition(new THREE.Vector3());
+      const target = controls.getTarget(new THREE.Vector3());
+
+      return Promise.resolve({
+        position: [position.x, position.y, position.z],
+        target: [target.x, target.y, target.z],
+      });
+    },
+
+    setView: async (view, options): Promise<void> => {
+      const current = state;
+      if (current === null) return;
+
+      const [px, py, pz] = view.position;
+      const [tx, ty, tz] = view.target;
+      await current.world.camera.controls.setLookAt(
+        px,
+        py,
+        pz,
+        tx,
+        ty,
+        tz,
+        options?.animate ?? true,
+      );
+    },
+
+    fitToModels: async (): Promise<boolean> => {
+      const current = state;
+      if (current === null || current.models.size === 0) return false;
+
+      await fitToLoadedModels(current);
+      return true;
+    },
+  };
+
+  return {
+    worldFactory,
+    modelLoader,
+    selection,
+    visibility,
+    spatialTree,
+    properties,
+    section,
+    camera,
+  };
 };

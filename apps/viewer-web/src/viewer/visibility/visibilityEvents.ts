@@ -1,7 +1,8 @@
 /**
  * 가시성 슬라이스가 발행하는 Event와 받는 Command.
  *
- * 감춘 부재의 목록 전체는 Event에 싣지 않는다. 화면이 필요로 하는 것은 개수와 격리 여부다.
+ * payload에는 영구 키만 싣는다. Viewpoint가 그때 화면을 되살리려면 개수가 아니라
+ * 무엇이 감춰져 있었는지를 알아야 한다. 형상 데이터는 싣지 않는다.
  */
 
 import type { ProductKey } from '@bim4d/contracts';
@@ -12,6 +13,10 @@ declare module '@bim4d/contracts' {
       /** 사용자가 직접 감춘 부재 수. 격리로 가려진 부재는 세지 않는다. */
       readonly hiddenCount: number;
       readonly isolated: boolean;
+      /** 사용자가 직접 감춘 부재. */
+      readonly hidden: readonly ProductKey[];
+      /** 격리 중이면 그 대상. 격리가 아니면 빈 배열이다. */
+      readonly isolatedProducts: readonly ProductKey[];
     };
   }
 

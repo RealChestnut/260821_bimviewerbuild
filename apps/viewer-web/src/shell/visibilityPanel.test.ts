@@ -106,7 +106,12 @@ describe('createVisibilityPanel', () => {
     const context = createTestContext();
     await startPanel(context);
 
-    await context.events.publish('visibility/changed', { hiddenCount: 2, isolated: false });
+    await context.events.publish('visibility/changed', {
+      hiddenCount: 2,
+      isolated: false,
+      hidden: [],
+      isolatedProducts: [],
+    });
 
     expect(button('show-all').disabled).toBe(false);
     expect(status()).toBe('2개 숨김');
@@ -116,7 +121,12 @@ describe('createVisibilityPanel', () => {
     const context = createTestContext();
     await startPanel(context);
 
-    await context.events.publish('visibility/changed', { hiddenCount: 0, isolated: true });
+    await context.events.publish('visibility/changed', {
+      hiddenCount: 0,
+      isolated: true,
+      hidden: [],
+      isolatedProducts: [],
+    });
 
     expect(button('show-all').disabled).toBe(false);
     expect(status()).toBe('격리 중');
@@ -125,9 +135,19 @@ describe('createVisibilityPanel', () => {
   it('모두 되돌아오면 전체 표시를 다시 잠근다', async () => {
     const context = createTestContext();
     await startPanel(context);
-    await context.events.publish('visibility/changed', { hiddenCount: 1, isolated: false });
+    await context.events.publish('visibility/changed', {
+      hiddenCount: 1,
+      isolated: false,
+      hidden: [],
+      isolatedProducts: [],
+    });
 
-    await context.events.publish('visibility/changed', { hiddenCount: 0, isolated: false });
+    await context.events.publish('visibility/changed', {
+      hiddenCount: 0,
+      isolated: false,
+      hidden: [],
+      isolatedProducts: [],
+    });
 
     expect(button('show-all').disabled).toBe(true);
     expect(status()).toBe('');
@@ -138,7 +158,12 @@ describe('createVisibilityPanel', () => {
     const handler = vi.fn(() => Promise.resolve({ restored: true }));
     context.commands.register('viewer/show-all', handler);
     await startPanel(context);
-    await context.events.publish('visibility/changed', { hiddenCount: 1, isolated: false });
+    await context.events.publish('visibility/changed', {
+      hiddenCount: 1,
+      isolated: false,
+      hidden: [],
+      isolatedProducts: [],
+    });
 
     button('show-all').click();
 
@@ -152,7 +177,12 @@ describe('createVisibilityPanel', () => {
     const handler = vi.fn(() => Promise.resolve({ restored: true }));
     context.commands.register('viewer/show-all', handler);
     const panel = await startPanel(context);
-    await context.events.publish('visibility/changed', { hiddenCount: 1, isolated: false });
+    await context.events.publish('visibility/changed', {
+      hiddenCount: 1,
+      isolated: false,
+      hidden: [],
+      isolatedProducts: [],
+    });
 
     await panel.stop();
     await panel.dispose();
