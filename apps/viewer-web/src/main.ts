@@ -7,14 +7,17 @@ import { createModelPanel } from './shell/modelPanel.js';
 import { createSelectionPanel } from './shell/selectionPanel.js';
 import { createPropertyPanel } from './shell/propertyPanel.js';
 import { createSectionPanel } from './shell/sectionPanel.js';
+import { createViewpointPanel } from './shell/viewpointPanel.js';
 import { createSpatialPanel } from './shell/spatialPanel.js';
 import { createVisibilityPanel } from './shell/visibilityPanel.js';
 import { createStatusComponent } from './shell/statusComponent.js';
 import { createModelLoadingComponent } from './viewer/model/modelLoadingComponent.js';
+import { createCameraComponent } from './viewer/camera/cameraComponent.js';
 import { createSectionComponent } from './viewer/section/sectionComponent.js';
 import { createSelectionComponent } from './viewer/selection/selectionComponent.js';
 import { createVisibilityComponent } from './viewer/visibility/visibilityComponent.js';
 import { createViewerWorldComponent } from './viewer/viewerWorldComponent.js';
+import { createViewpointComponent } from './viewer/viewpoint/viewpointComponent.js';
 
 /**
  * 애플리케이션 진입점.
@@ -49,6 +52,8 @@ const bootstrap = async (): Promise<void> => {
   );
   kernel.register(createVisibilityComponent({ port: viewer.visibility }));
   kernel.register(createSectionComponent({ port: viewer.section }));
+  kernel.register(createCameraComponent({ port: viewer.camera }));
+  kernel.register(createViewpointComponent({ camera: viewer.camera, section: viewer.section }));
   kernel.register(
     createModelPanel({
       fileInputSelector: '[data-testid="model-file"]',
@@ -69,6 +74,13 @@ const bootstrap = async (): Promise<void> => {
       toggleButtonSelector: '[data-testid="section-toggle"]',
       clearButtonSelector: '[data-testid="section-clear"]',
       statusSelector: '[data-testid="section-status"]',
+    }),
+  );
+  kernel.register(
+    createViewpointPanel({
+      saveButtonSelector: '[data-testid="viewpoint-save"]',
+      fitButtonSelector: '[data-testid="camera-fit"]',
+      listSelector: '[data-testid="viewpoint-list"]',
     }),
   );
   kernel.register(

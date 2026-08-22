@@ -97,6 +97,50 @@
         min-height: 0;
       }
 
+      #viewpoints {
+        border-top: 1px solid rgb(0 0 0 / 15%);
+        margin-top: 0.75rem;
+        padding-top: 0.5rem;
+      }
+
+      #viewpoints h2 {
+        font-size: 0.8rem;
+        margin: 0 0 0.35rem;
+        opacity: 0.75;
+      }
+
+      .viewpoint-list {
+        list-style: none;
+        margin: 0;
+        padding: 0;
+      }
+
+      .viewpoint-list li {
+        display: flex;
+        align-items: center;
+        gap: 0.25rem;
+      }
+
+      .viewpoint-restore {
+        flex: 1;
+        border: 0;
+        background: none;
+        padding: 0.15rem 0.2rem;
+        cursor: pointer;
+        color: inherit;
+        font: inherit;
+        text-align: left;
+      }
+
+      .viewpoint-restore:hover {
+        background: rgb(47 125 225 / 15%);
+      }
+
+      .viewpoint-empty {
+        margin: 0;
+        opacity: 0.7;
+      }
+
       #property-panel {
         border-left: 1px solid rgb(0 0 0 / 15%);
         overflow: auto;
@@ -145,11 +189,23 @@
         opacity: 0.7;
       }
 
-      #spatial-tree {
+      #left-panel {
+        display: grid;
+        grid-template-rows: 1fr auto;
         border-right: 1px solid rgb(0 0 0 / 15%);
+        min-height: 0;
+        font-size: 0.8rem;
+      }
+
+      #spatial-tree {
         overflow: auto;
         padding: 0.5rem;
-        font-size: 0.8rem;
+      }
+
+      #viewpoints {
+        padding: 0.5rem;
+        max-height: 40%;
+        overflow: auto;
       }
 
       #spatial-tree ul {
@@ -234,7 +290,15 @@
         <p id="selection-globalid" data-testid="selection-globalid">선택 없음</p>
       </header>
       <div id="workspace">
-        <aside id="spatial-tree" data-testid="spatial-tree"></aside>
+        <div id="left-panel">
+          <aside id="spatial-tree" data-testid="spatial-tree"></aside>
+          <section id="viewpoints">
+            <h2>시점</h2>
+            <button type="button" data-testid="viewpoint-save">시점 저장</button>
+            <button type="button" data-testid="camera-fit">화면 맞춤</button>
+            <div data-testid="viewpoint-list"></div>
+          </section>
+        </div>
         <main id="viewer-container" data-testid="viewer-container"></main>
         <aside id="property-panel" data-testid="property-panel"></aside>
       </div>

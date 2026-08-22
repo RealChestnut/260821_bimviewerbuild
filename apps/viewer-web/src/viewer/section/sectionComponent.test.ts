@@ -47,6 +47,19 @@ const createFakePort = (): FakePort => {
       port.calls.push(`enabled:${String(enabled)}`);
       return Promise.resolve();
     },
+    describe: () =>
+      Promise.resolve(
+        port.planes.map((_planeId, index) => ({
+          normal: [0, 1, 0] as const,
+          origin: [0, index, 0] as const,
+        })),
+      ),
+    restore: (planes) => {
+      port.calls.push(`restore:${String(planes.length)}`);
+      port.planes.length = 0;
+      for (const [index] of planes.entries()) port.planes.push(`restored-${String(index + 1)}`);
+      return Promise.resolve([...port.planes]);
+    },
   };
   return port;
 };
@@ -185,5 +198,52 @@ describe('createSectionComponent', () => {
 
     expect(harness.port.planes).toHaveLength(0);
     expect(harness.port.calls.at(-1)).toBe('removeAll');
+  });
+
+  it('저장해 둔 평면 상태로 되살린다', async () => {
+    const { context, port, events } = await setup();
+    await context.commands.dispatch('viewer/create-section', { axis: 'x' });
+
+    const result = await context.commands.dispatch('viewer/restore-sections', {
+      planes: [
+        { normal: [0, 1, 0], origin: [0, 3, 0] },
+        { normal: [1, 0, 0], origin: [2, 0, 0] },
+      ],
+    });
+
+    expect(result).toEqual({ ok: true, value: { count: 2 } });
+    expect(port.planes).toEqual(['restored-1', 'restored-2']);
+    expect(events.at(-1)?.payload).toEqual({ count: 2, enabled: true });
+  });
+
+  it('평면이 없는 상태를 되살리면 지우기만 한다', async () => {
+    const { context, port, events } = await setup();
+    await context.commands.dispatch('viewer/create-section', { axis: 'x' });
+
+    await context.commands.dispatch('viewer/restore-sections', { planes: [] });
+
+    expect(port.planes).toHaveLength(0);
+    expect(events.at(-1)?.payload).toEqual({ count: 0, enabled: true });
+  });
+
+  it('평면이 없는데 빈 상태를 되살리면 아무 일도 하지 않는다', async () => {
+    const { context, port, events } = await setup();
+
+    await context.commands.dispatch('viewer/restore-sections', { planes: [] });
+
+    expect(port.calls).toEqual([]);
+    expect(events).toHaveLength(0);
+  });
+
+  it('꺼 둔 상태에서 평면을 되살리면 다시 켠다', async () => {
+    const { context, port } = await setup();
+    await context.commands.dispatch('viewer/create-section', { axis: 'x' });
+    await context.commands.dispatch('viewer/set-sections-enabled', { enabled: false });
+
+    await context.commands.dispatch('viewer/restore-sections', {
+      planes: [{ normal: [0, 1, 0], origin: [0, 1, 0] }],
+    });
+
+    expect(port.calls.at(-1)).toBe('enabled:true');
   });
 });
