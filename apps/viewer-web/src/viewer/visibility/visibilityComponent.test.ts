@@ -74,7 +74,7 @@ describe('createVisibilityComponent', () => {
 
     expect(result).toEqual({ ok: true, value: { hiddenCount: 1 } });
     expect(port.calls).toEqual([{ kind: 'hide', products: [wallA] }]);
-    expect(events.at(-1)?.payload).toEqual({ hiddenCount: 1, isolated: false });
+    expect(events.at(-1)?.payload).toMatchObject({ hiddenCount: 1, isolated: false });
   });
 
   it('이미 감춘 부재를 다시 감춰도 개수가 늘지 않는다', async () => {
@@ -123,7 +123,7 @@ describe('createVisibilityComponent', () => {
 
     expect(result).toEqual({ ok: true, value: { isolated: true } });
     expect(port.calls).toEqual([{ kind: 'isolate', products: [wallA] }]);
-    expect(events.at(-1)?.payload).toEqual({ hiddenCount: 0, isolated: true });
+    expect(events.at(-1)?.payload).toMatchObject({ hiddenCount: 0, isolated: true });
   });
 
   it('빈 목록으로 격리하면 아무것도 하지 않는다', async () => {
@@ -142,7 +142,7 @@ describe('createVisibilityComponent', () => {
 
     await context.commands.dispatch('viewer/isolate-products', { products: [wallB] });
 
-    expect(events.at(-1)?.payload).toEqual({ hiddenCount: 0, isolated: true });
+    expect(events.at(-1)?.payload).toMatchObject({ hiddenCount: 0, isolated: true });
   });
 
   it('show-all이 감춘 것과 격리를 모두 되돌린다', async () => {
@@ -153,7 +153,7 @@ describe('createVisibilityComponent', () => {
 
     expect(result).toEqual({ ok: true, value: { restored: true } });
     expect(port.calls.at(-1)?.kind).toBe('showAll');
-    expect(events.at(-1)?.payload).toEqual({ hiddenCount: 0, isolated: false });
+    expect(events.at(-1)?.payload).toMatchObject({ hiddenCount: 0, isolated: false });
   });
 
   it('되돌릴 것이 없으면 show-all은 Adapter를 부르지 않는다', async () => {
@@ -183,7 +183,7 @@ describe('createVisibilityComponent', () => {
     await context.events.publish('model/unloaded', { modelId: 'model-1' as ModelId });
 
     expect(port.calls.at(-1)?.kind).toBe('showAll');
-    expect(events.at(-1)?.payload).toEqual({ hiddenCount: 0, isolated: false });
+    expect(events.at(-1)?.payload).toMatchObject({ hiddenCount: 0, isolated: false });
   });
 
   it('관계없는 모델이 해제되면 상태를 그대로 둔다', async () => {
@@ -202,5 +202,23 @@ describe('createVisibilityComponent', () => {
     await dispose();
 
     expect(port.calls.at(-1)?.kind).toBe('showAll');
+  });
+  it('감춘 부재와 격리 대상을 Event에 함께 싣는다', async () => {
+    const { context, events } = await setup();
+
+    await context.commands.dispatch('viewer/hide-products', { products: [wallA] });
+
+    expect(events.at(-1)?.payload.hidden).toEqual([wallA]);
+    expect(events.at(-1)?.payload.isolatedProducts).toEqual([]);
+  });
+
+  it('격리 중에는 격리 대상을 싣고 감춘 목록은 비운다', async () => {
+    const { context, events } = await setup();
+    await context.commands.dispatch('viewer/hide-products', { products: [wallA] });
+
+    await context.commands.dispatch('viewer/isolate-products', { products: [wallB] });
+
+    expect(events.at(-1)?.payload.hidden).toEqual([]);
+    expect(events.at(-1)?.payload.isolatedProducts).toEqual([wallB]);
   });
 });

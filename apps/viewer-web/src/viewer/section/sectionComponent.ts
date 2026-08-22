@@ -3,7 +3,7 @@ import type { AppComponent, AppContext, Unsubscribe } from '@bim4d/contracts';
 import '../model/modelEvents.js';
 import './sectionEvents.js';
 
-import type { SectionAxis, SectionPort } from './sectionPort.js';
+import type { SectionAxis, SectionPlaneState, SectionPort } from './sectionPort.js';
 
 export interface SectionComponentOptions {
   readonly port: SectionPort;
@@ -74,6 +74,19 @@ export const createSectionComponent = (options: SectionComponentOptions): AppCom
     return removed;
   };
 
+  /** Viewpoint 복원. 지금 있는 평면을 버리고 저장해 둔 상태로 다시 만든다. */
+  const restorePlanes = async (planes: readonly SectionPlaneState[]): Promise<number> => {
+    if (planes.length === 0 && planeIds.length === 0) return 0;
+
+    planeIds = [...(await port.restore(planes))];
+    if (planeIds.length > 0 && !enabled) {
+      await port.setEnabled(true);
+      enabled = true;
+    }
+    await publishState();
+    return planeIds.length;
+  };
+
   const setEnabled = async (next: boolean): Promise<boolean> => {
     if (next === enabled) return enabled;
 
@@ -109,6 +122,9 @@ export const createSectionComponent = (options: SectionComponentOptions): AppCom
         }));
         app.commands.register('viewer/clear-sections', async () => ({
           removed: await clearPlanes(),
+        }));
+        app.commands.register('viewer/restore-sections', async ({ planes }) => ({
+          count: await restorePlanes(planes),
         }));
         app.commands.register('viewer/set-sections-enabled', async (input) => ({
           enabled: await setEnabled(input.enabled),
