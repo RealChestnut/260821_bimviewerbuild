@@ -6,9 +6,11 @@
  */
 
 import type {
+  DependencyType,
   Schedule,
   ScheduleAssignment,
   ScheduleTask,
+  TaskDependency,
   TaskId,
   TaskOperation,
 } from '@bim4d/contracts';
@@ -16,11 +18,25 @@ import type {
 import { parseGlobalId } from './productKey.js';
 import type { Parsed } from './productKey.js';
 
-/** 이 코드가 읽을 수 있는 스키마 버전. */
-const SUPPORTED_VERSION = 1;
+/**
+ * 읽을 수 있는 파일의 스키마 버전.
+ *
+ * 어느 쪽을 읽든 내부 표현은 항상 최신(`INTERNAL_VERSION`)이다. 읽는 쪽이 버전을
+ * 분기하지 않게 하려는 것이다 (ADR-0007).
+ */
+const SUPPORTED_VERSIONS: readonly number[] = [1, 2];
+const INTERNAL_VERSION = 2;
 
 /** ADR-0002가 확정한 네 값. 다섯 번째 값을 임의로 늘리지 않는다. */
 const OPERATIONS: readonly TaskOperation[] = ['CONSTRUCT', 'DEMOLISH', 'TEMPORARY', 'MODIFY'];
+
+/** ADR-0007이 확정한 네 값. IFC의 USERDEFINED / NOTDEFINED는 받지 않는다. */
+const DEPENDENCY_TYPES: readonly DependencyType[] = [
+  'FINISH_START',
+  'START_START',
+  'FINISH_FINISH',
+  'START_FINISH',
+];
 
 const ISO_DATE = /^(\d{4})-(\d{2})-(\d{2})$/u;
 
@@ -78,6 +94,14 @@ const parseTask = (raw: unknown, index: number): Parsed<ScheduleTask> => {
     return fail('schedule.parse.invalid-task-name', `${where}.name이 문자열이 아니다.`);
   }
 
+  let parentTaskId: string | undefined;
+  if (raw['parentTaskId'] !== undefined && raw['parentTaskId'] !== null) {
+    if (typeof raw['parentTaskId'] !== 'string' || raw['parentTaskId'].trim().length === 0) {
+      return fail('schedule.parse.invalid-parent-task-id', `${where}.parentTaskId가 비어 있다.`);
+    }
+    parentTaskId = raw['parentTaskId'];
+  }
+
   // 시간이 정해지지 않은 Task는 정상 입력이다. 0으로 대체하지 않고 없는 채로 둔다.
   let start: number | undefined;
   if (raw['start'] !== undefined && raw['start'] !== null) {
@@ -102,6 +126,7 @@ const parseTask = (raw: unknown, index: number): Parsed<ScheduleTask> => {
     value: {
       taskId: taskId as TaskId,
       name,
+      ...(parentTaskId === undefined ? {} : { parentTaskId: parentTaskId as TaskId }),
       ...(start === undefined ? {} : { start }),
       ...(finish === undefined ? {} : { finish }),
     },
@@ -153,16 +178,98 @@ const parseAssignment = (
   };
 };
 
+const parseDependency = (
+  raw: unknown,
+  index: number,
+  taskIds: ReadonlySet<string>,
+): Parsed<TaskDependency> => {
+  const where = `dependencies[${String(index)}]`;
+  if (!isRecord(raw)) {
+    return fail('schedule.parse.invalid-dependencies', `${where}가 객체가 아니다.`);
+  }
+
+  const predecessorId = raw['predecessorId'];
+  const successorId = raw['successorId'];
+  for (const [field, value] of [
+    ['predecessorId', predecessorId],
+    ['successorId', successorId],
+  ] as const) {
+    if (typeof value !== 'string' || !taskIds.has(value)) {
+      return fail(
+        'schedule.parse.unknown-dependency-task-id',
+        `${where}.${field}가 tasks에 없다: ${String(value)}`,
+      );
+    }
+  }
+
+  const type = raw['type'];
+  if (typeof type !== 'string' || !DEPENDENCY_TYPES.includes(type as DependencyType)) {
+    return fail(
+      'schedule.parse.invalid-dependency-type',
+      `${where}.type은 ${DEPENDENCY_TYPES.join(' | ')} 중 하나여야 한다: ${String(type)}`,
+    );
+  }
+
+  // 생략하면 지연 없음이다. 음수는 선행(lead)이므로 허용한다.
+  let lagDays = 0;
+  if (raw['lagDays'] !== undefined && raw['lagDays'] !== null) {
+    if (typeof raw['lagDays'] !== 'number' || !Number.isInteger(raw['lagDays'])) {
+      return fail('schedule.parse.invalid-lag', `${where}.lagDays는 정수여야 한다.`);
+    }
+    lagDays = raw['lagDays'];
+  }
+
+  return {
+    ok: true,
+    value: {
+      predecessorId: predecessorId as TaskId,
+      successorId: successorId as TaskId,
+      type: type as DependencyType,
+      lagDays,
+    },
+  };
+};
+
+/**
+ * 방향 그래프에 순환이 있는지 본다.
+ *
+ * WBS(자식 → 부모)와 선후행(선행 → 후행) 모두 같은 검사를 쓴다. 자기 자신을 가리키는
+ * 간선도 길이 1짜리 순환이므로 함께 걸린다.
+ */
+const hasCycle = (edges: ReadonlyMap<string, readonly string[]>): boolean => {
+  const visiting = new Set<string>();
+  const done = new Set<string>();
+
+  const walk = (node: string): boolean => {
+    if (visiting.has(node)) return true;
+    if (done.has(node)) return false;
+
+    visiting.add(node);
+    for (const next of edges.get(node) ?? []) {
+      if (walk(next)) return true;
+    }
+    visiting.delete(node);
+    done.add(node);
+    return false;
+  };
+
+  for (const node of edges.keys()) {
+    if (walk(node)) return true;
+  }
+  return false;
+};
+
 /** 일정 JSON 하나를 검증해 계약 타입으로 바꾼다. */
 export const parseSchedule = (raw: unknown): Parsed<Schedule> => {
   if (!isRecord(raw)) {
     return fail('schedule.parse.not-an-object', '일정은 JSON 객체여야 한다.');
   }
 
-  if (raw['schemaVersion'] !== SUPPORTED_VERSION) {
+  const version = raw['schemaVersion'];
+  if (typeof version !== 'number' || !SUPPORTED_VERSIONS.includes(version)) {
     return fail(
       'schedule.parse.unsupported-version',
-      `읽을 수 있는 schemaVersion은 ${String(SUPPORTED_VERSION)}뿐이다: ${String(raw['schemaVersion'])}`,
+      `읽을 수 있는 schemaVersion은 ${SUPPORTED_VERSIONS.join(', ')}뿐이다: ${String(version)}`,
     );
   }
 
@@ -194,6 +301,73 @@ export const parseSchedule = (raw: unknown): Parsed<Schedule> => {
     tasks.push(parsed.value);
   }
 
+  // 계층 검증. 없는 부모를 가리키거나 순환하면 트리를 만들 수 없다.
+  const parentEdges = new Map<string, readonly string[]>();
+  const childCount = new Map<string, number>();
+  for (const task of tasks) {
+    const parentTaskId = task.parentTaskId;
+    if (parentTaskId === undefined) {
+      parentEdges.set(task.taskId, []);
+      continue;
+    }
+    if (!taskIds.has(parentTaskId)) {
+      return fail(
+        'schedule.parse.unknown-parent-task-id',
+        `${task.taskId}의 parentTaskId가 tasks에 없다: ${parentTaskId}`,
+      );
+    }
+    parentEdges.set(task.taskId, [parentTaskId]);
+    childCount.set(parentTaskId, (childCount.get(parentTaskId) ?? 0) + 1);
+  }
+  if (hasCycle(parentEdges)) {
+    return fail('schedule.parse.wbs-cycle', 'WBS 계층이 순환한다.');
+  }
+
+  // 요약 Task는 자기 시간을 갖지 않는다. 시간은 자손에서 계산한다 (ADR-0007).
+  for (const task of tasks) {
+    if ((childCount.get(task.taskId) ?? 0) === 0) continue;
+    if (task.start !== undefined || task.finish !== undefined) {
+      return fail(
+        'schedule.parse.summary-task-has-time',
+        `요약 Task는 시간을 가질 수 없다. 자손에서 계산한다: ${task.taskId}`,
+      );
+    }
+  }
+
+  const rawDependencies = raw['dependencies'];
+  const dependencies: TaskDependency[] = [];
+  if (rawDependencies !== undefined && rawDependencies !== null) {
+    if (!Array.isArray(rawDependencies)) {
+      return fail('schedule.parse.invalid-dependencies', 'dependencies가 배열이 아니다.');
+    }
+
+    const seen = new Set<string>();
+    const sequenceEdges = new Map<string, string[]>();
+
+    for (const [index, rawDependency] of rawDependencies.entries()) {
+      const parsed = parseDependency(rawDependency, index, taskIds);
+      if (!parsed.ok) return parsed;
+
+      const { predecessorId, successorId, type } = parsed.value;
+      const key = `${predecessorId}->${successorId}:${type}`;
+      if (seen.has(key)) {
+        return fail('schedule.parse.duplicate-dependency', `선후행이 중복이다: ${key}`);
+      }
+      seen.add(key);
+
+      const bucket = sequenceEdges.get(predecessorId);
+      if (bucket === undefined) sequenceEdges.set(predecessorId, [successorId]);
+      else bucket.push(successorId);
+      sequenceEdges.set(successorId, sequenceEdges.get(successorId) ?? []);
+
+      dependencies.push(parsed.value);
+    }
+
+    if (hasCycle(sequenceEdges)) {
+      return fail('schedule.parse.dependency-cycle', '선후행이 순환한다.');
+    }
+  }
+
   const rawAssignments = raw['assignments'];
   if (!Array.isArray(rawAssignments)) {
     return fail('schedule.parse.invalid-assignments', 'assignments가 배열이 아니다.');
@@ -203,11 +377,25 @@ export const parseSchedule = (raw: unknown): Parsed<Schedule> => {
   for (const [index, rawAssignment] of rawAssignments.entries()) {
     const parsed = parseAssignment(rawAssignment, index, taskIds);
     if (!parsed.ok) return parsed;
+
+    if ((childCount.get(parsed.value.taskId) ?? 0) > 0) {
+      return fail(
+        'schedule.parse.summary-task-has-assignment',
+        `요약 Task에는 부재를 걸 수 없다: ${parsed.value.taskId}`,
+      );
+    }
     assignments.push(parsed.value);
   }
 
   return {
     ok: true,
-    value: { scheduleId, name, schemaVersion: SUPPORTED_VERSION, tasks, assignments },
+    value: {
+      scheduleId,
+      name,
+      schemaVersion: INTERNAL_VERSION,
+      tasks,
+      dependencies,
+      assignments,
+    },
   };
 };

@@ -74,6 +74,7 @@ apps/viewer-web/**              모델 로딩, Selection, Property Panel, 4D Sim
 | 4D 액션 어휘 (기준서 17절 `appear/temporary` vs 19.2절 `SHOW/HIDE/REMOVE`) | `TaskOperation` 4값 + `ElementDisplayState` 3값으로 분리 | `docs/adr/0002-4d-operation-vocabulary.md` |
 | Schedule / Task–Element Mapping 필드 스키마 (기준서 19.2절에 ID만 있음) | `schemaVersion` 1 스키마 확정. 날짜는 UTC `YYYY-MM-DD`, 연결은 `modelRef + productGlobalId + operation` | `docs/adr/0006-schedule-schema.md` |
 | `ElementDisplayState`의 화면 표현 (ADR-0002가 Phase 4로 미룸) | `HIDDEN` 미렌더링, `IN_PROGRESS` 반투명 주황, `PRESENT` 원래 표현 | `docs/adr/0006-schedule-schema.md` |
+| 일정 스키마의 WBS와 선후행 (기준서 12·13절, 마스터 계획 4.3절) | `schemaVersion` 2. WBS는 `parentTaskId`, 선후행은 `IfcRelSequence` 대응 4종 + `lagDays`. 저장·검증만 하고 날짜를 자동 계산하지 않는다 | `docs/adr/0007-schedule-schema-v2.md` |
 
 **아직 미결정** — 해당 영역을 구현할 때 임의로 정하지 말고 결정을 먼저 요청한다.
 
@@ -81,7 +82,8 @@ apps/viewer-web/**              모델 로딩, Selection, Property Panel, 4D Sim
 - Split / Group 전처리의 책임 주체와 규칙
 - 검증 체크리스트 20절 각 항목의 자동/수동 구분과 실패 시 reject / warn 게이트
 - ADR-0002의 IFC Export 매핑은 잠정값이다. fixture 왕복 테스트 전까지 확정으로 취급하지 않는다
-- 일정 스키마의 WBS·선후행·캘린더 필드는 ADR-0006이 Phase 5로 미뤘다. 추가할 때 `schemaVersion`을 올린다
+- 일정의 캘린더(근무일)는 아직 없다. 마스터 계획 9절 Phase 5 항목에도 없으며, 근무일 기반 기간 산정을 도입할 때 정한다
+- 자동 일정 계산(CPM) 도입 여부. ADR-0007은 선후행을 저장·검증만 하고 날짜를 자동으로 밀지 않는다
 - ADR-0006의 `modelRef` 바인딩(파일명 대조)은 잠정이다. Phase 6에서 fingerprint 기반으로 교체한다
 
 또한 기준서 16.4절의 Codemill fallback Entity(`IfcEquipmentElement`)와 16.3절 iConstruct 문서 불일치는 기준서 자체가 미해결로 표시한 항목이다. 이 값들을 코드 상수로 굳히지 않는다.
@@ -131,7 +133,7 @@ apps/viewer-web/**              모델 로딩, Selection, Property Panel, 4D Sim
 - IfcTask가 파일에 없을 수 있다. 없으면 외부 Schedule을 사용하며, 이는 오류가 아니라 정상 경로다.
 - 공정 Granularity와 모델 부재 Granularity가 다를 수 있다. 이는 Schema 문제가 아니라 전처리 문제다.
 - Export 시 사용하는 Entity: IfcWorkSchedule, IfcTask, IfcTaskTime, IfcRelSequence, IfcRelAssignsToProduct, IfcRelAssignsToProcess.
-- 4D 어휘는 ADR-0002가 정본이다. 저장값은 `TaskOperation` = `CONSTRUCT | DEMOLISH | TEMPORARY | MODIFY`, 렌더 상태는 `ElementDisplayState` = `HIDDEN | IN_PROGRESS | PRESENT`이며 저장하지 않고 항상 계산한다.
+- 4D 어휘는 ADR-0002가, 일정 파일의 필드 스키마는 ADR-0006과 ADR-0007이 정본이다. 저장값은 `TaskOperation` = `CONSTRUCT | DEMOLISH | TEMPORARY | MODIFY`, 렌더 상태는 `ElementDisplayState` = `HIDDEN | IN_PROGRESS | PRESENT`이며 저장하지 않고 항상 계산한다.
 - 기준서 17절의 `appear` / `temporary`와 19.2절의 `SHOW` / `HIDE` / `REMOVE`는 폐기된 표기다. 코드에 쓰지 않는다.
 - `IfcTaskTypeEnum` 값을 도메인 코드에 직접 노출하지 않는다. Adapter에서 `TaskOperation`으로 변환한다.
 

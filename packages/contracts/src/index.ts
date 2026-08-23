@@ -1,10 +1,12 @@
 export type { GlobalId, ModelFingerprint, ModelId, ProductKey } from './identity.js';
 export type { AppError, AppErrorKind, TraceId } from './errors.js';
 export type {
+  DependencyType,
   ElementDisplayState,
   Schedule,
   ScheduleAssignment,
   ScheduleTask,
+  TaskDependency,
   TaskId,
   TaskOperation,
 } from './schedule.js';

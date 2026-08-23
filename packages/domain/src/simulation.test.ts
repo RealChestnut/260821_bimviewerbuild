@@ -156,7 +156,8 @@ describe('bindSchedule', () => {
   const schedule: Schedule = {
     scheduleId: 's1',
     name: '시험 일정',
-    schemaVersion: 1,
+    schemaVersion: 2,
+    dependencies: [],
     tasks: [
       { taskId: 'T001' as TaskId, name: '벽 시공', start: day(10), finish: day(20) },
       { taskId: 'T002' as TaskId, name: '시간 미정' },

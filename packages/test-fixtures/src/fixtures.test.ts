@@ -4,9 +4,16 @@ import { fileURLToPath } from 'node:url';
 
 import { describe, expect, it } from 'vitest';
 
-import { parseSchedule } from '@bim4d/domain';
+import { parseSchedule, validateSchedule } from '@bim4d/domain';
 
-import { ifcFixtures, minimalWallIfc4, scheduleFixtures, threeElementsIfc4 } from './index.js';
+import {
+  ifcFixtures,
+  legacyV1ThreeElementsSchedule,
+  minimalWallIfc4,
+  mockThreeElementsSchedule,
+  scheduleFixtures,
+  threeElementsIfc4,
+} from './index.js';
 
 const readFixture = (path: string): string => readFileSync(path, 'utf8');
 
@@ -134,5 +141,45 @@ describe('일정 fixtures', () => {
         expect(assignment.modelRef).toBe(fixture.modelRef);
       }
     }
+  });
+});
+
+describe('일정 fixtures — 스키마 v2', () => {
+  it('읽고 나면 버전이 무엇이든 v2다', () => {
+    // 소비자가 버전을 분기하지 않게 하려는 것이다 (ADR-0007).
+    for (const fixture of scheduleFixtures) {
+      const parsed = parseSchedule(JSON.parse(readFixture(fixture.path)));
+      if (!parsed.ok) throw new Error(`${fixture.id}: ${parsed.error.message}`);
+
+      expect(parsed.value.schemaVersion).toBe(2);
+    }
+  });
+
+  it('v1 파일은 계층 없음·선후행 없음으로 승격된다', () => {
+    const parsed = parseSchedule(JSON.parse(readFixture(legacyV1ThreeElementsSchedule.path)));
+    if (!parsed.ok) throw new Error(parsed.error.message);
+
+    expect(parsed.value.dependencies).toEqual([]);
+    expect(parsed.value.tasks.every((task) => task.parentTaskId === undefined)).toBe(true);
+  });
+
+  it('v2 fixture는 요약 Task와 선후행을 담는다', () => {
+    const parsed = parseSchedule(JSON.parse(readFixture(mockThreeElementsSchedule.path)));
+    if (!parsed.ok) throw new Error(parsed.error.message);
+
+    expect(parsed.value.tasks.filter((task) => task.parentTaskId !== undefined)).not.toHaveLength(
+      0,
+    );
+    expect(parsed.value.dependencies).not.toHaveLength(0);
+  });
+
+  it('v2 fixture의 유일한 경고는 시간 미정 Task뿐이다', () => {
+    // 선후행 위반이나 미연결 Task가 섞여 있으면 fixture로 쓸 수 없다.
+    const parsed = parseSchedule(JSON.parse(readFixture(mockThreeElementsSchedule.path)));
+    if (!parsed.ok) throw new Error(parsed.error.message);
+
+    expect(validateSchedule(parsed.value).map((warning) => warning.code)).toEqual([
+      'schedule.warn.task-without-time',
+    ]);
   });
 });

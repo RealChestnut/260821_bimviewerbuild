@@ -54,22 +54,31 @@
 
 ## 일정 fixture
 
-일정 파일의 필드 스키마는 `docs/adr/0006-schedule-schema.md`가 정본이다.
+일정 파일의 필드 스키마는 `docs/adr/0006-schedule-schema.md`(v1)와 `docs/adr/0007-schedule-schema-v2.md`(v2)가 정본이다.
 
 ### mock-three-elements.json
 
-직접 작성. `three-elements-ifc4.ifc`의 부재 3개에 Task 6개를 건다.
+직접 작성. `schemaVersion` 2. `three-elements-ifc4.ifc`의 부재 3개에 Task 8개를 건다.
 
 | 항목           | 내용                                                                            |
 | -------------- | ------------------------------------------------------------------------------- |
 | 대상 모델      | `three-elements-ifc4.ifc` (`modelRef`가 이 파일명과 일치해야 바인딩된다)        |
 | 타임라인       | 2026-03-02 ~ 2026-04-01                                                         |
+| WBS            | 요약 Task 2개(`W1` 1층 골조, `W2` 마감과 철거) 아래 작업 5개                    |
+| 선후행         | `FINISH_START` 4개. T001 → T002 → T003 → T004 → T005                            |
 | operation      | `CONSTRUCT` 3, `MODIFY` 2, `DEMOLISH` 1                                         |
 | 연쇄           | 벽 B는 시공(T003) 후 철거(T005)된다. ADR-0002 다중 할당 규칙을 실제로 밟는다    |
 | 시간 미정 Task | T006. 시뮬레이션에서 제외되는지 확인한다 (ADR-0002 경계 규칙 4)                 |
+| 경고           | `validateSchedule`이 내는 경고는 T006의 시간 미정 하나뿐이어야 한다             |
 | GlobalId 대조  | `fixtures.test.ts`가 모든 `productGlobalId`가 대상 IFC에 실제로 있는지 검사한다 |
 
 `TEMPORARY`는 담지 않았다. 부재가 셋뿐이라 가설 부재를 따로 둘 수 없고, 이미 다른 operation이 걸린 부재에 겹쳐 넣으면 fixture가 무엇을 시험하는지 흐려진다. `TEMPORARY`의 파생 규칙은 `packages/domain/src/simulation.test.ts`가 단위 테스트로 덮는다.
+
+### legacy-v1-three-elements.json
+
+`schemaVersion` 1. 계층도 선후행도 없는 옛 형식이며, 위 파일을 v2로 올리기 전의 내용이다.
+
+지울 수 없다. v1 → v2 승격 경로를 테스트로 고정하는 것이 이 파일의 유일한 역할이다 (ADR-0007). 읽으면 `parentTaskId` 없음 · `dependencies` 빈 배열의 v2가 되어야 한다.
 
 ## 아직 확인하지 못한 것
 
