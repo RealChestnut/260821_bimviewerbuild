@@ -15,6 +15,7 @@ interface FakePort extends ViewpointPort {
 const poseAt = (x: number): CameraPose => ({
   position: [x, x + 1, x + 2],
   target: [0, 0, 0],
+  up: [0, 1, 0],
 });
 
 const createFakePort = (): FakePort => {

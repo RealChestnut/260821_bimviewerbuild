@@ -8,7 +8,6 @@ import '../simulation/simulationEvents.js';
 import { createSimulationPanel } from './simulationPanel.js';
 
 const markup = `
-  <input type="file" data-testid="schedule-file" />
   <input type="range" data-testid="simulation-time" disabled />
   <button type="button" data-testid="simulation-play" disabled>재생</button>
   <select data-testid="simulation-speed" disabled>
@@ -52,7 +51,6 @@ const text = (testId: string): string => element(testId).textContent;
 
 const startPanel = async (context: TestContext) => {
   const panel = createSimulationPanel({
-    fileInputSelector: '[data-testid="schedule-file"]',
     timeSliderSelector: '[data-testid="simulation-time"]',
     playButtonSelector: '[data-testid="simulation-play"]',
     speedSelectSelector: '[data-testid="simulation-speed"]',
@@ -65,14 +63,7 @@ const startPanel = async (context: TestContext) => {
 };
 
 const publishLoaded = (context: TestContext): Promise<void> =>
-  context.events.publish('simulation/schedule-loaded', {
-    scheduleId: 'mock',
-    name: '시험 일정',
-    taskCount: 4,
-    assignedProductCount: 3,
-    start: START,
-    finish: FINISH,
-  });
+  context.events.publish('simulation/timeline-changed', { start: START, finish: FINISH });
 
 describe('createSimulationPanel', () => {
   beforeEach(() => {
@@ -89,7 +80,7 @@ describe('createSimulationPanel', () => {
     expect(text('simulation-date')).toBe('일정 없음');
   });
 
-  it('일정을 실으면 슬라이더 구간을 맞추고 조작을 연다', async () => {
+  it('타임라인이 생기면 슬라이더 구간을 맞추고 조작을 연다', async () => {
     const context = createTestContext();
     await startPanel(context);
 
@@ -185,60 +176,6 @@ describe('createSimulationPanel', () => {
     expect(text('simulation-status')).toBe('진행 1 · 표시 0 · 숨김 2');
   });
 
-  it('일정 적재 실패는 이유를 보여 준다', async () => {
-    const context = createTestContext();
-    await startPanel(context);
-
-    await context.events.publish('simulation/schedule-load-failed', {
-      reason: '읽을 수 있는 schemaVersion은 1뿐이다: 99',
-      code: 'schedule.parse.unsupported-version',
-    });
-
-    expect(text('simulation-status')).toContain('일정 열기 실패');
-    expect(slider().disabled).toBe(true);
-  });
-
-  it('JSON 파일을 고르면 load-schedule Command를 보낸다', async () => {
-    const context = createTestContext();
-    const handler = vi.fn((input: { source: unknown }) => {
-      void input;
-      return Promise.resolve({ scheduleId: 'mock', start: START, finish: FINISH });
-    });
-    context.commands.register('simulation/load-schedule', handler);
-    await startPanel(context);
-
-    const input = inputAt('schedule-file');
-    const file = new File(['{"scheduleId":"mock"}'], 'mock.json', { type: 'application/json' });
-    Object.defineProperty(input, 'files', { value: [file], configurable: true });
-    input.dispatchEvent(new Event('change'));
-
-    await vi.waitFor(() => {
-      expect(handler).toHaveBeenCalledTimes(1);
-    });
-    expect(handler.mock.calls[0]?.[0]).toEqual({ source: { scheduleId: 'mock' } });
-  });
-
-  it('읽을 수 없는 JSON은 Command를 보내지 않고 이유를 표시한다', async () => {
-    const context = createTestContext();
-    const handler = vi.fn(() =>
-      Promise.resolve({ scheduleId: 'mock', start: START, finish: FINISH }),
-    );
-    context.commands.register('simulation/load-schedule', handler);
-    await startPanel(context);
-
-    const input = inputAt('schedule-file');
-    Object.defineProperty(input, 'files', {
-      value: [new File(['{ 망가진'], 'broken.json')],
-      configurable: true,
-    });
-    input.dispatchEvent(new Event('change'));
-
-    await vi.waitFor(() => {
-      expect(text('simulation-status')).toContain('일정 열기 실패');
-    });
-    expect(handler).not.toHaveBeenCalled();
-  });
-
   it('dispose 후에는 Event를 받아도 화면을 바꾸지 않는다', async () => {
     const context = createTestContext();
     const panel = await startPanel(context);
@@ -255,7 +192,6 @@ describe('createSimulationPanel', () => {
     document.body.innerHTML = '';
     const context = createTestContext();
     const panel = createSimulationPanel({
-      fileInputSelector: '[data-testid="schedule-file"]',
       timeSliderSelector: '[data-testid="simulation-time"]',
       playButtonSelector: '[data-testid="simulation-play"]',
       speedSelectSelector: '[data-testid="simulation-speed"]',
@@ -263,6 +199,6 @@ describe('createSimulationPanel', () => {
       statusSelector: '[data-testid="simulation-status"]',
     });
 
-    await expect(panel.initialize(context)).rejects.toThrow(/schedule-file/);
+    await expect(panel.initialize(context)).rejects.toThrow(/simulation-time/);
   });
 });

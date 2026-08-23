@@ -1,4 +1,4 @@
-import { bindSchedule, computeDisplayStates, parseSchedule, scheduleBounds } from '@bim4d/domain';
+import { bindSchedule, computeDisplayStates, scheduleBounds } from '@bim4d/domain';
 import type { ProductDisplayState, ScheduleBounds, SimulationAssignment } from '@bim4d/domain';
 import type {
   AppComponent,
@@ -6,9 +6,11 @@ import type {
   ModelId,
   ProductKey,
   Schedule,
+  ScheduleRepositoryPort,
   Unsubscribe,
 } from '@bim4d/contracts';
 
+import '../scheduler/schedulerEvents.js';
 import '../viewer/model/modelEvents.js';
 import './simulationEvents.js';
 
@@ -19,6 +21,8 @@ export type ScheduleTick = (onTick: () => void) => () => void;
 
 export interface SimulationComponentOptions {
   readonly port: SimulationViewPort;
+  /** 일정을 읽어 오는 곳. 쓰는 것은 Scheduler뿐이다. */
+  readonly repository: ScheduleRepositoryPort;
   /** 재생 틱. 테스트는 직접 돌릴 수 있는 구현을 넣는다. */
   readonly scheduleTick?: ScheduleTick;
 }
@@ -46,9 +50,11 @@ const clamp = (value: number, bounds: ScheduleBounds): number =>
  *
  * 일정에 없는 부재는 건드리지 않는다. 미연결 부재는 모든 `t`에서 `PRESENT`이기 때문이며
  * (ADR-0002 경계 규칙 1), 덕분에 모델 전체를 열거할 필요가 없다.
+ *
+ * 일정의 주인은 Scheduler다. 여기서는 바뀌었다는 Event를 받고 보관소에서 읽기만 한다.
  */
 export const createSimulationComponent = (options: SimulationComponentOptions): AppComponent => {
-  const { port } = options;
+  const { port, repository } = options;
   const scheduleTick = options.scheduleTick ?? defaultScheduleTick;
 
   let context: AppContext | null = null;
@@ -166,59 +172,41 @@ export const createSimulationComponent = (options: SimulationComponentOptions): 
     await setTime(time + speed * ONE_DAY);
   };
 
-  const loadSchedule = async (
-    source: unknown,
-  ): Promise<{
-    readonly scheduleId: string;
-    readonly start: number;
-    readonly finish: number;
-  }> => {
+  /**
+   * 보관소에 실린 일정을 시뮬레이션이 쓸 수 있는 형태로 받아들인다.
+   *
+   * 시간이 확정된 Task가 하나도 없으면 타임라인을 만들 수 없다. 그때는 조용히 물러나고
+   * 화면 조작도 열리지 않는다. 그 사실은 Scheduler가 경고로 이미 알린다.
+   */
+  const adoptSchedule = async (): Promise<void> => {
     const app = requireContext();
 
-    const parsed = parseSchedule(source);
-    if (!parsed.ok) {
-      await app.events.publish('simulation/schedule-load-failed', {
-        reason: parsed.error.message,
-        code: parsed.error.code,
-      });
-      throw new Error(parsed.error.message);
-    }
-
-    const bounds = timelineOf(parsed.value);
-    if (bounds === null) {
-      const reason = '시간이 확정된 Task가 하나도 없어 타임라인을 만들 수 없다.';
-      await app.events.publish('simulation/schedule-load-failed', {
-        reason,
-        code: 'simulation.schedule.no-timeline',
-      });
-      throw new Error(reason);
-    }
+    const next = await repository.get();
+    if (next === null) return;
 
     await setPlaying(false);
     // 앞서 실린 일정이 걸어 둔 표현을 먼저 되돌린다. 새 일정이 그 부재를 다루지 않을 수 있다.
     await resetApplied();
 
-    schedule = parsed.value;
+    const bounds = timelineOf(next);
+    if (bounds === null) {
+      schedule = null;
+      timeline = null;
+      assignments = [];
+      return;
+    }
+
+    schedule = next;
     timeline = bounds;
     time = bounds.start;
-    assignments = bindSchedule(schedule, modelIdByRef);
+    assignments = bindSchedule(next, modelIdByRef);
 
-    const products = new Set(
-      schedule.assignments.map((item) => `${item.modelRef}::${item.productGlobalId}`),
-    );
-
-    await app.events.publish('simulation/schedule-loaded', {
-      scheduleId: schedule.scheduleId,
-      name: schedule.name,
-      taskCount: schedule.tasks.length,
-      assignedProductCount: products.size,
+    await app.events.publish('simulation/timeline-changed', {
       start: bounds.start,
       finish: bounds.finish,
     });
     await app.events.publish('simulation/time-changed', { time });
     await applyStatesAt(time);
-
-    return { scheduleId: schedule.scheduleId, start: bounds.start, finish: bounds.finish };
   };
 
   const resetApplied = async (): Promise<void> => {
@@ -258,10 +246,12 @@ export const createSimulationComponent = (options: SimulationComponentOptions): 
           forgetModel(payload.modelId);
           if (schedule !== null) assignments = bindSchedule(schedule, modelIdByRef);
         }),
+        // 반환값을 넘겨 발행자가 기다리게 한다. 일정을 실은 직후의 화면 상태가
+        // 적용을 마친 뒤여야 하고, 그래야 이어지는 조작이 헛돌지 않는다.
+        app.events.subscribe('scheduler/schedule-changed', () => adoptSchedule()),
       ];
 
       if (!registered) {
-        app.commands.register('simulation/load-schedule', ({ source }) => loadSchedule(source));
         app.commands.register('simulation/set-time', async ({ time: requested }) => ({
           time: await setTime(requested),
         }));

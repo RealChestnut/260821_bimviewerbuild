@@ -3,24 +3,22 @@
  *
  * 상태 자체는 Event로 옮기지 않는다. 부재별 상태는 수천 개가 될 수 있고 화면이 필요로 하는
  * 것은 요약이다. 실제 표현은 Port를 통해 Adapter로 간다.
+ *
+ * 일정을 싣고 검증하는 것은 Scheduler의 몫이다. 이 슬라이스는 보관소에서 읽기만 한다.
  */
 
 declare module '@bim4d/contracts' {
   interface AppEventMap {
-    'simulation/schedule-loaded': {
-      readonly scheduleId: string;
-      readonly name: string;
-      readonly taskCount: number;
-      /** 일정이 가리키는 서로 다른 부재 수. 모델이 열렸는지와 무관하다. */
-      readonly assignedProductCount: number;
+    /**
+     * 시뮬레이션이 다룰 수 있는 타임라인이 생겼다.
+     *
+     * 일정을 싣는 것은 Scheduler의 몫이다. 여기서는 그 일정에서 만들어진 시간 구간만 알린다.
+     * 시간이 확정된 Task가 하나도 없어 구간을 만들 수 없으면 발행하지 않는다.
+     */
+    'simulation/timeline-changed': {
       /** 타임라인 양 끝. epoch milliseconds. */
       readonly start: number;
       readonly finish: number;
-    };
-    'simulation/schedule-load-failed': {
-      readonly reason: string;
-      /** 기계가 분기할 수 있는 안정된 코드. */
-      readonly code: string;
     };
     'simulation/time-changed': { readonly time: number };
     'simulation/playback-changed': {
@@ -39,11 +37,6 @@ declare module '@bim4d/contracts' {
   }
 
   interface AppCommandMap {
-    'simulation/load-schedule': {
-      /** JSON.parse를 끝낸 값. 검증은 도메인이 한다. */
-      input: { readonly source: unknown };
-      output: { readonly scheduleId: string; readonly start: number; readonly finish: number };
-    };
     'simulation/set-time': {
       input: { readonly time: number };
       output: { readonly time: number };

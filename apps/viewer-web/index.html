@@ -22,9 +22,71 @@
 
       #app {
         display: grid;
-        /* 머리글 · 조작 줄 · Viewer · 타임라인. 각 줄은 한 줄을 유지한다. */
+        /* 머리글 · 조작 줄 · 작업 영역 · 타임라인. 각 줄은 한 줄을 유지한다. */
         grid-template-rows: auto auto 1fr auto;
         height: 100%;
+      }
+
+      /* 일정 목록은 있을 때만 자리를 차지한다. 감춰져 있으면 Viewer가 폭을 다 쓴다. */
+      #workspace {
+        display: grid;
+        grid-template-columns: auto 1fr;
+        min-height: 0;
+      }
+
+      /*
+       * 열을 못박는다. 자동 배치에 맡기면 목록이 hidden일 때 Viewer가 첫 열로 밀려
+       * 캔버스 기본 크기(300px)에 갇힌다.
+       */
+      #schedule-panel {
+        grid-column: 1;
+        width: 22rem;
+        overflow: auto;
+        padding: 0.5rem 0.75rem;
+        border-right: 1px solid rgb(0 0 0 / 15%);
+        font-size: 0.8rem;
+      }
+
+      #schedule-panel h2 {
+        font-size: 0.85rem;
+        margin: 0 0 0.5rem;
+      }
+
+      #task-list,
+      #schedule-warnings {
+        list-style: none;
+        margin: 0;
+        padding: 0;
+      }
+
+      #task-list li {
+        display: grid;
+        grid-template-columns: 1fr auto auto;
+        gap: 0.5rem;
+        padding: 0.15rem 0;
+        white-space: nowrap;
+      }
+
+      #task-list li[data-summary='true'] {
+        font-weight: 600;
+      }
+
+      #task-list [data-testid='task-dates'],
+      #task-list [data-testid='task-assigned'] {
+        font-family: ui-monospace, 'Cascadia Mono', Consolas, monospace;
+        opacity: 0.7;
+      }
+
+      #schedule-warnings li {
+        padding: 0.15rem 0;
+        color: rgb(180 90 0);
+      }
+
+      #schedule-status {
+        font-size: 0.8rem;
+        margin: 0;
+        min-width: 8rem;
+        opacity: 0.75;
       }
 
       header,
@@ -151,7 +213,9 @@
       }
 
       #viewer-container {
+        grid-column: 2;
         position: relative;
+        min-width: 0;
         min-height: 0;
         overflow: hidden;
       }
@@ -194,7 +258,14 @@
         <div class="spacer"></div>
         <p id="selection-globalid" data-testid="selection-globalid">선택 없음</p>
       </div>
-      <main id="viewer-container" data-testid="viewer-container"></main>
+      <div id="workspace">
+        <aside id="schedule-panel" data-testid="schedule-panel" hidden>
+          <h2 data-testid="schedule-name">일정 없음</h2>
+          <ol id="task-list" data-testid="task-list"></ol>
+          <ul id="schedule-warnings" data-testid="schedule-warnings"></ul>
+        </aside>
+        <main id="viewer-container" data-testid="viewer-container"></main>
+      </div>
       <footer id="simulation-bar">
         <label class="file-label">
           일정 열기
@@ -209,6 +280,7 @@
         <input type="range" data-testid="simulation-time" disabled aria-label="시뮬레이션 시각" />
         <p id="simulation-date" data-testid="simulation-date">일정 없음</p>
         <p id="simulation-status" data-testid="simulation-status"></p>
+        <p id="schedule-status" data-testid="schedule-status"></p>
       </footer>
     </div>
     <script type="module" src="/src/main.ts"></script>

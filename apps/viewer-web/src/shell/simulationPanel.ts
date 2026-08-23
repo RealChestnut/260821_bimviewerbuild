@@ -3,7 +3,6 @@ import type { AppComponent, AppContext, Unsubscribe } from '@bim4d/contracts';
 import '../simulation/simulationEvents.js';
 
 export interface SimulationPanelOptions {
-  readonly fileInputSelector: string;
   readonly timeSliderSelector: string;
   readonly playButtonSelector: string;
   readonly speedSelectSelector: string;
@@ -47,10 +46,11 @@ const formatDate = (time: number): string => new Date(time).toISOString().slice(
  *
  * 상태는 Event로만 받는다. 슬라이더를 움직여도 스스로 값을 확정하지 않고 Command를 보낸 뒤
  * `simulation/time-changed`를 받아 반영한다. 그래야 구간 밖 값이 잘렸을 때 화면이 따라간다.
+ *
+ * 일정을 여는 것은 Scheduler 쪽 화면의 몫이다. 여기서는 타임라인이 생겼다는 사실만 받는다.
  */
 export const createSimulationPanel = (options: SimulationPanelOptions): AppComponent => {
   let context: AppContext | null = null;
-  let fileInput: HTMLInputElement | null = null;
   let slider: HTMLInputElement | null = null;
   let playButton: HTMLButtonElement | null = null;
   let speedSelect: HTMLSelectElement | null = null;
@@ -59,7 +59,6 @@ export const createSimulationPanel = (options: SimulationPanelOptions): AppCompo
   let subscriptions: Unsubscribe[] = [];
 
   let playing = false;
-  let hasSchedule = false;
 
   const write = (target: HTMLElement | null, value: string): void => {
     if (target !== null) target.textContent = value;
@@ -91,36 +90,11 @@ export const createSimulationPanel = (options: SimulationPanelOptions): AppCompo
     void context.commands.dispatch('simulation/set-speed', { speed });
   };
 
-  const onFileChosen = (): void => {
-    const file = fileInput?.files?.[0];
-    if (file === undefined || context === null) return;
-    const app = context;
-
-    void (async () => {
-      let source: unknown;
-      try {
-        source = JSON.parse(await file.text());
-      } catch (cause) {
-        // JSON으로 읽히지도 않으면 Command를 보낼 것이 없다. 여기서 알린다.
-        const reason = cause instanceof Error ? cause.message : String(cause);
-        write(statusText, `일정 열기 실패: ${reason}`);
-        if (fileInput !== null) fileInput.value = '';
-        return;
-      }
-
-      await app.commands.dispatch('simulation/load-schedule', { source });
-      // 같은 파일을 다시 고를 수 있도록 값을 비운다.
-      if (fileInput !== null) fileInput.value = '';
-    })();
-    // 적재 실패 이유는 simulation/schedule-load-failed로 화면에 나온다.
-  };
-
   return {
     id: 'shell.simulation-panel',
 
     initialize: (appContext: AppContext) => {
       try {
-        fileInput = requireOf(options.fileInputSelector, HTMLInputElement, 'input');
         slider = requireOf(options.timeSliderSelector, HTMLInputElement, 'input');
         playButton = requireOf(options.playButtonSelector, HTMLButtonElement, 'button');
         speedSelect = requireOf(options.speedSelectSelector, HTMLSelectElement, 'select');
@@ -138,19 +112,17 @@ export const createSimulationPanel = (options: SimulationPanelOptions): AppCompo
     },
 
     start: () => {
-      if (context === null || fileInput === null || slider === null) {
+      if (context === null || slider === null) {
         throw new Error('initialize를 먼저 호출해야 한다.');
       }
       if (subscriptions.length > 0) return Promise.resolve();
 
-      fileInput.addEventListener('change', onFileChosen);
       slider.addEventListener('input', onSliderInput);
       playButton?.addEventListener('click', onPlayClicked);
       speedSelect?.addEventListener('change', onSpeedChanged);
 
       subscriptions = [
-        context.events.subscribe('simulation/schedule-loaded', ({ payload }) => {
-          hasSchedule = true;
+        context.events.subscribe('simulation/timeline-changed', ({ payload }) => {
           if (slider !== null) {
             slider.min = String(payload.start);
             slider.max = String(payload.finish);
@@ -159,11 +131,7 @@ export const createSimulationPanel = (options: SimulationPanelOptions): AppCompo
           }
           setControlsEnabled(true);
           write(dateText, formatDate(payload.start));
-          write(statusText, `${payload.name} · Task ${String(payload.taskCount)}개`);
-        }),
-        context.events.subscribe('simulation/schedule-load-failed', ({ payload }) => {
-          if (!hasSchedule) setControlsEnabled(false);
-          write(statusText, `일정 열기 실패: ${payload.reason}`);
+          write(statusText, '');
         }),
         context.events.subscribe('simulation/time-changed', ({ payload }) => {
           if (slider !== null) slider.value = String(payload.time);
@@ -185,7 +153,6 @@ export const createSimulationPanel = (options: SimulationPanelOptions): AppCompo
     },
 
     stop: () => {
-      fileInput?.removeEventListener('change', onFileChosen);
       slider?.removeEventListener('input', onSliderInput);
       playButton?.removeEventListener('click', onPlayClicked);
       speedSelect?.removeEventListener('change', onSpeedChanged);
@@ -197,18 +164,15 @@ export const createSimulationPanel = (options: SimulationPanelOptions): AppCompo
     dispose: () => {
       for (const unsubscribe of subscriptions) unsubscribe();
       subscriptions = [];
-      fileInput?.removeEventListener('change', onFileChosen);
       slider?.removeEventListener('input', onSliderInput);
       playButton?.removeEventListener('click', onPlayClicked);
       speedSelect?.removeEventListener('change', onSpeedChanged);
 
-      fileInput = null;
       slider = null;
       playButton = null;
       speedSelect = null;
       dateText = null;
       statusText = null;
-      hasSchedule = false;
       playing = false;
       context = null;
       return Promise.resolve();

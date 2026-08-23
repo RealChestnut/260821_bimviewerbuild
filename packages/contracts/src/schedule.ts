@@ -82,3 +82,16 @@ export interface Schedule {
   readonly dependencies: readonly TaskDependency[];
   readonly assignments: readonly ScheduleAssignment[];
 }
+
+/**
+ * 지금 열려 있는 일정 하나의 보관소.
+ *
+ * 일정의 주인은 Scheduler다. 다른 모듈은 이 Port로 읽기만 하고 직접 바꾸지 않는다
+ * (마스터 계획 5.4절). Phase 4~5는 메모리 구현을 쓰고, Project 저장이 붙는 단계에서
+ * SQLite Adapter로 교체한다.
+ */
+export interface ScheduleRepositoryPort {
+  get(): Promise<Schedule | null>;
+  save(schedule: Schedule): Promise<void>;
+  clear(): Promise<void>;
+}

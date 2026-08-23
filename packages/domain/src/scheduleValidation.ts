@@ -1,5 +1,5 @@
 /**
- * 일정의 정합성 검사와 계층 시간 계산.
+ * 일정의 날짜 정합성 검사.
  *
  * 구조가 깨진 것(순환, 없는 참조, 요약 Task의 시간)은 `parseSchedule`이 이미 거부했다.
  * 여기서 보는 것은 날짜 정합성이며 결과는 경고다. 날짜를 자동으로 계산하지 않기로 했으므로
@@ -8,12 +8,10 @@
  * 순수 함수만 담는다.
  */
 
-import type { Schedule, ScheduleTask, TaskDependency, TaskId } from '@bim4d/contracts';
+import type { Schedule, TaskDependency, TaskId } from '@bim4d/contracts';
 
-export interface TaskTimes {
-  readonly start: number;
-  readonly finish: number;
-}
+import { childrenOf, effectiveTaskTimes } from './scheduleTree.js';
+import type { TaskTimes } from './scheduleTree.js';
 
 export interface ScheduleWarning {
   /** 기계가 분기할 수 있는 안정된 코드. */
@@ -24,67 +22,6 @@ export interface ScheduleWarning {
 }
 
 const ONE_DAY = 86_400_000;
-
-/** 자식이 있는 Task는 요약 Task다. 자기 시간도 할당도 갖지 않는다. */
-const childrenOf = (tasks: readonly ScheduleTask[]): ReadonlyMap<TaskId, TaskId[]> => {
-  const children = new Map<TaskId, TaskId[]>();
-  for (const task of tasks) {
-    const parentTaskId = task.parentTaskId;
-    if (parentTaskId === undefined) continue;
-
-    const bucket = children.get(parentTaskId);
-    if (bucket === undefined) children.set(parentTaskId, [task.taskId]);
-    else bucket.push(task.taskId);
-  }
-  return children;
-};
-
-/**
- * Task마다 실제로 쓰이는 시간.
- *
- * 말단 Task는 자기 시간, 요약 Task는 자손 중 시간이 확정된 것들의 `min(start)`와
- * `max(finish)`다. 시간을 알 수 없는 Task는 결과에 담지 않는다. 0으로 대체하면
- * 1970년에 놓인 막대가 생긴다.
- */
-export const effectiveTaskTimes = (schedule: Schedule): ReadonlyMap<TaskId, TaskTimes> => {
-  const children = childrenOf(schedule.tasks);
-  const byId = new Map(schedule.tasks.map((task) => [task.taskId, task]));
-  const times = new Map<TaskId, TaskTimes>();
-
-  const resolve = (taskId: TaskId): TaskTimes | undefined => {
-    const cached = times.get(taskId);
-    if (cached !== undefined) return cached;
-
-    const task = byId.get(taskId);
-    if (task === undefined) return undefined;
-
-    const childIds = children.get(taskId) ?? [];
-    if (childIds.length === 0) {
-      if (task.start === undefined || task.finish === undefined) return undefined;
-      const own = { start: task.start, finish: task.finish };
-      times.set(taskId, own);
-      return own;
-    }
-
-    let start: number | undefined;
-    let finish: number | undefined;
-    for (const childId of childIds) {
-      const child = resolve(childId);
-      if (child === undefined) continue;
-      if (start === undefined || child.start < start) start = child.start;
-      if (finish === undefined || child.finish > finish) finish = child.finish;
-    }
-
-    if (start === undefined || finish === undefined) return undefined;
-    const rolled = { start, finish };
-    times.set(taskId, rolled);
-    return rolled;
-  };
-
-  // 계층에 순환이 없음은 parseSchedule이 보장한다.
-  for (const task of schedule.tasks) resolve(task.taskId);
-  return times;
-};
 
 /**
  * 선후행 하나가 지켜졌는지 본다.

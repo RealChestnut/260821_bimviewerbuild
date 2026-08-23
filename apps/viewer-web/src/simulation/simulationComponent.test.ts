@@ -1,9 +1,12 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 
-import type { ModelId, ProductKey } from '@bim4d/contracts';
+import { parseSchedule } from '@bim4d/domain';
+import type { ModelId, ProductKey, ScheduleRepositoryPort } from '@bim4d/contracts';
 
+import { createInMemoryScheduleRepository } from '../adapters/inMemoryScheduleRepository.js';
 import { createTestContext } from '../kernel/testing/testContext.js';
 import type { TestContext } from '../kernel/testing/testContext.js';
+import '../scheduler/schedulerEvents.js';
 import '../viewer/model/modelEvents.js';
 
 import { createSimulationComponent } from './simulationComponent.js';
@@ -89,9 +92,14 @@ const createManualTicker = () => {
 
 let port: FakePort;
 let ticker: ReturnType<typeof createManualTicker>;
+let repository: ScheduleRepositoryPort;
 
 const startComponent = async (context: TestContext) => {
-  const component = createSimulationComponent({ port, scheduleTick: ticker.scheduleTick });
+  const component = createSimulationComponent({
+    port,
+    repository,
+    scheduleTick: ticker.scheduleTick,
+  });
   await component.initialize(context);
   await component.start();
   return component;
@@ -105,43 +113,67 @@ const openModel = async (context: TestContext, displayName = 'a.ifc'): Promise<v
   });
 };
 
-const loadSchedule = async (context: TestContext, source: unknown = scheduleSource) =>
-  context.commands.dispatch('simulation/load-schedule', { source });
+/**
+ * 일정을 싣는 것은 Scheduler의 몫이다. 여기서는 보관소에 넣고 바뀌었다고 알리는 것까지가
+ * 시뮬레이션이 보는 세상이다.
+ */
+const loadSchedule = async (
+  context: TestContext,
+  source: unknown = scheduleSource,
+): Promise<void> => {
+  const parsed = parseSchedule(source);
+  if (!parsed.ok) throw new Error(parsed.error.message);
+
+  await repository.save(parsed.value);
+  await context.events.publish('scheduler/schedule-changed', {
+    scheduleId: parsed.value.scheduleId,
+    name: parsed.value.name,
+    tasks: [],
+    warnings: [],
+  });
+};
 
 beforeEach(() => {
   port = createFakePort();
   ticker = createManualTicker();
+  repository = createInMemoryScheduleRepository();
 });
 
-describe('createSimulationComponent — 일정 적재', () => {
+describe('createSimulationComponent — 일정 받아들이기', () => {
   it('타임라인 구간과 시작 시각을 알린다', async () => {
     const context = createTestContext();
     const seen: { start: number; finish: number }[] = [];
-    context.events.subscribe('simulation/schedule-loaded', ({ payload }) => {
+    context.events.subscribe('simulation/timeline-changed', ({ payload }) => {
       seen.push({ start: payload.start, finish: payload.finish });
     });
     await startComponent(context);
     await openModel(context);
 
-    const result = await loadSchedule(context);
+    await loadSchedule(context);
 
-    expect(result.ok).toBe(true);
     expect(seen).toEqual([{ start: day(2), finish: Date.UTC(2026, 3, 8) }]);
   });
 
-  it('잘못된 일정은 실패하고 이유를 Event로 알린다', async () => {
+  it('시간이 확정된 Task가 하나도 없으면 타임라인을 만들지 않는다', async () => {
     const context = createTestContext();
-    const failures: { reason: string; code: string }[] = [];
-    context.events.subscribe('simulation/schedule-load-failed', ({ payload }) => {
-      failures.push({ reason: payload.reason, code: payload.code });
+    const seen: number[] = [];
+    context.events.subscribe('simulation/timeline-changed', ({ payload }) => {
+      seen.push(payload.start);
     });
     await startComponent(context);
+    await openModel(context);
 
-    const result = await loadSchedule(context, { schemaVersion: 99 });
+    await loadSchedule(context, {
+      ...scheduleSource,
+      tasks: [{ taskId: 'T001', name: '미정' }],
+      dependencies: [],
+      assignments: [
+        { taskId: 'T001', modelRef: 'a.ifc', productGlobalId: SLAB, operation: 'CONSTRUCT' },
+      ],
+    });
 
-    expect(result.ok).toBe(false);
-    expect(failures[0]?.code).toBe('schedule.parse.unsupported-version');
-    expect(port.applied).toEqual([]);
+    expect(seen).toEqual([]);
+    expect(port.applied.flat()).toEqual([]);
   });
 
   it('모델이 열려 있지 않으면 어떤 부재도 건드리지 않는다', async () => {

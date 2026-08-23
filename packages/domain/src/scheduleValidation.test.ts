@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
 
-import type { Schedule, TaskId } from '@bim4d/contracts';
+import type { Schedule } from '@bim4d/contracts';
 
 import { parseSchedule } from './schedule.js';
-import { effectiveTaskTimes, validateSchedule } from './scheduleValidation.js';
+import { validateSchedule } from './scheduleValidation.js';
 
 const WALL = '0BnKdW4tq7SfUcM3vHxZgR';
 const SLAB = '2YsHnV6bk3PgZdL9uCxWtM';
@@ -28,78 +28,6 @@ const build = (source: Record<string, unknown>): Schedule => {
 
 const codesOf = (schedule: Schedule): string[] =>
   validateSchedule(schedule).map((warning) => warning.code);
-
-describe('effectiveTaskTimes', () => {
-  it('말단 Task는 자기 시간을 쓴다', () => {
-    const schedule = build({
-      tasks: [{ taskId: 'T001', name: '작업', start: iso(2), finish: iso(6) }],
-    });
-
-    expect(effectiveTaskTimes(schedule).get('T001' as TaskId)).toEqual({
-      start: day(2),
-      finish: day(6),
-    });
-  });
-
-  it('요약 Task는 자손의 최소 시작과 최대 완료를 쓴다', () => {
-    const schedule = build({
-      tasks: [
-        { taskId: 'W1', name: '요약' },
-        { taskId: 'T001', name: 'a', parentTaskId: 'W1', start: iso(9), finish: iso(13) },
-        { taskId: 'T002', name: 'b', parentTaskId: 'W1', start: iso(2), finish: iso(6) },
-      ],
-    });
-
-    expect(effectiveTaskTimes(schedule).get('W1' as TaskId)).toEqual({
-      start: day(2),
-      finish: day(13),
-    });
-  });
-
-  it('여러 단계로 중첩돼도 맨 위까지 올라간다', () => {
-    const schedule = build({
-      tasks: [
-        { taskId: 'P', name: '프로젝트' },
-        { taskId: 'W1', name: '층', parentTaskId: 'P' },
-        { taskId: 'T001', name: 'a', parentTaskId: 'W1', start: iso(2), finish: iso(6) },
-        { taskId: 'T002', name: 'b', parentTaskId: 'W1', start: iso(9), finish: iso(13) },
-      ],
-    });
-
-    expect(effectiveTaskTimes(schedule).get('P' as TaskId)).toEqual({
-      start: day(2),
-      finish: day(13),
-    });
-  });
-
-  it('시간이 정해지지 않은 자손은 계산에서 빼고 나머지로 잡는다', () => {
-    const schedule = build({
-      tasks: [
-        { taskId: 'W1', name: '요약' },
-        { taskId: 'T001', name: 'a', parentTaskId: 'W1', start: iso(2), finish: iso(6) },
-        { taskId: 'T002', name: '미정', parentTaskId: 'W1' },
-      ],
-    });
-
-    expect(effectiveTaskTimes(schedule).get('W1' as TaskId)).toEqual({
-      start: day(2),
-      finish: day(6),
-    });
-  });
-
-  it('시간이 하나도 없으면 그 Task는 목록에 없다', () => {
-    const schedule = build({
-      tasks: [
-        { taskId: 'W1', name: '요약' },
-        { taskId: 'T001', name: '미정', parentTaskId: 'W1' },
-      ],
-    });
-
-    const times = effectiveTaskTimes(schedule);
-    expect(times.has('W1' as TaskId)).toBe(false);
-    expect(times.has('T001' as TaskId)).toBe(false);
-  });
-});
 
 describe('validateSchedule — 경고', () => {
   it('시간이 정해지지 않은 Task를 알린다', () => {

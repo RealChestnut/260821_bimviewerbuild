@@ -10,5 +10,7 @@ export type {
   SimulationAssignment,
   TimeInterval,
 } from './simulation.js';
-export { effectiveTaskTimes, validateSchedule } from './scheduleValidation.js';
-export type { ScheduleWarning, TaskTimes } from './scheduleValidation.js';
+export { validateSchedule } from './scheduleValidation.js';
+export type { ScheduleWarning } from './scheduleValidation.js';
+export { effectiveTaskTimes, flattenTasks } from './scheduleTree.js';
+export type { FlatTask, TaskTimes } from './scheduleTree.js';

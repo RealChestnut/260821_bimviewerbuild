@@ -109,19 +109,4 @@ test.describe('Mock 4D Simulation', () => {
     await expect(page.getByTestId('simulation-play')).toHaveText('재생', { timeout: 10_000 });
     expect(consoleErrors).toEqual([]);
   });
-
-  test('일정 JSON이 스키마에 맞지 않으면 이유를 표시하고 타임라인을 열지 않는다', async ({
-    page,
-  }) => {
-    await page.goto('/');
-
-    await page.getByTestId('schedule-file').setInputFiles({
-      name: 'broken.json',
-      mimeType: 'application/json',
-      buffer: Buffer.from('{"schemaVersion": 99}', 'utf8'),
-    });
-
-    await expect(page.getByTestId('simulation-status')).toContainText('일정 열기 실패');
-    await expect(page.getByTestId('simulation-time')).toBeDisabled();
-  });
 });

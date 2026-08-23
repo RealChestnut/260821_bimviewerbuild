@@ -174,6 +174,17 @@ export const createThatOpenViewerAdapter = (
     return box.isEmpty() ? null : box;
   };
 
+  /**
+   * 카메라를 옮긴 뒤 fragments를 따라오게 한다.
+   *
+   * 갱신하지 않으면 다음 raycast가 옮기기 전 카메라로 계산되어 엉뚱한 부재가 집힌다.
+   * 남은 모델이 없을 때의 강제 update는 돌아오지 않을 수 있다 (ADR-0004).
+   */
+  const settleCamera = async (current: ViewerState): Promise<void> => {
+    if (current.models.size === 0) return;
+    await current.components.get(OBC.FragmentsManager).core.update(true);
+  };
+
   /** 초기 시점과 같은 대각선 방향. 등각 시점의 기준이기도 하다. */
   const isoDirection = (): THREE.Vector3 =>
     new THREE.Vector3(...initialCamera.position)
@@ -209,6 +220,7 @@ export const createThatOpenViewerAdapter = (
       center.z,
       false,
     );
+    await settleCamera(current);
     return true;
   };
 
@@ -589,10 +601,12 @@ export const createThatOpenViewerAdapter = (
       const controls = current.world.camera.controls;
       const position = controls.getPosition(new THREE.Vector3());
       const target = controls.getTarget(new THREE.Vector3());
+      const { up } = current.world.camera.three;
 
       return Promise.resolve({
         position: [position.x, position.y, position.z],
         target: [target.x, target.y, target.z],
+        up: [up.x, up.y, up.z],
       });
     },
 
@@ -602,7 +616,16 @@ export const createThatOpenViewerAdapter = (
 
       const [px, py, pz] = pose.position;
       const [tx, ty, tz] = pose.target;
-      await current.world.camera.controls.setLookAt(px, py, pz, tx, ty, tz, false);
+      const [ux, uy, uz] = pose.up;
+
+      // up을 먼저 되돌린다. 카메라가 천정 부근을 지나오면 up이 뒤집혀 있을 수 있고,
+      // 그대로 두면 위치와 시선이 같아도 화면이 돌아간 그림이 나온다.
+      const controls = current.world.camera.controls;
+      current.world.camera.three.up.set(ux, uy, uz);
+      controls.updateCameraUp();
+
+      await controls.setLookAt(px, py, pz, tx, ty, tz, false);
+      await settleCamera(current);
       return true;
     },
   };

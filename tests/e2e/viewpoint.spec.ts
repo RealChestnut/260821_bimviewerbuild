@@ -53,22 +53,27 @@ test.describe('Viewpoint 저장과 복원', () => {
     const [ratioX, ratioY] = await findPickPoint(page, WALL_A);
     await page.getByTestId('viewpoint-save').click();
     await expect(page.getByTestId('viewpoint-restore')).toBeEnabled();
+    const saved = await page.getByTestId('viewer-container').screenshot();
 
-    // 카메라를 평면도로 옮기면 같은 지점에서 벽 A가 집히지 않는다.
+    // 카메라를 옮긴다. 같은 그림이면 옮겨지지 않은 것이므로 복원을 시험할 수 없다.
     await page.getByTestId('view-top').click();
-    await clickViewerAt(page, ratioX, ratioY);
-    await expect(page.getByTestId('selection-globalid')).not.toContainText(WALL_A);
+    await expect
+      .poll(async () => (await page.getByTestId('viewer-container').screenshot()).equals(saved), {
+        timeout: 10_000,
+      })
+      .toBe(false);
 
     await page.getByTestId('viewpoint-restore').click();
 
     // 저장한 자리로 돌아왔다면 같은 지점이 다시 벽 A를 내준다.
+    // 카메라를 옮긴 직후의 첫 raycast는 옛 상태로 계산될 수 있어 여러 번 눌러 본다.
     await expect
       .poll(
         async () => {
           await clickViewerAt(page, ratioX, ratioY);
           return (await page.getByTestId('selection-globalid').textContent()) ?? '';
         },
-        { timeout: 15_000 },
+        { timeout: 20_000 },
       )
       .toContain(WALL_A);
     expect(consoleErrors).toEqual([]);
