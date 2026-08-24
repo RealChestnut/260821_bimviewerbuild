@@ -1,4 +1,4 @@
-import type { AppComponent, AppContext, ProductKey, Unsubscribe } from '@bim4d/contracts';
+import type { AppComponent, AppContext, ModelId, ProductKey, Unsubscribe } from '@bim4d/contracts';
 
 import '../model/modelEvents.js';
 import '../section/sectionEvents.js';
@@ -23,6 +23,8 @@ export interface Viewpoint {
   readonly camera: CameraView;
   readonly hidden: readonly ProductKey[];
   readonly isolated: readonly ProductKey[];
+  /** 통째로 감춰 두었던 모델. */
+  readonly hiddenModels: readonly ModelId[];
   readonly sections: readonly SectionPlaneState[];
 }
 
@@ -47,6 +49,7 @@ export const createViewpointComponent = (options: ViewpointComponentOptions): Ap
   /** 지금 감춰져 있는 것. `visibility/changed`가 알려 준 마지막 값이다. */
   let hidden: readonly ProductKey[] = [];
   let isolated: readonly ProductKey[] = [];
+  let hiddenModels: readonly ModelId[] = [];
 
   const requireContext = (): AppContext => {
     if (context === null) throw new Error('initialize를 먼저 호출해야 한다.');
@@ -74,6 +77,7 @@ export const createViewpointComponent = (options: ViewpointComponentOptions): Ap
       camera: view,
       hidden: [...hidden],
       isolated: [...isolated],
+      hiddenModels: [...hiddenModels],
       sections: [...(await section.describe())],
     };
 
@@ -91,6 +95,9 @@ export const createViewpointComponent = (options: ViewpointComponentOptions): Ap
 
     // 가시성은 항상 전체 표시에서 다시 쌓는다. 지금 감춰진 것이 무엇이든 결과가 같아진다.
     await app.commands.dispatch('viewer/show-all', {});
+    for (const modelId of viewpoint.hiddenModels) {
+      await app.commands.dispatch('viewer/set-model-visible', { modelId, visible: false });
+    }
     if (viewpoint.isolated.length > 0) {
       await app.commands.dispatch('viewer/isolate-products', { products: viewpoint.isolated });
     } else if (viewpoint.hidden.length > 0) {
@@ -123,6 +130,7 @@ export const createViewpointComponent = (options: ViewpointComponentOptions): Ap
         app.events.subscribe('visibility/changed', ({ payload }) => {
           hidden = payload.hidden;
           isolated = payload.isolatedProducts;
+          hiddenModels = payload.hiddenModels;
         }),
       ];
 
@@ -157,6 +165,7 @@ export const createViewpointComponent = (options: ViewpointComponentOptions): Ap
       viewpoints.clear();
       hidden = [];
       isolated = [];
+      hiddenModels = [];
       context = null;
       return Promise.resolve();
     },

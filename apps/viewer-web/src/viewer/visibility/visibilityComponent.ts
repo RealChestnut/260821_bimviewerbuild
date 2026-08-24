@@ -28,6 +28,8 @@ export const createVisibilityComponent = (options: VisibilityComponentOptions): 
   const hidden = new Map<string, ProductKey>();
   /** 격리 중이면 그 대상. 비어 있으면 격리 중이 아니다. */
   let isolatedTo: ProductKey[] = [];
+  /** 통째로 감춘 모델. 부재 단위 숨김과 따로 다룬다. */
+  const hiddenModels = new Set<ModelId>();
 
   const requireContext = (): AppContext => {
     if (context === null) throw new Error('initialize를 먼저 호출해야 한다.');
@@ -40,6 +42,7 @@ export const createVisibilityComponent = (options: VisibilityComponentOptions): 
       isolated: isolatedTo.length > 0,
       hidden: [...hidden.values()],
       isolatedProducts: [...isolatedTo],
+      hiddenModels: [...hiddenModels],
     });
   };
 
@@ -73,12 +76,35 @@ export const createVisibilityComponent = (options: VisibilityComponentOptions): 
     return true;
   };
 
+  /**
+   * 모델 하나를 통째로 감추거나 되돌린다.
+   *
+   * 부재 단위 숨김과 겹칠 수 있다. 모델을 되돌려도 그 안에서 따로 감춘 부재는 감춰진
+   * 채로 두는 것이 사용자가 한 일과 맞다.
+   */
+  const setModelVisible = async (modelId: ModelId, visible: boolean): Promise<boolean> => {
+    if (visible === !hiddenModels.has(modelId)) return visible;
+
+    await port.setModelVisible(modelId, visible);
+    if (visible) hiddenModels.delete(modelId);
+    else hiddenModels.add(modelId);
+
+    if (visible) {
+      // 모델을 되돌리면 그 안에서 따로 감춰 두었던 부재를 다시 감춘다.
+      const toHide = [...hidden.values()].filter((product) => product.modelId === modelId);
+      if (toHide.length > 0) await port.hide(toHide);
+    }
+    await publishState();
+    return visible;
+  };
+
   const showAll = async (): Promise<boolean> => {
-    if (hidden.size === 0 && isolatedTo.length === 0) return false;
+    if (hidden.size === 0 && isolatedTo.length === 0 && hiddenModels.size === 0) return false;
 
     await port.showAll();
     hidden.clear();
     isolatedTo = [];
+    hiddenModels.clear();
     await publishState();
     return true;
   };
@@ -91,6 +117,8 @@ export const createVisibilityComponent = (options: VisibilityComponentOptions): 
       hidden.delete(key);
       changed = true;
     }
+
+    if (hiddenModels.delete(modelId)) changed = true;
 
     const remainingIsolation = isolatedTo.filter((product) => product.modelId !== modelId);
     if (remainingIsolation.length !== isolatedTo.length) {
@@ -133,6 +161,9 @@ export const createVisibilityComponent = (options: VisibilityComponentOptions): 
         app.commands.register('viewer/isolate-products', async ({ products }) => ({
           isolated: await isolateProducts(products),
         }));
+        app.commands.register('viewer/set-model-visible', async ({ modelId, visible }) => ({
+          visible: await setModelVisible(modelId, visible),
+        }));
         app.commands.register('viewer/show-all', async () => ({ restored: await showAll() }));
         registered = true;
       }
@@ -149,10 +180,11 @@ export const createVisibilityComponent = (options: VisibilityComponentOptions): 
       for (const unsubscribe of subscriptions) unsubscribe();
       subscriptions = [];
 
-      if (hidden.size > 0 || isolatedTo.length > 0) {
+      if (hidden.size > 0 || isolatedTo.length > 0 || hiddenModels.size > 0) {
         await port.showAll();
         hidden.clear();
         isolatedTo = [];
+        hiddenModels.clear();
       }
       context = null;
     },
