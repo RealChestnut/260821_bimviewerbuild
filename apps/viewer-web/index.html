@@ -134,21 +134,45 @@
         padding: 0;
       }
 
+      /*
+       * 좁은 패널이라 한 줄에 셋을 다 넣으면 이름이 두세 글자로 잘린다.
+       * 이름과 부재 수를 윗줄에, 기간을 아랫줄에 둔다.
+       */
       #task-list li {
         display: grid;
         grid-template-columns: 1fr auto;
-        gap: 0.4rem;
-        padding: 0.1rem 0;
-        white-space: nowrap;
+        gap: 0 0.4rem;
+        padding: 0.15rem 0;
       }
 
       #task-list li[data-summary='true'] {
         font-weight: 600;
       }
 
+      /* 이름이 아주 길면 줄임표로 자른다. 부재 수는 늘 오른쪽에 보인다. */
+      #task-list [data-testid='task-name'] {
+        grid-column: 1;
+        grid-row: 1;
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      #task-list [data-testid='task-assigned'] {
+        grid-column: 2;
+        grid-row: 1;
+      }
+
+      #task-list [data-testid='task-dates'] {
+        grid-column: 1 / -1;
+        grid-row: 2;
+      }
+
       #task-list [data-testid='task-dates'],
       #task-list [data-testid='task-assigned'] {
         font-family: ui-monospace, 'Cascadia Mono', Consolas, monospace;
+        font-size: 0.75rem;
         opacity: 0.7;
       }
 
