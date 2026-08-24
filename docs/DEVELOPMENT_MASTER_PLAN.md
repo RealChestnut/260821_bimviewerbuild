@@ -366,6 +366,15 @@ interface AppComponent {
 - 카메라 및 Viewpoint
 - 복수 모델 연합
 
+완료 기준:
+
+- 두 개 이상의 모델을 동시에 열고 모델별로 해제할 수 있다. 한 모델을 해제해도 나머지 모델의 선택·가시성이 유지된다.
+- 부재의 영구 키(`modelId + GlobalId`)가 모델 경계를 지킨다. 같은 GlobalId가 두 모델에 있어도 한쪽만 대상이 된다.
+- 단면이 켜진 상태에서 선택과 숨김이 정상 동작한다.
+- 저장한 Viewpoint를 복원하면 카메라 위치·시선이 저장 시점과 같다.
+- 공간 계층 트리가 Project–Site–Building–Storey–부재로 나오고, 트리에서 고른 노드가 Viewer 선택과 연동된다.
+- 속성 패널이 선택 부재의 원본 Pset과 Qto를 빠짐없이 보여 준다.
+
 ### Phase 4 — Mock 4D Simulation
 
 - 고정 JSON 일정 fixture

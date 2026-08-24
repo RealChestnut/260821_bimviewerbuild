@@ -11,3 +11,15 @@ export type {
   SpatialTreeIssue,
   SpatialTreeNode,
 } from './spatialTree.js';
+export { parseSchedule } from './schedule.js';
+export { effectiveTaskTimes, flattenTasks } from './scheduleTree.js';
+export type { FlatTask, TaskTimes } from './scheduleTree.js';
+export { validateSchedule } from './scheduleValidation.js';
+export type { ScheduleWarning } from './scheduleValidation.js';
+export { bindSchedule, computeDisplayStates, scheduleBounds } from './simulation.js';
+export type {
+  ProductDisplayState,
+  ScheduleBounds,
+  SimulationAssignment,
+  TimeInterval,
+} from './simulation.js';

@@ -4,7 +4,16 @@ import { fileURLToPath } from 'node:url';
 
 import { describe, expect, it } from 'vitest';
 
-import { ifcFixtures, minimalWallIfc4, threeElementsIfc4 } from './index.js';
+import { parseSchedule, validateSchedule } from '@bim4d/domain';
+
+import {
+  ifcFixtures,
+  legacyV1ThreeElementsSchedule,
+  minimalWallIfc4,
+  mockThreeElementsSchedule,
+  scheduleFixtures,
+  threeElementsIfc4,
+} from './index.js';
 
 const readFixture = (path: string): string => readFileSync(path, 'utf8');
 
@@ -94,5 +103,83 @@ describe('IFC fixtures', () => {
     const content = readFixture(minimalWallIfc4.path);
     expect(content).toContain("'Pset_WallCommon'");
     expect(content).toMatch(/=IFCRELDEFINESBYPROPERTIES\(/u);
+  });
+});
+
+const scheduleDirectory = fileURLToPath(new URL('../schedule/', import.meta.url));
+
+describe('일정 fixtures', () => {
+  it('디렉터리에 있는 모든 일정 JSON이 fixture 목록에 등록돼 있다', () => {
+    const tracked = readdirSync(scheduleDirectory).filter((name) => name.endsWith('.json'));
+    const registered = new Set(scheduleFixtures.map((fixture) => basename(fixture.path)));
+
+    expect([...tracked].sort()).toEqual([...registered].sort());
+  });
+
+  it('등록된 일정이 모두 스키마 검증을 통과한다', () => {
+    for (const fixture of scheduleFixtures) {
+      const parsed = parseSchedule(JSON.parse(readFixture(fixture.path)));
+      if (!parsed.ok) throw new Error(`${fixture.id}: ${parsed.error.message}`);
+
+      expect(parsed.value.assignments.length).toBeGreaterThan(0);
+    }
+  });
+
+  it('일정이 가리키는 GlobalId가 대상 IFC에 실제로 있다', () => {
+    // 연결 키는 modelId + GlobalId다. 일정 쪽 GlobalId가 모델에 없으면 조용히 아무것도
+    // 움직이지 않으므로, fixture 단계에서 막는다.
+    for (const fixture of scheduleFixtures) {
+      const model = ifcFixtures.find((ifc) => basename(ifc.path) === fixture.modelRef);
+      if (model === undefined) throw new Error(`${fixture.id}의 modelRef가 IFC fixture에 없다.`);
+
+      const available = new Set(globalIdsOf(readFixture(model.path)));
+      const parsed = parseSchedule(JSON.parse(readFixture(fixture.path)));
+      if (!parsed.ok) throw new Error(parsed.error.message);
+
+      for (const assignment of parsed.value.assignments) {
+        expect(available).toContain(assignment.productGlobalId);
+        expect(assignment.modelRef).toBe(fixture.modelRef);
+      }
+    }
+  });
+});
+
+describe('일정 fixtures — 스키마 v2', () => {
+  it('읽고 나면 버전이 무엇이든 v2다', () => {
+    // 소비자가 버전을 분기하지 않게 하려는 것이다 (ADR-0006).
+    for (const fixture of scheduleFixtures) {
+      const parsed = parseSchedule(JSON.parse(readFixture(fixture.path)));
+      if (!parsed.ok) throw new Error(`${fixture.id}: ${parsed.error.message}`);
+
+      expect(parsed.value.schemaVersion).toBe(2);
+    }
+  });
+
+  it('v1 파일은 계층 없음·선후행 없음으로 승격된다', () => {
+    const parsed = parseSchedule(JSON.parse(readFixture(legacyV1ThreeElementsSchedule.path)));
+    if (!parsed.ok) throw new Error(parsed.error.message);
+
+    expect(parsed.value.dependencies).toEqual([]);
+    expect(parsed.value.tasks.every((task) => task.parentTaskId === undefined)).toBe(true);
+  });
+
+  it('v2 fixture는 요약 Task와 선후행을 담는다', () => {
+    const parsed = parseSchedule(JSON.parse(readFixture(mockThreeElementsSchedule.path)));
+    if (!parsed.ok) throw new Error(parsed.error.message);
+
+    expect(parsed.value.tasks.filter((task) => task.parentTaskId !== undefined)).not.toHaveLength(
+      0,
+    );
+    expect(parsed.value.dependencies).not.toHaveLength(0);
+  });
+
+  it('v2 fixture의 유일한 경고는 시간 미정 Task뿐이다', () => {
+    // 선후행 위반이나 미연결 Task가 섞여 있으면 fixture로 쓸 수 없다.
+    const parsed = parseSchedule(JSON.parse(readFixture(mockThreeElementsSchedule.path)));
+    if (!parsed.ok) throw new Error(parsed.error.message);
+
+    expect(validateSchedule(parsed.value).map((warning) => warning.code)).toEqual([
+      'schedule.warn.task-without-time',
+    ]);
   });
 });

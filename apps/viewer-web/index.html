@@ -22,7 +22,8 @@
 
       #app {
         display: grid;
-        grid-template-rows: auto 1fr;
+        /* 머리글 · 작업 영역 · 4D 타임라인. */
+        grid-template-rows: auto 1fr auto;
         height: 100%;
       }
 
@@ -108,6 +109,80 @@
         border-top: 1px solid rgb(0 0 0 / 15%);
         margin-top: 0.75rem;
         padding-top: 0.5rem;
+      }
+
+      /*
+       * 일정 칸은 넷째 줄에 못박는다. 자동 배치에 맡기면 감춰졌을 때 다른 칸이 밀린다.
+       */
+      #schedule-panel {
+        grid-row: 4;
+        border-top: 1px solid rgb(0 0 0 / 15%);
+        padding: 0.5rem;
+        max-height: 16rem;
+        overflow: auto;
+      }
+
+      #schedule-panel h2 {
+        font-size: 0.8rem;
+        margin: 0 0 0.35rem;
+      }
+
+      #task-list,
+      #schedule-warnings {
+        list-style: none;
+        margin: 0;
+        padding: 0;
+      }
+
+      #task-list li {
+        display: grid;
+        grid-template-columns: 1fr auto;
+        gap: 0.4rem;
+        padding: 0.1rem 0;
+        white-space: nowrap;
+      }
+
+      #task-list li[data-summary='true'] {
+        font-weight: 600;
+      }
+
+      #task-list [data-testid='task-dates'],
+      #task-list [data-testid='task-assigned'] {
+        font-family: ui-monospace, 'Cascadia Mono', Consolas, monospace;
+        opacity: 0.7;
+      }
+
+      #schedule-warnings li {
+        padding: 0.1rem 0;
+        color: rgb(180 90 0);
+      }
+
+      /* 4D 타임라인은 화면 아래 한 줄에 모은다. */
+      #simulation-bar {
+        display: flex;
+        align-items: center;
+        gap: 0.6rem;
+        padding: 0.4rem 1rem;
+        border-top: 1px solid rgb(0 0 0 / 15%);
+        font-size: 0.8rem;
+      }
+
+      #simulation-time {
+        flex: 1;
+        min-width: 8rem;
+      }
+
+      #simulation-date {
+        margin: 0;
+        min-width: 6rem;
+        font-family: ui-monospace, 'Cascadia Mono', Consolas, monospace;
+      }
+
+      #simulation-status,
+      #schedule-status {
+        margin: 0;
+        min-width: 10rem;
+        opacity: 0.75;
       }
 
       #viewpoints h2 {
@@ -199,7 +274,8 @@
       #left-panel {
         display: grid;
         /* 가운데(트리)만 늘어난다. minmax(0, 1fr)이라야 트리가 넘칠 때 위아래가 밀리지 않는다. */
-        grid-template-rows: auto minmax(0, 1fr) auto;
+        /* 일정 칸은 넷째 줄이다. 감춰져 있으면 자리를 차지하지 않는다. */
+        grid-template-rows: auto minmax(0, 1fr) auto auto;
         border-right: 1px solid rgb(0 0 0 / 15%);
         min-height: 0;
         font-size: 0.8rem;
@@ -349,10 +425,31 @@
             <button type="button" data-testid="camera-fit">화면 맞춤</button>
             <div data-testid="viewpoint-list"></div>
           </section>
+          <section id="schedule-panel" data-testid="schedule-panel" hidden>
+            <h2 data-testid="schedule-name">일정 없음</h2>
+            <ol id="task-list" data-testid="task-list"></ol>
+            <ul id="schedule-warnings" data-testid="schedule-warnings"></ul>
+          </section>
         </div>
         <main id="viewer-container" data-testid="viewer-container"></main>
         <aside id="property-panel" data-testid="property-panel"></aside>
       </div>
+      <footer id="simulation-bar">
+        <label class="file-label">
+          일정 열기
+          <input type="file" accept=".json" data-testid="schedule-file" />
+        </label>
+        <button type="button" data-testid="simulation-play" disabled>재생</button>
+        <select data-testid="simulation-speed" disabled aria-label="배속">
+          <option value="1">1일/틱</option>
+          <option value="2">2일/틱</option>
+          <option value="4">4일/틱</option>
+        </select>
+        <input type="range" data-testid="simulation-time" disabled aria-label="시뮬레이션 시각" />
+        <p id="simulation-date" data-testid="simulation-date">일정 없음</p>
+        <p id="simulation-status" data-testid="simulation-status"></p>
+        <p id="schedule-status" data-testid="schedule-status"></p>
+      </footer>
     </div>
     <script type="module" src="/src/main.ts"></script>
   </body>
