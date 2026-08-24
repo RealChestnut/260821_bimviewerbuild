@@ -38,6 +38,8 @@ export const createVisibilityComponent = (options: VisibilityComponentOptions): 
     await requireContext().events.publish('visibility/changed', {
       hiddenCount: hidden.size,
       isolated: isolatedTo.length > 0,
+      hidden: [...hidden.values()],
+      isolatedProducts: [...isolatedTo],
     });
   };
 
