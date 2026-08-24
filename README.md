@@ -7,7 +7,7 @@
 - IFC 기술 기준서: [docs/IFC_통합_정리_2026-08-20.md](docs/IFC_통합_정리_2026-08-20.md)
 - 결정 기록: [docs/adr/](docs/adr/)
 
-현재 단계는 **Phase 1 — Viewer Kernel**이다.
+현재 단계는 **Phase 5 — Scheduler**다. Phase 0~4가 `main`에 들어가 있다.
 
 ## 요구 환경
 
@@ -22,6 +22,18 @@ pnpm install
 pnpm verify        # typecheck + lint + unit test + build
 pnpm --filter @bim4d/viewer-web dev
 ```
+
+### 개발 서버 전에 패키지를 빌드해야 한다
+
+`verify`를 건너뛸 때는 최소한 이것만이라도 먼저 실행한다.
+
+```bash
+pnpm --filter "./packages/**" -r build
+```
+
+`apps/viewer-web`은 `@bim4d/domain` 같은 workspace 패키지를 `package.json`의 `main`이 가리키는 `dist/`에서 읽는다. Vite에 src 별칭이 없고 `dist/`는 `.gitignore` 대상이라 `git clone`이나 `git pull`로 따라오지 않는다.
+
+빌드하지 않고 개발 서버를 띄우면 페이지 자체는 열리지만 모듈이 500으로 깨지고 화면이 `kernel: booting`에서 멈춘다. `packages/**`를 고친 뒤에도 다시 빌드해야 개발 서버가 알아본다. `apps/viewer-web/**`와 `index.html`은 빌드 없이 즉시 반영된다.
 
 ## 명령
 
