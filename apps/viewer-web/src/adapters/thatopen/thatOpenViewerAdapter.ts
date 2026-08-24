@@ -15,6 +15,7 @@ import type {
   PropertyPort,
   PropertySetEntry,
 } from '../../viewer/property/propertyPort.js';
+import type { SectionAxis, SectionPort } from '../../viewer/section/sectionPort.js';
 import type { SpatialTreePort } from '../../viewer/spatial/spatialTreePort.js';
 import type { ViewerWorld, ViewerWorldFactory } from '../../viewer/viewerWorldPort.js';
 
@@ -59,6 +60,7 @@ export interface ThatOpenViewerAdapter {
   readonly visibility: VisibilityPort;
   readonly spatialTree: SpatialTreePort;
   readonly properties: PropertyPort;
+  readonly section: SectionPort;
 }
 
 /**
@@ -644,5 +646,74 @@ export const createThatOpenViewerAdapter = (
     },
   };
 
-  return { worldFactory, modelLoader, selection, visibility, spatialTree, properties };
+  /** 축 이름을 자르는 방향의 법선으로 바꾼다. */
+  const AXIS_NORMALS: Record<SectionAxis, readonly [number, number, number]> = {
+    x: [1, 0, 0],
+    y: [0, 1, 0],
+    z: [0, 0, 1],
+  };
+
+  /**
+   * 단면 평면을 다룬다.
+   *
+   * 평면은 World에 속하므로 Clipper도 World와 같은 `Components`에서 가져온다.
+   * 만든 평면은 화면에서 gizmo로 끌어 옮길 수 있다.
+   */
+  const section: SectionPort = {
+    createAxisPlane: (axis): Promise<string | null> => {
+      const current = state;
+      if (current === null || current.models.size === 0) return Promise.resolve(null);
+
+      const boxer = current.components.get(OBC.BoundingBoxer);
+      boxer.dispose();
+      boxer.addFromModels();
+      const box = boxer.get();
+      boxer.dispose();
+      if (box.isEmpty()) return Promise.resolve(null);
+
+      const clipper = current.components.get(OBC.Clipper);
+      clipper.enabled = true;
+
+      // 모델 한가운데를 지나게 둔다. 끝에서 시작하면 아무것도 잘리지 않아 만든 티가 안 난다.
+      const center = box.getCenter(new THREE.Vector3());
+      const normal = new THREE.Vector3(...AXIS_NORMALS[axis]);
+      return Promise.resolve(
+        clipper.createFromNormalAndCoplanarPoint(current.world, normal, center),
+      );
+    },
+
+    remove: async (planeId): Promise<boolean> => {
+      const current = state;
+      if (current === null) return false;
+
+      const clipper = current.components.get(OBC.Clipper);
+      if (!clipper.list.has(planeId)) return false;
+
+      await clipper.delete(current.world, planeId);
+      return true;
+    },
+
+    removeAll: (): Promise<number> => {
+      const current = state;
+      if (current === null) return Promise.resolve(0);
+
+      const clipper = current.components.get(OBC.Clipper);
+      const removed = clipper.list.size;
+      clipper.deleteAll();
+      return Promise.resolve(removed);
+    },
+
+    setEnabled: (enabled): Promise<void> => {
+      const current = state;
+      if (current === null) return Promise.resolve();
+
+      const clipper = current.components.get(OBC.Clipper);
+      clipper.enabled = enabled;
+      // 자르기를 멈추면 gizmo도 함께 숨긴다. 잘리지 않는 평면만 떠 있으면 오해를 부른다.
+      clipper.visible = enabled;
+      return Promise.resolve();
+    },
+  };
+
+  return { worldFactory, modelLoader, selection, visibility, spatialTree, properties, section };
 };
