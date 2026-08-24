@@ -1,6 +1,7 @@
 import type { AppEventName, ModelId } from '@bim4d/contracts';
 
 import { createInMemoryModelRepository } from './adapters/inMemoryModelRepository.js';
+import { createInMemoryScheduleRepository } from './adapters/inMemoryScheduleRepository.js';
 import { createThatOpenViewerAdapter } from './adapters/thatopen/thatOpenViewerAdapter.js';
 import { createKernel } from './kernel/index.js';
 import { createModelPanel } from './shell/modelPanel.js';
@@ -9,6 +10,8 @@ import { createSelectionPanel } from './shell/selectionPanel.js';
 import { createPropertyPanel } from './shell/propertyPanel.js';
 import { createSectionPanel } from './shell/sectionPanel.js';
 import { createViewpointPanel } from './shell/viewpointPanel.js';
+import { createSchedulerPanel } from './shell/schedulerPanel.js';
+import { createSimulationPanel } from './shell/simulationPanel.js';
 import { createSpatialPanel } from './shell/spatialPanel.js';
 import { createVisibilityPanel } from './shell/visibilityPanel.js';
 import { createStatusComponent } from './shell/statusComponent.js';
@@ -19,6 +22,8 @@ import { createSelectionComponent } from './viewer/selection/selectionComponent.
 import { createVisibilityComponent } from './viewer/visibility/visibilityComponent.js';
 import { createViewerWorldComponent } from './viewer/viewerWorldComponent.js';
 import { createViewpointComponent } from './viewer/viewpoint/viewpointComponent.js';
+import { createSchedulerComponent } from './scheduler/schedulerComponent.js';
+import { createSimulationComponent } from './simulation/simulationComponent.js';
 
 /**
  * 애플리케이션 진입점.
@@ -30,6 +35,7 @@ const bootstrap = async (): Promise<void> => {
   const kernel = createKernel();
   const viewer = createThatOpenViewerAdapter();
   const repository = createInMemoryModelRepository();
+  const scheduleRepository = createInMemoryScheduleRepository();
 
   kernel.register(createStatusComponent({ selector: '[data-testid="kernel-status"]' }));
   kernel.register(
@@ -55,6 +61,10 @@ const bootstrap = async (): Promise<void> => {
   kernel.register(createSectionComponent({ port: viewer.section }));
   kernel.register(createCameraComponent({ port: viewer.camera }));
   kernel.register(createViewpointComponent({ camera: viewer.camera, section: viewer.section }));
+  kernel.register(createSchedulerComponent({ repository: scheduleRepository }));
+  kernel.register(
+    createSimulationComponent({ port: viewer.simulation, repository: scheduleRepository }),
+  );
   kernel.register(
     createModelPanel({
       fileInputSelector: '[data-testid="model-file"]',
@@ -63,6 +73,25 @@ const bootstrap = async (): Promise<void> => {
     }),
   );
   kernel.register(createModelListPanel({ selector: '[data-testid="model-list"]' }));
+  kernel.register(
+    createSchedulerPanel({
+      fileInputSelector: '[data-testid="schedule-file"]',
+      panelSelector: '[data-testid="schedule-panel"]',
+      nameSelector: '[data-testid="schedule-name"]',
+      taskListSelector: '[data-testid="task-list"]',
+      warningListSelector: '[data-testid="schedule-warnings"]',
+      statusSelector: '[data-testid="schedule-status"]',
+    }),
+  );
+  kernel.register(
+    createSimulationPanel({
+      timeSliderSelector: '[data-testid="simulation-time"]',
+      playButtonSelector: '[data-testid="simulation-play"]',
+      speedSelectSelector: '[data-testid="simulation-speed"]',
+      dateSelector: '[data-testid="simulation-date"]',
+      statusSelector: '[data-testid="simulation-status"]',
+    }),
+  );
   kernel.register(createSelectionPanel({ selector: '[data-testid="selection-globalid"]' }));
   kernel.register(
     createSpatialPanel({

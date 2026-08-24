@@ -6,6 +6,7 @@ import type { GlobalId, ModelId, ProductKey } from '@bim4d/contracts';
 import type { RawSpatialNode } from '@bim4d/domain';
 import { formatIfcValue } from '@bim4d/domain';
 
+import type { DisplayStateChange, SimulationViewPort } from '../../simulation/simulationPort.js';
 import type { ModelLoaderPort, ModelLoadRequest } from '../../viewer/model/modelLoaderPort.js';
 import type { VisibilityPort } from '../../viewer/visibility/visibilityPort.js';
 import type { SelectionHit, SelectionPort } from '../../viewer/selection/selectionPort.js';
@@ -39,6 +40,8 @@ export interface ThatOpenViewerAdapterOptions {
   };
   /** 선택 강조 색. 기본값은 파랑이다. */
   readonly highlightColor?: number;
+  /** 4D 시뮬레이션에서 작업 진행 중인 부재의 색. 기본값은 주황이다. */
+  readonly inProgressColor?: number;
 }
 
 const DEFAULTS = {
@@ -49,6 +52,7 @@ const DEFAULTS = {
     target: [0, 0, 0],
   },
   highlightColor: 0x2f7de1,
+  inProgressColor: 0xf59e0b,
 } as const;
 
 interface ViewerState {
@@ -67,6 +71,7 @@ export interface ThatOpenViewerAdapter {
   readonly properties: PropertyPort;
   readonly section: SectionPort;
   readonly camera: CameraPort;
+  readonly simulation: SimulationViewPort;
 }
 
 /**
@@ -157,6 +162,15 @@ export const createThatOpenViewerAdapter = (
   const workerUrl = options.workerUrl ?? DEFAULTS.workerUrl;
   const initialCamera = options.initialCamera ?? DEFAULTS.initialCamera;
   const highlightColor = options.highlightColor ?? DEFAULTS.highlightColor;
+  const inProgressColor = options.inProgressColor ?? DEFAULTS.inProgressColor;
+
+  /**
+   * 선택이 지금 강조하고 있는 항목.
+   *
+   * `resetHighlight()`를 인자 없이 부르면 화면의 모든 강조가 지워진다. 시뮬레이션도 같은
+   * 강조 통로를 쓰므로, 선택은 자기가 건 것만 지워야 서로를 밀어내지 않는다.
+   */
+  let selectionItems: Record<string, Set<number>> = {};
 
   let state: ViewerState | null = null;
 
@@ -204,6 +218,7 @@ export const createThatOpenViewerAdapter = (
       const [tx, ty, tz] = initialCamera.target;
       void world.camera.controls.setLookAt(px, py, pz, tx, ty, tz);
 
+      selectionItems = {};
       state = { components, world, models: new Map(), loaderReady: null };
       const created = state;
       let disposed = false;
@@ -279,7 +294,10 @@ export const createThatOpenViewerAdapter = (
       const ifcLoader = current.components.get(OBC.IfcLoader);
       const fragments = current.components.get(OBC.FragmentsManager);
 
-      const model = await ifcLoader.load(request.bytes, true, request.displayName, {
+      // fragments는 세 번째 인자를 모델 식별자로 쓴다. 연합 모델에서는 같은 파일을 두 번
+      // 열 수 있으므로 파일명만으로는 충돌한다. 우리 modelId를 덧붙여 고유하게 만든다.
+      const fragmentsModelName = `${request.displayName}#${request.modelId}`;
+      const model = await ifcLoader.load(request.bytes, true, fragmentsModelName, {
         processData: {
           progressCallback: (progress: number) => {
             request.onProgress?.(progress);
@@ -395,8 +413,13 @@ export const createThatOpenViewerAdapter = (
       }
 
       const fragments = current.components.get(OBC.FragmentsManager);
-      await fragments.resetHighlight();
-      if (Object.keys(items).length === 0) return;
+      if (Object.keys(selectionItems).length > 0) await fragments.resetHighlight(selectionItems);
+      selectionItems = items;
+
+      if (Object.keys(items).length === 0) {
+        await fragments.core.update(true);
+        return;
+      }
 
       await fragments.highlight(
         {
@@ -416,7 +439,9 @@ export const createThatOpenViewerAdapter = (
 
       const fragments = current.components.get(OBC.FragmentsManager);
       if (!fragments.initialized) return;
-      await fragments.resetHighlight();
+
+      if (Object.keys(selectionItems).length > 0) await fragments.resetHighlight(selectionItems);
+      selectionItems = {};
 
       // 남은 모델이 없을 때의 강제 update는 돌아오지 않을 수 있다 (ADR-0004).
       if (current.models.size > 0) {
@@ -430,9 +455,50 @@ export const createThatOpenViewerAdapter = (
     current: ViewerState,
     products: readonly ProductKey[],
   ): Promise<Record<string, Set<number>>> => {
+    if (products.length === 0) return {};
+
+    // GlobalId는 파일 안에서만 고유하다. 연합 모델에서 같은 파일이 두 번 열려 있으면
+    // 같은 GlobalId가 두 모델에 존재하는데, guidsToModelIdMap은 열린 모델을 전부 뒤진다.
+    // 영구 키가 지목한 모델의 것만 남겨야 한쪽만 숨기거나 격리할 수 있다.
+    const byModel = new Map<ModelId, GlobalId[]>();
+    for (const product of products) {
+      const bucket = byModel.get(product.modelId);
+      if (bucket === undefined) {
+        byModel.set(product.modelId, [product.globalId]);
+      } else {
+        bucket.push(product.globalId);
+      }
+    }
+
     const fragments = current.components.get(OBC.FragmentsManager);
-    const globalIds = products.map((product) => product.globalId);
-    return globalIds.length === 0 ? {} : await fragments.guidsToModelIdMap(globalIds);
+    const items: Record<string, Set<number>> = {};
+
+    for (const [modelId, globalIds] of byModel) {
+      const fragmentsModelId = current.models.get(modelId);
+      if (fragmentsModelId === undefined) continue;
+
+      const found = await fragments.guidsToModelIdMap(globalIds);
+      const localIds = found[fragmentsModelId];
+      if (localIds !== undefined) items[fragmentsModelId] = localIds;
+    }
+    return items;
+  };
+
+  /** 화면 갱신 없이 표시 여부만 바꾼다. 여러 묶음을 모아 한 번에 갱신할 때 쓴다. */
+  const applyVisibility = async (
+    current: ViewerState,
+    products: readonly ProductKey[],
+    visible: boolean,
+  ): Promise<void> => {
+    if (products.length === 0) return;
+
+    const fragments = current.components.get(OBC.FragmentsManager);
+    const items = await toItems(current, products);
+
+    for (const [fragmentsModelId, localIds] of Object.entries(items)) {
+      const model = fragments.list.get(fragmentsModelId);
+      await model?.setVisible([...localIds], visible);
+    }
   };
 
   const setVisibility = async (
@@ -442,14 +508,8 @@ export const createThatOpenViewerAdapter = (
     const current = state;
     if (current === null || current.models.size === 0) return;
 
-    const fragments = current.components.get(OBC.FragmentsManager);
-    const items = await toItems(current, products);
-
-    for (const [fragmentsModelId, localIds] of Object.entries(items)) {
-      const model = fragments.list.get(fragmentsModelId);
-      await model?.setVisible([...localIds], visible);
-    }
-    await fragments.core.update(true);
+    await applyVisibility(current, products, visible);
+    await current.components.get(OBC.FragmentsManager).core.update(true);
   };
 
   const visibility: VisibilityPort = {
@@ -819,6 +879,63 @@ export const createThatOpenViewerAdapter = (
     },
   };
 
+  const productsWith = (
+    changes: readonly DisplayStateChange[],
+    ...states: readonly DisplayStateChange['state'][]
+  ): readonly ProductKey[] =>
+    changes.filter((change) => states.includes(change.state)).map((change) => change.product);
+
+  /**
+   * 4D 시뮬레이션 표현 (ADR-0005).
+   *
+   * `HIDDEN`은 렌더링하지 않고, `IN_PROGRESS`는 반투명 주황으로 덧칠하며, `PRESENT`는
+   * 원래 표현으로 되돌린다. 강조 통로는 선택과 공유하므로, 한 부재가 선택된 채로 시뮬레이션
+   * 상태가 바뀌면 선택 강조가 지워진다. 알려진 한계이며 다시 누르면 복원된다.
+   */
+  const simulation: SimulationViewPort = {
+    apply: async (changes): Promise<void> => {
+      const current = state;
+      if (current === null || current.models.size === 0 || changes.length === 0) return;
+
+      const fragments = current.components.get(OBC.FragmentsManager);
+      const inProgress = productsWith(changes, 'IN_PROGRESS');
+      const settled = productsWith(changes, 'HIDDEN', 'PRESENT');
+
+      // 진행 중에서 벗어난 부재의 덧칠을 먼저 지운다. 지우지 않으면 완료된 부재가 계속 주황이다.
+      const cleared = await toItems(current, settled);
+      if (Object.keys(cleared).length > 0) await fragments.resetHighlight(cleared);
+
+      await applyVisibility(current, productsWith(changes, 'HIDDEN'), false);
+      await applyVisibility(current, productsWith(changes, 'IN_PROGRESS', 'PRESENT'), true);
+
+      const items = await toItems(current, inProgress);
+      if (Object.keys(items).length > 0) {
+        await fragments.highlight(
+          {
+            color: new THREE.Color(inProgressColor),
+            opacity: 0.6,
+            transparent: true,
+            renderedFaces: FRAGS.RenderedFaces.TWO,
+          },
+          items,
+        );
+      }
+      await fragments.core.update(true);
+    },
+
+    reset: async (products): Promise<void> => {
+      const current = state;
+      if (current === null || current.models.size === 0 || products.length === 0) return;
+
+      const fragments = current.components.get(OBC.FragmentsManager);
+      const items = await toItems(current, products);
+      if (Object.keys(items).length > 0) await fragments.resetHighlight(items);
+
+      await applyVisibility(current, products, true);
+      await fragments.core.update(true);
+    },
+  };
+
   return {
     worldFactory,
     modelLoader,
@@ -828,5 +945,6 @@ export const createThatOpenViewerAdapter = (
     properties,
     section,
     camera,
+    simulation,
   };
 };
