@@ -224,6 +224,43 @@ test.describe('Scheduler', () => {
     expect(readFileSync(String(path), 'utf8')).toContain('슬래브 타설 2차');
   });
 
+  test('Gantt가 Task마다 막대를 그린다', async ({ page }) => {
+    await openSchedule(page, scheduleV2);
+
+    await expect(page.getByTestId('gantt')).toBeVisible();
+    await expect(page.getByTestId('gantt-row')).toHaveCount(8);
+    // 시간 미정 Task 하나만 막대가 없다.
+    await expect(page.getByTestId('gantt-bar')).toHaveCount(7);
+    await expect(page.getByTestId('gantt-range')).toHaveText('2026-03-02 ~ 2026-04-01');
+  });
+
+  test('Gantt가 시뮬레이션 시각을 커서로 보여 준다', async ({ page }) => {
+    await page.goto('/');
+    await page.getByTestId('model-file').setInputFiles(modelFixture);
+    await expect(page.getByTestId('model-unload')).toBeEnabled({ timeout: 60_000 });
+    await page.getByTestId('schedule-file').setInputFiles(scheduleV2);
+
+    await expect(page.getByTestId('gantt-cursor')).toBeHidden();
+
+    await page.getByTestId('simulation-play').click();
+    await expect(page.getByTestId('gantt-cursor')).toBeVisible();
+  });
+
+  test('Task를 고치면 Gantt 막대도 함께 움직인다', async ({ page }) => {
+    await openSchedule(page, scheduleV2);
+    const bar = page
+      .getByTestId('gantt-row')
+      .filter({ hasText: '슬래브 타설' })
+      .getByTestId('gantt-bar');
+    const before = await bar.getAttribute('style');
+
+    await page.getByTestId('task-row').filter({ hasText: '슬래브 타설' }).click();
+    await page.getByTestId('task-form-finish').fill('2026-03-20');
+    await page.getByTestId('task-save').click();
+
+    await expect(bar).not.toHaveAttribute('style', String(before));
+  });
+
   test('스키마에 맞지 않으면 이유를 표시하고 목록을 열지 않는다', async ({ page }) => {
     await page.goto('/');
 

@@ -10,6 +10,7 @@ import { createSelectionPanel } from './shell/selectionPanel.js';
 import { createPropertyPanel } from './shell/propertyPanel.js';
 import { createSectionPanel } from './shell/sectionPanel.js';
 import { createViewpointPanel } from './shell/viewpointPanel.js';
+import { createGanttPanel } from './shell/ganttPanel.js';
 import { createScheduleEditorPanel } from './shell/scheduleEditorPanel.js';
 import { createSchedulerPanel } from './shell/schedulerPanel.js';
 import { createSimulationPanel } from './shell/simulationPanel.js';
@@ -84,6 +85,15 @@ const bootstrap = async (): Promise<void> => {
       statusSelector: '[data-testid="schedule-status"]',
       exportJsonSelector: '[data-testid="schedule-export-json"]',
       exportCsvSelector: '[data-testid="schedule-export-csv"]',
+    }),
+  );
+  kernel.register(
+    createGanttPanel({
+      panelSelector: '[data-testid="gantt"]',
+      axisSelector: '[data-testid="gantt-axis"]',
+      rowListSelector: '[data-testid="gantt-rows"]',
+      cursorSelector: '[data-testid="gantt-cursor"]',
+      statusSelector: '[data-testid="gantt-status"]',
     }),
   );
   kernel.register(
