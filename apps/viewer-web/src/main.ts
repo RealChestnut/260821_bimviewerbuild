@@ -81,6 +81,8 @@ const bootstrap = async (): Promise<void> => {
       taskListSelector: '[data-testid="task-list"]',
       warningListSelector: '[data-testid="schedule-warnings"]',
       statusSelector: '[data-testid="schedule-status"]',
+      exportJsonSelector: '[data-testid="schedule-export-json"]',
+      exportCsvSelector: '[data-testid="schedule-export-csv"]',
     }),
   );
   kernel.register(

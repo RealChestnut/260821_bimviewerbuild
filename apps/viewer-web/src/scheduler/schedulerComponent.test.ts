@@ -166,6 +166,170 @@ describe('createSchedulerComponent — 실패', () => {
   });
 });
 
+const csvBundle = {
+  schedule: 'scheduleId,name,schemaVersion\r\nmock,시험 일정,2\r\n',
+  tasks: [
+    'taskId,name,parentTaskId,start,finish',
+    'W1,1층 골조,,,',
+    'T001,슬래브,W1,2026-03-02,2026-03-06',
+    'T002,벽,W1,2026-03-09,2026-03-13',
+    '',
+  ].join('\r\n'),
+  dependencies: 'predecessorId,successorId,type,lagDays\r\nT001,T002,FINISH_START,0\r\n',
+  assignments: [
+    'taskId,modelRef,productGlobalId,operation',
+    `T001,a.ifc,${SLAB},CONSTRUCT`,
+    `T002,a.ifc,${WALL},CONSTRUCT`,
+    '',
+  ].join('\r\n'),
+};
+
+describe('createSchedulerComponent — CSV 적재', () => {
+  it('CSV 묶음도 같은 일정으로 싣는다', async () => {
+    const context = createTestContext();
+    await startComponent(context);
+    const changes = listenChanges(context);
+
+    const result = await context.commands.dispatch('scheduler/load-schedule-csv', {
+      bundle: csvBundle,
+    });
+
+    expect(result.ok && result.value.taskCount).toBe(3);
+    expect(changes[0]?.tasks.map((row) => row.taskId)).toEqual(['W1', 'T001', 'T002']);
+  });
+
+  it('JSON으로 넣든 CSV로 넣든 보관소의 일정이 같다', async () => {
+    const context = createTestContext();
+    await startComponent(context);
+
+    await context.commands.dispatch('scheduler/load-schedule', { source });
+    const fromJson = await repository.get();
+    await context.commands.dispatch('scheduler/load-schedule-csv', { bundle: csvBundle });
+    const fromCsv = await repository.get();
+
+    expect(fromCsv).toEqual(fromJson);
+  });
+
+  it('표 모양이 잘못되면 schedule.csv 코드로 알리고 보관소를 건드리지 않는다', async () => {
+    const context = createTestContext();
+    await startComponent(context);
+    const failures: { code: string }[] = [];
+    context.events.subscribe('scheduler/load-failed', ({ payload }) => {
+      failures.push(payload);
+    });
+
+    const result = await context.commands.dispatch('scheduler/load-schedule-csv', {
+      bundle: { ...csvBundle, tasks: 'taskID,name,parentTaskId,start,finish\r\nW1,a,,,\r\n' },
+    });
+
+    expect(result.ok).toBe(false);
+    expect(failures[0]?.code).toBe('schedule.csv.unknown-column');
+    expect(await repository.get()).toBeNull();
+  });
+
+  it('의미가 잘못되면 schedule.parse 코드로 알린다', async () => {
+    // CSV로 들어왔어도 의미 검증은 parseSchedule이 한다 (ADR-0007).
+    const context = createTestContext();
+    await startComponent(context);
+    const failures: { code: string }[] = [];
+    context.events.subscribe('scheduler/load-failed', ({ payload }) => {
+      failures.push(payload);
+    });
+
+    await context.commands.dispatch('scheduler/load-schedule-csv', {
+      bundle: {
+        ...csvBundle,
+        tasks: 'taskId,name,parentTaskId,start,finish\r\nT001,벽,,2026-02-30,2026-03-06\r\n',
+      },
+    });
+
+    expect(failures[0]?.code).toBe('schedule.parse.invalid-date');
+  });
+});
+
+describe('createSchedulerComponent — 내보내기', () => {
+  it('CSV로 내보내면 파일 넷을 준다', async () => {
+    const context = createTestContext();
+    await startComponent(context);
+    await context.commands.dispatch('scheduler/load-schedule', { source });
+
+    const result = await context.commands.dispatch('scheduler/export-schedule', { format: 'csv' });
+
+    expect(result.ok && result.value.files.map((file) => file.fileName)).toEqual([
+      'schedule.csv',
+      'tasks.csv',
+      'dependencies.csv',
+      'assignments.csv',
+    ]);
+  });
+
+  it('JSON으로 내보내면 파일 하나를 준다', async () => {
+    const context = createTestContext();
+    await startComponent(context);
+    await context.commands.dispatch('scheduler/load-schedule', { source });
+
+    const result = await context.commands.dispatch('scheduler/export-schedule', { format: 'json' });
+
+    expect(result.ok && result.value.files.map((file) => file.fileName)).toEqual(['schedule.json']);
+  });
+
+  it('내보낸 CSV를 다시 읽으면 같은 일정이다', async () => {
+    const context = createTestContext();
+    await startComponent(context);
+    await context.commands.dispatch('scheduler/load-schedule', { source });
+    const original = await repository.get();
+
+    const exported = await context.commands.dispatch('scheduler/export-schedule', {
+      format: 'csv',
+    });
+    if (!exported.ok) throw new Error(exported.error.message);
+    const contentOf = (name: string): string =>
+      exported.value.files.find((file) => file.fileName === name)?.content ?? '';
+
+    await context.commands.dispatch('scheduler/load-schedule-csv', {
+      bundle: {
+        schedule: contentOf('schedule.csv'),
+        tasks: contentOf('tasks.csv'),
+        dependencies: contentOf('dependencies.csv'),
+        assignments: contentOf('assignments.csv'),
+      },
+    });
+
+    expect(await repository.get()).toEqual(original);
+  });
+
+  it('v1로 읽어 들였어도 v2로 내보낸다', async () => {
+    const context = createTestContext();
+    await startComponent(context);
+    await context.commands.dispatch('scheduler/load-schedule', {
+      // v1에는 계층도 선후행도 없다. 최상위 Task 하나만 담는다.
+      source: {
+        scheduleId: 'mock',
+        name: '옛 일정',
+        schemaVersion: 1,
+        tasks: [{ taskId: 'T001', name: '슬래브', start: '2026-03-02', finish: '2026-03-06' }],
+        assignments: [
+          { taskId: 'T001', modelRef: 'a.ifc', productGlobalId: SLAB, operation: 'CONSTRUCT' },
+        ],
+      },
+    });
+
+    const result = await context.commands.dispatch('scheduler/export-schedule', { format: 'json' });
+    if (!result.ok) throw new Error(result.error.message);
+
+    expect(JSON.parse(result.value.files[0]?.content ?? '{}')).toMatchObject({ schemaVersion: 2 });
+  });
+
+  it('열려 있는 일정이 없으면 실패로 돌려준다', async () => {
+    const context = createTestContext();
+    await startComponent(context);
+
+    const result = await context.commands.dispatch('scheduler/export-schedule', { format: 'csv' });
+
+    expect(result.ok).toBe(false);
+  });
+});
+
 describe('createSchedulerComponent — 정리', () => {
   it('dispose하면 보관소를 비운다', async () => {
     const context = createTestContext();

@@ -8,7 +8,16 @@
  * 보관소에서 읽는다.
  */
 
+import type { ScheduleCsvBundle, ScheduleCsvFile } from '@bim4d/domain';
 import type { TaskId } from '@bim4d/contracts';
+
+/**
+ * 일정을 내보낼 형식.
+ *
+ * 어느 쪽이든 결과는 파일 목록 하나다. JSON은 한 개, CSV는 네 개다 (ADR-0007). 받는
+ * 쪽이 개수로 분기하지 않게 형식을 맞춘다.
+ */
+export type ScheduleExportFormat = 'json' | 'csv';
 
 /** 화면에 한 줄로 그릴 Task. */
 export interface ScheduleTaskRow {
@@ -52,6 +61,16 @@ declare module '@bim4d/contracts' {
       /** JSON.parse를 끝낸 값. 검증은 도메인이 한다. */
       input: { readonly source: unknown };
       output: { readonly scheduleId: string; readonly taskCount: number };
+    };
+    'scheduler/load-schedule-csv': {
+      /** 파일 내용만 담은 묶음. 파일 이름으로 역할을 가르는 일은 Adapter가 끝내 둔다. */
+      input: { readonly bundle: ScheduleCsvBundle };
+      output: { readonly scheduleId: string; readonly taskCount: number };
+    };
+    'scheduler/export-schedule': {
+      input: { readonly format: ScheduleExportFormat };
+      /** 파일 이름까지 정해서 준다. 저장 위치와 방법은 Adapter가 정한다. */
+      output: { readonly files: readonly ScheduleCsvFile[] };
     };
   }
 }

@@ -1,7 +1,11 @@
+import type { ScheduleCsvBundle, ScheduleCsvFile } from '@bim4d/domain';
 import type { AppComponent, AppContext, Unsubscribe } from '@bim4d/contracts';
 
 import '../scheduler/schedulerEvents.js';
 import type { ScheduleTaskRow, ScheduleWarningRow } from '../scheduler/schedulerEvents.js';
+
+/** 파일 하나를 사용자에게 넘긴다. 저장 위치는 브라우저가 정한다. */
+export type SaveFile = (file: ScheduleCsvFile) => void;
 
 export interface SchedulerPanelOptions {
   readonly fileInputSelector: string;
@@ -11,7 +15,38 @@ export interface SchedulerPanelOptions {
   readonly taskListSelector: string;
   readonly warningListSelector: string;
   readonly statusSelector: string;
+  readonly exportJsonSelector: string;
+  readonly exportCsvSelector: string;
+  /** 파일을 실제로 내려받는 방법. 기본은 브라우저 다운로드다. 테스트가 갈아 끼운다. */
+  readonly saveFile?: SaveFile;
 }
+
+/**
+ * CSV 묶음의 파일 이름과 역할.
+ *
+ * 이름이 곧 역할이다 (ADR-0007). `dependencies.csv`만 없어도 된다. 선후행이 없는 일정이
+ * 정상이기 때문이다.
+ */
+const CSV_ROLES: ReadonlyMap<string, keyof ScheduleCsvBundle> = new Map([
+  ['schedule.csv', 'schedule'],
+  ['tasks.csv', 'tasks'],
+  ['assignments.csv', 'assignments'],
+  ['dependencies.csv', 'dependencies'],
+]);
+
+const REQUIRED_CSV_ROLES = ['schedule', 'tasks', 'assignments'] as const;
+
+/** 브라우저 기본 저장. `<a download>`을 만들어 누른 뒤 objectURL을 돌려준다. */
+const downloadFile: SaveFile = (file) => {
+  const url = URL.createObjectURL(new Blob([file.content], { type: 'text/plain;charset=utf-8' }));
+  const anchor = document.createElement('a');
+  anchor.href = url;
+  anchor.download = file.fileName;
+  document.body.append(anchor);
+  anchor.click();
+  anchor.remove();
+  URL.revokeObjectURL(url);
+};
 
 const requireElement = (selector: string): HTMLElement => {
   const element = document.querySelector<HTMLElement>(selector);
@@ -43,6 +78,8 @@ const formatSpan = (row: ScheduleTaskRow): string =>
  * 일정이 없으면 영역을 통째로 감춘다. 보여 줄 것이 없는데 자리를 차지하면 Viewer만 좁아진다.
  */
 export const createSchedulerPanel = (options: SchedulerPanelOptions): AppComponent => {
+  const saveFile = options.saveFile ?? downloadFile;
+
   let context: AppContext | null = null;
   let fileInput: HTMLInputElement | null = null;
   let panel: HTMLElement | null = null;
@@ -50,6 +87,8 @@ export const createSchedulerPanel = (options: SchedulerPanelOptions): AppCompone
   let taskList: HTMLElement | null = null;
   let warningList: HTMLElement | null = null;
   let statusText: HTMLElement | null = null;
+  let exportJsonButton: HTMLElement | null = null;
+  let exportCsvButton: HTMLElement | null = null;
   let subscriptions: Unsubscribe[] = [];
 
   const write = (target: HTMLElement | null, value: string): void => {
@@ -89,32 +128,97 @@ export const createSchedulerPanel = (options: SchedulerPanelOptions): AppCompone
     return item;
   };
 
+  /** 고른 파일들을 CSV 묶음으로 모은다. 역할은 파일 이름으로 가른다 (ADR-0007). */
+  const toCsvBundle = async (files: readonly File[]): Promise<ScheduleCsvBundle> => {
+    const collected = new Map<keyof ScheduleCsvBundle, string>();
+
+    for (const file of files) {
+      const role = CSV_ROLES.get(file.name.toLowerCase());
+      if (role === undefined) {
+        // 모르는 이름을 넘기면 그 파일의 내용이 조용히 사라진다. 이름을 알려 주고 멈춘다.
+        throw new Error(
+          `${file.name}은 일정 CSV가 아니다. 쓸 수 있는 이름은 ${[...CSV_ROLES.keys()].join(', ')}뿐이다.`,
+        );
+      }
+      if (collected.has(role)) {
+        throw new Error(`${file.name}을 두 번 골랐다.`);
+      }
+      collected.set(role, await file.text());
+    }
+
+    for (const role of REQUIRED_CSV_ROLES) {
+      if (!collected.has(role)) throw new Error(`${role}.csv가 없다.`);
+    }
+
+    const dependencies = collected.get('dependencies');
+    return {
+      schedule: collected.get('schedule') ?? '',
+      tasks: collected.get('tasks') ?? '',
+      assignments: collected.get('assignments') ?? '',
+      // 없으면 필드를 만들지 않는다. 빈 문자열은 "헤더가 없는 파일"이라 거부당한다.
+      ...(dependencies === undefined ? {} : { dependencies }),
+    };
+  };
+
   const onFileChosen = (): void => {
-    const file = fileInput?.files?.[0];
-    if (file === undefined || context === null) return;
+    const files = [...(fileInput?.files ?? [])];
+    if (files.length === 0 || context === null) return;
     const app = context;
 
     void (async () => {
-      let source: unknown;
       try {
-        source = JSON.parse(await file.text());
+        // 확장자로 경로를 가른다. CSV는 묶음이라 여러 개, JSON은 한 파일이다.
+        if (files.every((file) => file.name.toLowerCase().endsWith('.csv'))) {
+          await app.commands.dispatch('scheduler/load-schedule-csv', {
+            bundle: await toCsvBundle(files),
+          });
+        } else if (files.length === 1 && files[0] !== undefined) {
+          await app.commands.dispatch('scheduler/load-schedule', {
+            source: JSON.parse(await files[0].text()),
+          });
+        } else {
+          throw new Error('CSV 묶음이거나 JSON 한 파일이어야 한다.');
+        }
       } catch (cause) {
-        // JSON으로 읽히지도 않으면 보낼 것이 없다. 여기서 알린다.
+        // 명령까지 가지 못한 실패는 여기서 알린다. 검증 실패는 scheduler/load-failed로 나온다.
         const reason = cause instanceof Error ? cause.message : String(cause);
         write(statusText, `일정 열기 실패: ${reason}`);
+      } finally {
+        // 같은 파일을 다시 고를 수 있도록 값을 비운다.
         if (fileInput !== null) fileInput.value = '';
+      }
+    })();
+  };
+
+  const onExport = (format: 'json' | 'csv'): void => {
+    if (context === null) return;
+    const app = context;
+
+    void (async () => {
+      const result = await app.commands.dispatch('scheduler/export-schedule', { format });
+      if (!result.ok) {
+        write(statusText, `일정 내보내기 실패: ${result.error.message}`);
         return;
       }
 
-      await app.commands.dispatch('scheduler/load-schedule', { source });
-      // 같은 파일을 다시 고를 수 있도록 값을 비운다.
-      if (fileInput !== null) fileInput.value = '';
+      const { files } = result.value;
+      for (const file of files) saveFile(file);
+      write(statusText, `${String(files.length)}개 파일을 내보냈다.`);
     })();
-    // 검증 실패 이유는 scheduler/load-failed로 화면에 나온다.
+  };
+
+  const onExportJson = (): void => {
+    onExport('json');
+  };
+
+  const onExportCsv = (): void => {
+    onExport('csv');
   };
 
   const detach = (): void => {
     fileInput?.removeEventListener('change', onFileChosen);
+    exportJsonButton?.removeEventListener('click', onExportJson);
+    exportCsvButton?.removeEventListener('click', onExportCsv);
     for (const unsubscribe of subscriptions) unsubscribe();
     subscriptions = [];
   };
@@ -130,6 +234,8 @@ export const createSchedulerPanel = (options: SchedulerPanelOptions): AppCompone
         taskList = requireElement(options.taskListSelector);
         warningList = requireElement(options.warningListSelector);
         statusText = requireElement(options.statusSelector);
+        exportJsonButton = requireElement(options.exportJsonSelector);
+        exportCsvButton = requireElement(options.exportCsvSelector);
       } catch (cause) {
         return Promise.reject(cause instanceof Error ? cause : new Error(String(cause)));
       }
@@ -147,6 +253,8 @@ export const createSchedulerPanel = (options: SchedulerPanelOptions): AppCompone
       if (subscriptions.length > 0) return Promise.resolve();
 
       fileInput.addEventListener('change', onFileChosen);
+      exportJsonButton?.addEventListener('click', onExportJson);
+      exportCsvButton?.addEventListener('click', onExportCsv);
 
       subscriptions = [
         context.events.subscribe('scheduler/schedule-changed', ({ payload }) => {
@@ -174,6 +282,8 @@ export const createSchedulerPanel = (options: SchedulerPanelOptions): AppCompone
     dispose: () => {
       detach();
       fileInput = null;
+      exportJsonButton = null;
+      exportCsvButton = null;
       panel = null;
       nameText = null;
       taskList = null;

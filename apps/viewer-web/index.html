@@ -461,8 +461,10 @@
       <footer id="simulation-bar">
         <label class="file-label">
           일정 열기
-          <input type="file" accept=".json" data-testid="schedule-file" />
+          <input type="file" accept=".json,.csv" multiple data-testid="schedule-file" />
         </label>
+        <button type="button" data-testid="schedule-export-json">JSON 내보내기</button>
+        <button type="button" data-testid="schedule-export-csv">CSV 내보내기</button>
         <button type="button" data-testid="simulation-play" disabled>재생</button>
         <select data-testid="simulation-speed" disabled aria-label="배속">
           <option value="1">1일/틱</option>
