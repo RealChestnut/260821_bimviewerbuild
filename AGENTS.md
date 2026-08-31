@@ -75,6 +75,7 @@ apps/viewer-web/**              모델 로딩, Selection, Property Panel, 4D Sim
 | Schedule / Task–Element Mapping 필드 스키마 (기준서 19.2절에 ID만 있음) | `schemaVersion` 1 스키마 확정. 날짜는 UTC `YYYY-MM-DD`, 연결은 `modelRef + productGlobalId + operation` | `docs/adr/0005-schedule-schema.md` |
 | `ElementDisplayState`의 화면 표현 (ADR-0002가 Phase 4로 미룸) | `HIDDEN` 미렌더링, `IN_PROGRESS` 반투명 주황, `PRESENT` 원래 표현 | `docs/adr/0005-schedule-schema.md` |
 | 일정 스키마의 WBS와 선후행 (기준서 12·13절, 마스터 계획 4.3절) | `schemaVersion` 2. WBS는 `parentTaskId`, 선후행은 `IfcRelSequence` 대응 4종 + `lagDays`. 저장·검증만 하고 날짜를 자동 계산하지 않는다 | `docs/adr/0006-schedule-schema-v2.md` |
+| 일정 CSV 교환 형식 (마스터 계획 9절 Phase 5 `JSON/CSV 가져오기·내보내기`) | `schedule.csv` + `tasks.csv` + `assignments.csv` + 선택 `dependencies.csv` 네 파일. 열 순서는 무관하고 모르는 열은 거부한다. 의미 검증은 `parseSchedule`이 맡아 해석 지점을 하나로 둔다 | `docs/adr/0007-schedule-csv-exchange.md` |
 
 **아직 미결정** — 해당 영역을 구현할 때 임의로 정하지 말고 결정을 먼저 요청한다.
 

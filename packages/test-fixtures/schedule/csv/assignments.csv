@@ -1,0 +1,7 @@
+taskId,modelRef,productGlobalId,operation
+T001,three-elements-ifc4.ifc,2YsHnV6bk3PgZdL9uCxWtM,CONSTRUCT
+T002,three-elements-ifc4.ifc,0BnKdW4tq7SfUcM3vHxZgR,CONSTRUCT
+T003,three-elements-ifc4.ifc,1MjTgR8dp5NkXbC2wFyQsA,CONSTRUCT
+T004,three-elements-ifc4.ifc,0BnKdW4tq7SfUcM3vHxZgR,MODIFY
+T005,three-elements-ifc4.ifc,1MjTgR8dp5NkXbC2wFyQsA,DEMOLISH
+T006,three-elements-ifc4.ifc,2YsHnV6bk3PgZdL9uCxWtM,MODIFY

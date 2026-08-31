@@ -66,3 +66,39 @@ export const scheduleFixtures: readonly ScheduleFixture[] = [
   mockThreeElementsSchedule,
   legacyV1ThreeElementsSchedule,
 ];
+
+/**
+ * 일정 CSV 묶음 fixture. 파일 구성의 정본은 `docs/adr/0007-schedule-csv-exchange.md`다.
+ *
+ * `dependencies`는 선택이지만 fixture는 넷을 모두 담는다. 내보내기가 항상 넷을 쓰기 때문이다.
+ */
+export interface ScheduleCsvFixture {
+  readonly id: string;
+  /** 같은 일정을 담은 JSON fixture. 두 경로가 같은 결과를 내는지 대조하는 데 쓴다. */
+  readonly equivalentJson: ScheduleFixture;
+  readonly description: string;
+  readonly paths: {
+    readonly schedule: string;
+    readonly tasks: string;
+    readonly dependencies: string;
+    readonly assignments: string;
+  };
+}
+
+const scheduleCsvPath = (name: string): string =>
+  fileURLToPath(new URL(`../schedule/csv/${name}`, import.meta.url));
+
+export const mockThreeElementsScheduleCsv: ScheduleCsvFixture = {
+  id: 'mock-three-elements-csv',
+  equivalentJson: mockThreeElementsSchedule,
+  description:
+    'mock-three-elements.json과 같은 일정을 CSV 네 파일로 담는다. tasks.csv는 열 순서를 일부러 섞어 두어 순서에 기대지 않음을 고정한다.',
+  paths: {
+    schedule: scheduleCsvPath('schedule.csv'),
+    tasks: scheduleCsvPath('tasks.csv'),
+    dependencies: scheduleCsvPath('dependencies.csv'),
+    assignments: scheduleCsvPath('assignments.csv'),
+  },
+};
+
+export const scheduleCsvFixtures: readonly ScheduleCsvFixture[] = [mockThreeElementsScheduleCsv];

@@ -12,6 +12,8 @@ export type {
   SpatialTreeNode,
 } from './spatialTree.js';
 export { parseSchedule } from './schedule.js';
+export { parseScheduleCsv, serializeScheduleCsv, serializeScheduleJson } from './scheduleCsv.js';
+export type { ScheduleCsvBundle, ScheduleCsvFile } from './scheduleCsv.js';
 export { effectiveTaskTimes, flattenTasks } from './scheduleTree.js';
 export type { FlatTask, TaskTimes } from './scheduleTree.js';
 export { validateSchedule } from './scheduleValidation.js';
