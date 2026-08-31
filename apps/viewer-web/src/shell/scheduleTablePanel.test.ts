@@ -9,12 +9,12 @@ import '../scheduler/schedulerEvents.js';
 import '../simulation/simulationEvents.js';
 import type { ScheduleTaskRow } from '../scheduler/schedulerEvents.js';
 
-import { createGanttPanel } from './ganttPanel.js';
+import { createScheduleTablePanel } from './scheduleTablePanel.js';
 
 const markup = `
-  <section data-testid="gantt" hidden>
+  <section data-testid="schedule-table" hidden>
     <div data-testid="gantt-axis"></div>
-    <ol data-testid="gantt-rows"></ol>
+    <ol data-testid="task-rows"></ol>
     <div data-testid="gantt-cursor" hidden></div>
     <p data-testid="gantt-status"></p>
   </section>
@@ -31,13 +31,12 @@ const all = (testId: string): HTMLElement[] => [
 ];
 
 const startPanel = async (context: TestContext) => {
-  const panel = createGanttPanel({
-    panelSelector: '[data-testid="gantt"]',
+  const panel = createScheduleTablePanel({
+    panelSelector: '[data-testid="schedule-table"]',
     axisSelector: '[data-testid="gantt-axis"]',
-    rowListSelector: '[data-testid="gantt-rows"]',
+    rowListSelector: '[data-testid="task-rows"]',
     cursorSelector: '[data-testid="gantt-cursor"]',
     statusSelector: '[data-testid="gantt-status"]',
-    labelWidth: '10rem',
   });
   await panel.initialize(context);
   await panel.start();
@@ -78,7 +77,7 @@ const publish = async (
 /** `left: 12.3456%` 같은 값에서 숫자만 꺼낸다. */
 const ratioOf = (value: string): number => Number.parseFloat(value.replace('%', ''));
 
-describe('createGanttPanel', () => {
+describe('createScheduleTablePanel', () => {
   beforeEach(() => {
     document.body.innerHTML = markup;
   });
@@ -87,7 +86,7 @@ describe('createGanttPanel', () => {
     const context = createTestContext();
     await startPanel(context);
 
-    expect(element('gantt').hidden).toBe(true);
+    expect(element('schedule-table').hidden).toBe(true);
   });
 
   it('일정이 실리면 Task마다 한 줄을 그린다', async () => {
@@ -96,11 +95,11 @@ describe('createGanttPanel', () => {
 
     await publish(context, [row('W1', { isSummary: true }), row('T001', { depth: 1 })]);
 
-    expect(element('gantt').hidden).toBe(false);
-    expect(all('gantt-row').map((node) => node.dataset['taskId'])).toEqual(['W1', 'T001']);
+    expect(element('schedule-table').hidden).toBe(false);
+    expect(all('task-row').map((node) => node.dataset['taskId'])).toEqual(['W1', 'T001']);
   });
 
-  it('목록과 같은 순서와 깊이로 그린다', async () => {
+  it('계층 순서와 깊이를 그대로 그린다', async () => {
     const context = createTestContext();
     await startPanel(context);
 
@@ -110,7 +109,57 @@ describe('createGanttPanel', () => {
       row('T002', { depth: 2 }),
     ]);
 
-    expect(all('gantt-row').map((node) => node.dataset['depth'])).toEqual(['0', '1', '2']);
+    expect(all('task-row').map((node) => node.dataset['depth'])).toEqual(['0', '1', '2']);
+  });
+
+  it('한 줄에 ID·이름·시작·종료·부재 수를 함께 적는다', async () => {
+    const context = createTestContext();
+    await startPanel(context);
+
+    await publish(context, [row('T001', { name: '슬래브 타설', assignedCount: 3 })]);
+
+    const cell = (testId: string): string => element(testId).textContent;
+    expect(cell('task-id')).toBe('T001');
+    expect(cell('task-name')).toBe('슬래브 타설');
+    expect(cell('task-start')).toBe('2026-03-02');
+    expect(cell('task-finish')).toBe('2026-03-06');
+    expect(cell('task-assigned')).toBe('3');
+  });
+
+  it('한 줄 안에서 열과 막대가 같은 Task를 가리킨다', async () => {
+    const context = createTestContext();
+    await startPanel(context);
+
+    await publish(context, [row('T001'), row('T002', { start: Date.UTC(2026, 2, 23) })]);
+
+    // 표와 막대를 따로 그리면 줄이 어긋날 수 있다. 한 줄 안에 둬서 어긋날 자리를 없앤다.
+    const second = all('task-row')[1];
+    expect(second?.querySelector('[data-testid="task-id"]')?.textContent).toBe('T002');
+    expect(second?.querySelector('[data-testid="gantt-bar"]')).not.toBeNull();
+  });
+
+  it('시간이 정해지지 않은 Task의 날짜 칸을 비운다', async () => {
+    const context = createTestContext();
+    await startPanel(context);
+
+    await publish(context, [
+      { taskId: 'T001' as TaskId, name: 'T001', depth: 0, isSummary: false, assignedCount: 0 },
+      row('T002'),
+    ]);
+
+    // 빈 칸은 "값 없음"이며 0이나 오늘로 대체하지 않는다 (ADR-0002 경계 규칙 4).
+    expect(all('task-start').map((node) => node.textContent)).toEqual(['', '2026-03-02']);
+    expect(all('task-finish').map((node) => node.textContent)).toEqual(['', '2026-03-06']);
+  });
+
+  it('이름 칸만 깊이만큼 들여쓴다', async () => {
+    const context = createTestContext();
+    await startPanel(context);
+
+    await publish(context, [row('W1', { isSummary: true }), row('T001', { depth: 2 })]);
+
+    // ID와 날짜 열은 자리가 고정이라야 읽힌다. 계층은 이름 칸에서만 드러낸다.
+    expect(all('task-name').map((node) => node.style.paddingInlineStart)).toEqual(['0rem', '2rem']);
   });
 
   it('막대를 기간 안의 자리에 놓는다', async () => {
@@ -162,7 +211,7 @@ describe('createGanttPanel', () => {
     ]);
 
     expect(all('gantt-bar')).toHaveLength(1);
-    expect(all('gantt-row').map((node) => node.dataset['timed'])).toEqual(['true', 'false']);
+    expect(all('task-row').map((node) => node.dataset['timed'])).toEqual(['true', 'false']);
   });
 
   it('요약 Task의 막대를 따로 표시한다', async () => {
@@ -198,12 +247,12 @@ describe('createGanttPanel', () => {
       {},
     );
 
-    expect(all('gantt-row')).toHaveLength(0);
+    expect(all('task-row')).toHaveLength(0);
     expect(element('gantt-status').textContent).toContain('기간이 정해진 Task가 없다');
   });
 });
 
-describe('createGanttPanel — 시뮬레이션 커서', () => {
+describe('createScheduleTablePanel — 시뮬레이션 커서', () => {
   beforeEach(() => {
     document.body.innerHTML = markup;
   });
@@ -227,9 +276,9 @@ describe('createGanttPanel — 시뮬레이션 커서', () => {
     const cursor = element('gantt-cursor');
     expect(cursor.hidden).toBe(false);
     expect(cursor.dataset['time']).toBe('2026-03-17');
-    // 이름 칸을 뺀 나머지 폭에서 비율을 잡는다. 3월 2일부터 15일째이므로 30일 중 0.5다.
+    // 열 칸을 뺀 나머지 폭에서 비율을 잡는다. 3월 2일부터 15일째이므로 30일 중 0.5다.
     expect(cursor.dataset['ratio']).toBe('0.500000');
-    expect(cursor.style.left).toContain('10rem');
+    expect(cursor.style.left).toContain('var(--schedule-columns-width)');
   });
 
   it('기간을 넘는 시각은 끝에 붙인다', async () => {
@@ -254,7 +303,7 @@ describe('createGanttPanel — 시뮬레이션 커서', () => {
   });
 });
 
-describe('createGanttPanel — 정리', () => {
+describe('createScheduleTablePanel — 정리', () => {
   beforeEach(() => {
     document.body.innerHTML = markup;
   });
@@ -267,21 +316,21 @@ describe('createGanttPanel — 정리', () => {
     await panel.dispose();
     await publish(context, [row('T001')]);
 
-    expect(element('gantt').hidden).toBe(true);
-    expect(all('gantt-row')).toHaveLength(0);
+    expect(element('schedule-table').hidden).toBe(true);
+    expect(all('task-row')).toHaveLength(0);
   });
 
   it('필요한 요소가 없으면 initialize에서 실패한다', async () => {
     document.body.innerHTML = '';
     const context = createTestContext();
-    const panel = createGanttPanel({
-      panelSelector: '[data-testid="gantt"]',
+    const panel = createScheduleTablePanel({
+      panelSelector: '[data-testid="schedule-table"]',
       axisSelector: '[data-testid="gantt-axis"]',
-      rowListSelector: '[data-testid="gantt-rows"]',
+      rowListSelector: '[data-testid="task-rows"]',
       cursorSelector: '[data-testid="gantt-cursor"]',
       statusSelector: '[data-testid="gantt-status"]',
     });
 
-    await expect(panel.initialize(context)).rejects.toThrow(/gantt/u);
+    await expect(panel.initialize(context)).rejects.toThrow(/schedule-table/u);
   });
 });

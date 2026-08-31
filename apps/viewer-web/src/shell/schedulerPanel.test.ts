@@ -15,7 +15,6 @@ const markup = `
   <input type="file" data-testid="schedule-file" multiple />
   <aside data-testid="schedule-panel" hidden>
     <p data-testid="schedule-name"></p>
-    <ol data-testid="task-list"></ol>
     <ul data-testid="schedule-warnings"></ul>
   </aside>
   <button type="button" data-testid="schedule-export-json"></button>
@@ -40,7 +39,6 @@ const startPanel = async (context: TestContext) => {
     fileInputSelector: '[data-testid="schedule-file"]',
     panelSelector: '[data-testid="schedule-panel"]',
     nameSelector: '[data-testid="schedule-name"]',
-    taskListSelector: '[data-testid="task-list"]',
     warningListSelector: '[data-testid="schedule-warnings"]',
     statusSelector: '[data-testid="schedule-status"]',
     exportJsonSelector: '[data-testid="schedule-export-json"]',
@@ -108,7 +106,7 @@ describe('createSchedulerPanel', () => {
     expect(element('schedule-panel').hidden).toBe(true);
   });
 
-  it('일정을 실으면 이름과 Task 줄을 그린다', async () => {
+  it('일정을 실으면 이름을 적고 영역을 연다', async () => {
     const context = createTestContext();
     await startPanel(context);
 
@@ -116,56 +114,6 @@ describe('createSchedulerPanel', () => {
 
     expect(element('schedule-panel').hidden).toBe(false);
     expect(element('schedule-name').textContent).toBe('시험 일정');
-    expect(textsOf('task-name')).toEqual(['W1', 'T001']);
-  });
-
-  it('깊이를 들여쓰기로 나타낸다', async () => {
-    const context = createTestContext();
-    await startPanel(context);
-
-    await publishSchedule(context, [row('W1', { isSummary: true }), row('T001', { depth: 2 })]);
-
-    const rows = [...document.querySelectorAll<HTMLElement>('[data-testid="task-row"]')];
-    expect(rows.map((node) => node.dataset['depth'])).toEqual(['0', '2']);
-  });
-
-  it('요약 Task를 표시로 구분한다', async () => {
-    const context = createTestContext();
-    await startPanel(context);
-
-    await publishSchedule(context, [row('W1', { isSummary: true }), row('T001', { depth: 1 })]);
-
-    const rows = [...document.querySelectorAll<HTMLElement>('[data-testid="task-row"]')];
-    expect(rows.map((node) => node.dataset['summary'])).toEqual(['true', 'false']);
-  });
-
-  it('기간을 날짜 구간으로 보여 준다', async () => {
-    const context = createTestContext();
-    await startPanel(context);
-
-    await publishSchedule(context, [row('T001')]);
-
-    expect(textsOf('task-dates')).toEqual(['2026-03-02 ~ 2026-03-06']);
-  });
-
-  it('시간이 정해지지 않은 Task는 기간 자리를 비운다', async () => {
-    const context = createTestContext();
-    await startPanel(context);
-
-    await publishSchedule(context, [
-      { taskId: 'T001' as TaskId, name: 'T001', depth: 0, isSummary: false, assignedCount: 0 },
-    ]);
-
-    expect(textsOf('task-dates')).toEqual(['일정 미정']);
-  });
-
-  it('연결된 부재 수를 보여 준다', async () => {
-    const context = createTestContext();
-    await startPanel(context);
-
-    await publishSchedule(context, [row('T001', { assignedCount: 3 })]);
-
-    expect(textsOf('task-assigned')).toEqual(['부재 3']);
   });
 
   it('경고를 목록으로 보여 준다', async () => {
@@ -250,7 +198,8 @@ describe('createSchedulerPanel', () => {
     await panel.dispose();
     await publishSchedule(context, [row('T001')]);
 
-    expect(textsOf('task-name')).toEqual([]);
+    // dispose 뒤에는 이름조차 쓰지 않는다. 처음 상태 그대로다.
+    expect(element('schedule-name').textContent).toBe('');
     expect(element('schedule-panel').hidden).toBe(true);
   });
 
@@ -403,7 +352,6 @@ describe('createSchedulerPanel', () => {
       fileInputSelector: '[data-testid="schedule-file"]',
       panelSelector: '[data-testid="schedule-panel"]',
       nameSelector: '[data-testid="schedule-name"]',
-      taskListSelector: '[data-testid="task-list"]',
       warningListSelector: '[data-testid="schedule-warnings"]',
       statusSelector: '[data-testid="schedule-status"]',
       exportJsonSelector: '[data-testid="schedule-export-json"]',

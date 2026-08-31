@@ -33,7 +33,7 @@ const openSchedule = async (page: Page): Promise<void> => {
   await page.goto('/');
   await page.getByTestId('schedule-file').setInputFiles(scheduleV2);
   await expect(page.getByTestId('schedule-panel')).toBeVisible();
-  await expect(page.getByTestId('gantt')).toBeVisible();
+  await expect(page.getByTestId('schedule-table')).toBeVisible();
 };
 
 test.describe('일정 독 배치', () => {
@@ -45,21 +45,35 @@ test.describe('일정 독 배치', () => {
     expect(track.width).toBeGreaterThan(MIN_TRACK_WIDTH);
   });
 
-  test('왼쪽 표와 오른쪽 막대의 같은 Task가 같은 줄에 있다', async ({ page }) => {
+  test('열 칸과 막대가 같은 줄 안에 있다', async ({ page }) => {
     await openSchedule(page);
 
     const rows = await page.getByTestId('task-row').count();
     expect(rows).toBeGreaterThan(1);
 
-    // 두 칸은 서로 다른 컴포넌트가 그린다. 줄 높이와 머리 여백이 어긋나면 여기서 벌어진다.
+    // 표와 막대를 두 컴포넌트로 나눠 그리던 때는 두 칸의 줄이 4.6px 어긋나 있었다.
     for (const index of [0, rows - 1]) {
-      const left = await boxOf(page.getByTestId('task-row').nth(index));
-      const right = await boxOf(page.getByTestId('gantt-row').nth(index));
+      const line = await boxOf(page.getByTestId('task-row').nth(index));
+      const id = await boxOf(page.getByTestId('task-id').nth(index));
+      const track = await boxOf(page.getByTestId('gantt-track').nth(index));
 
-      expect(Math.abs(left.y - right.y), `${String(index)}번째 줄이 어긋났다`).toBeLessThanOrEqual(
-        2,
+      expect(id.y, `${String(index)}번째 줄의 ID 칸이 벗어났다`).toBeGreaterThanOrEqual(line.y);
+      expect(track.y, `${String(index)}번째 줄의 막대 칸이 벗어났다`).toBeGreaterThanOrEqual(
+        line.y,
       );
+      expect(track.y + track.height).toBeLessThanOrEqual(line.y + line.height + 1);
     }
+  });
+
+  test('머리글의 축과 줄의 막대 칸이 같은 자리에서 시작한다', async ({ page }) => {
+    await openSchedule(page);
+
+    const axis = await boxOf(page.getByTestId('gantt-axis'));
+    const track = await boxOf(page.getByTestId('gantt-track').first());
+
+    // 축과 막대가 같은 폭을 쓰지 않으면 눈금이 가리키는 날짜가 막대와 어긋난다.
+    expect(Math.abs(axis.x - track.x)).toBeLessThanOrEqual(1);
+    expect(Math.abs(axis.width - track.width)).toBeLessThanOrEqual(1);
   });
 
   test('축 눈금의 날짜가 서로 겹치지 않는다', async ({ page }) => {
@@ -82,7 +96,7 @@ test.describe('일정 독 배치', () => {
   test('마지막 눈금의 날짜가 오른쪽에서 잘리지 않는다', async ({ page }) => {
     await openSchedule(page);
 
-    const gantt = await boxOf(page.getByTestId('gantt'));
+    const gantt = await boxOf(page.getByTestId('schedule-table'));
     const ticks = page.getByTestId('gantt-tick');
     const last = await boxOf(ticks.nth((await ticks.count()) - 1));
 

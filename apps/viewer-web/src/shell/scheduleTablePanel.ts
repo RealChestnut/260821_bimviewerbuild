@@ -4,19 +4,24 @@ import '../scheduler/schedulerEvents.js';
 import '../simulation/simulationEvents.js';
 import type { ScheduleTaskRow } from '../scheduler/schedulerEvents.js';
 
-export interface GanttPanelOptions {
-  /** 막대 그림 전체. 그릴 기간이 없으면 통째로 감춘다. */
+export interface ScheduleTablePanelOptions {
+  /** 표 전체. 그릴 기간이 없으면 통째로 감춘다. */
   readonly panelSelector: string;
   readonly axisSelector: string;
   readonly rowListSelector: string;
   readonly cursorSelector: string;
   readonly statusSelector: string;
-  /** 이름 칸의 너비. 커서를 막대 칸에만 겹치려면 이 값이 필요하다. */
-  readonly labelWidth?: string;
 }
 
 const DAY = 86_400_000;
-const DEFAULT_LABEL_WIDTH = '12rem';
+
+/**
+ * 열 칸 전체의 폭을 담은 CSS 변수 이름.
+ *
+ * 커서는 막대 칸에만 겹쳐야 하므로 열 칸 폭만큼 밀어야 한다. 폭을 이 코드가 알 필요는
+ * 없고, 알면 CSS와 두 곳에서 같은 값을 지켜야 한다. CSS에 맡기고 비율만 넘긴다.
+ */
+const COLUMNS_WIDTH = 'var(--schedule-columns-width)';
 
 const requireElement = (selector: string): HTMLElement => {
   const element = document.querySelector<HTMLElement>(selector);
@@ -37,18 +42,27 @@ const nextMonthStart = (time: number): number => {
 
 const percent = (ratio: number): string => `${(ratio * 100).toFixed(4)}%`;
 
-/**
- * 일정을 막대 그림으로 그리는 화면 조각.
- *
- * 목록과 같은 순서로 한 줄씩 그린다. `finish`는 그날까지 포함하므로 오른쪽 끝을 하루 뒤로
- * 잡는다. 그러지 않으면 하루짜리 Task의 막대 폭이 0이 되어 보이지 않는다.
- *
- * 시간이 정해지지 않은 Task는 막대를 그리지 않는다. 폭 0으로 두거나 오늘로 옮기면 없는
- * 일정을 있는 것처럼 보여 준다 (ADR-0002 경계 규칙 4).
- */
-export const createGanttPanel = (options: GanttPanelOptions): AppComponent => {
-  const labelWidth = options.labelWidth ?? DEFAULT_LABEL_WIDTH;
+const cell = (testId: string, text: string): HTMLSpanElement => {
+  const node = document.createElement('span');
+  node.dataset['testid'] = testId;
+  node.textContent = text;
+  return node;
+};
 
+/**
+ * 일정을 표와 막대 그림으로 함께 그리는 화면 조각.
+ *
+ * 한 줄 안에 열과 막대가 같이 있다. 표와 막대를 두 컴포넌트로 나눠 그리면 두 칸의 줄
+ * 높이와 머리 여백을 각각 맞춰야 하고, 어긋나도 testid를 세는 테스트는 통과한다. 실제로
+ * 4.6px 어긋난 채로 있었다. 한 줄로 두면 어긋날 자리가 없다.
+ *
+ * `finish`는 그날까지 포함하므로 막대의 오른쪽 끝을 하루 뒤로 잡는다. 그러지 않으면
+ * 하루짜리 Task의 폭이 0이 되어 보이지 않는다.
+ *
+ * 시간이 정해지지 않은 Task는 막대를 그리지 않고 날짜 칸을 비운다. 폭 0으로 두거나 오늘로
+ * 옮기면 없는 일정을 있는 것처럼 보여 준다 (ADR-0002 경계 규칙 4).
+ */
+export const createScheduleTablePanel = (options: ScheduleTablePanelOptions): AppComponent => {
   let context: AppContext | null = null;
   let subscriptions: Unsubscribe[] = [];
 
@@ -75,24 +89,21 @@ export const createGanttPanel = (options: GanttPanelOptions): AppComponent => {
 
   const createRow = (row: ScheduleTaskRow): HTMLLIElement => {
     const item = document.createElement('li');
-    item.dataset['testid'] = 'gantt-row';
+    item.dataset['testid'] = 'task-row';
     item.dataset['taskId'] = row.taskId;
     item.dataset['depth'] = String(row.depth);
     item.dataset['summary'] = String(row.isSummary);
 
-    const label = document.createElement('span');
-    label.dataset['testid'] = 'gantt-label';
-    label.textContent = row.name;
-    label.style.paddingInlineStart = `${String(row.depth)}rem`;
-    label.style.width = labelWidth;
+    const name = cell('task-name', row.name);
+    // 계층은 이름 칸에서만 드러낸다. ID와 날짜 열은 자리가 고정이라야 읽힌다.
+    name.style.paddingInlineStart = `${String(row.depth)}rem`;
 
     const track = document.createElement('span');
     track.dataset['testid'] = 'gantt-track';
 
-    if (row.start === undefined || row.finish === undefined) {
-      item.dataset['timed'] = 'false';
-    } else {
-      item.dataset['timed'] = 'true';
+    item.dataset['timed'] = String(row.start !== undefined && row.finish !== undefined);
+
+    if (row.start !== undefined && row.finish !== undefined) {
       const left = ratioOf(row.start);
       // finish는 그날까지 포함한다. 오른쪽 끝을 하루 뒤로 잡아야 폭이 생긴다.
       const right = ratioOf(row.finish + DAY);
@@ -106,7 +117,14 @@ export const createGanttPanel = (options: GanttPanelOptions): AppComponent => {
       track.append(bar);
     }
 
-    item.append(label, track);
+    item.append(
+      cell('task-id', row.taskId),
+      name,
+      cell('task-start', row.start === undefined ? '' : formatDate(row.start)),
+      cell('task-finish', row.finish === undefined ? '' : formatDate(row.finish)),
+      cell('task-assigned', String(row.assignedCount)),
+      track,
+    );
     return item;
   };
 
@@ -128,7 +146,6 @@ export const createGanttPanel = (options: GanttPanelOptions): AppComponent => {
     // 끝 날짜는 실제 완료일을 적는다. 하루를 더한 것은 그림의 사정이다.
     range.textContent = `${formatDate(span.start)} ~ ${formatDate(span.end - DAY)}`;
 
-    axis.style.marginInlineStart = labelWidth;
     axis.replaceChildren(range, ...ticks);
   };
 
@@ -144,8 +161,8 @@ export const createGanttPanel = (options: GanttPanelOptions): AppComponent => {
     cursor.dataset['time'] = formatDate(time);
     // 자리는 데이터로도 남긴다. 브라우저마다 calc 표기를 다르게 정규화한다.
     cursor.dataset['ratio'] = ratio.toFixed(6);
-    // 커서는 막대 칸에만 겹쳐야 한다. 이름 칸 너비만큼 밀고 남은 폭에서 비율을 잡는다.
-    cursor.style.left = `calc(${labelWidth} + (100% - ${labelWidth}) * ${ratio.toFixed(6)})`;
+    // 커서는 막대 칸에만 겹쳐야 한다. 열 칸 폭만큼 밀고 남은 폭에서 비율을 잡는다.
+    cursor.style.left = `calc(${COLUMNS_WIDTH} + (100% - ${COLUMNS_WIDTH}) * ${ratio.toFixed(6)})`;
   };
 
   const detach = (): void => {
@@ -154,7 +171,7 @@ export const createGanttPanel = (options: GanttPanelOptions): AppComponent => {
   };
 
   return {
-    id: 'shell.gantt-panel',
+    id: 'shell.schedule-table-panel',
 
     initialize: (appContext: AppContext) => {
       try {

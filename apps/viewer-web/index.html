@@ -7,9 +7,12 @@
     <style>
       :root {
         color-scheme: light dark;
-        /* Gantt 축의 높이. 왼쪽 표는 같은 값만큼 첫 줄을 내려 오른쪽 막대와 줄을 맞춘다. */
-        --gantt-axis-height: 1.4rem;
-        /* 일정 독의 줄 높이. 두 칸이 같은 값을 써야 줄이 맞는다. */
+        /*
+         * 일정 표의 열 칸. 머리글·각 줄·커서가 모두 이 값을 쓴다. 커서를 막대 칸에만
+         * 겹치려면 열 칸 전체 폭(--schedule-columns-width)이 필요하다.
+         */
+        --schedule-columns: 6rem 16rem 6.5rem 6.5rem 3rem;
+        --schedule-columns-width: calc(6rem + 16rem + 6.5rem + 6.5rem + 3rem + 5 * 0.5rem);
         --schedule-row-height: 1.9rem;
       }
 
@@ -119,72 +122,70 @@
        * 일정 독. 뷰어 아래 화면 전폭을 쓴다.
        *
        * 18rem 사이드바 안에서는 한 달치 축이 150px에 눌려 날짜가 서로 겹치고 막대가
-       * 점으로 줄었다. 목록과 막대는 가로 폭을 먹는 화면이라 사이드바에 두지 않는다.
+       * 점으로 줄었다. 표와 막대는 가로 폭을 먹는 화면이라 사이드바에 두지 않는다.
        *
        * 일정이 없으면 두 칸 다 hidden이고, 독에는 자체 여백이 없으므로 높이가 0이 된다.
        */
       #schedule-dock {
-        display: flex;
-        align-items: stretch;
         min-height: 0;
         font-size: 0.8rem;
       }
 
       #schedule-panel {
-        /* 이름이 길어도 읽히는 폭. 남는 자리는 전부 막대 그림이 가져간다. */
-        flex: 0 0 24rem;
+        display: flex;
+        align-items: baseline;
+        gap: 0 0.75rem;
+        flex-wrap: wrap;
         border-top: 1px solid rgb(0 0 0 / 15%);
-        border-right: 1px solid rgb(0 0 0 / 15%);
-        padding: 0.5rem 0.75rem;
-        /* 독의 높이는 여기서 정한다. Task가 많으면 세로로 스크롤한다. */
-        max-height: 22rem;
-        overflow: auto;
+        padding: 0.4rem 0.75rem 0;
       }
 
       /*
-       * 두 칸의 머리글 높이를 못박는다. 줄 상자를 폰트에 맡기면 한글 제목과 라틴 제목의
-       * 높이가 갈려 왼쪽 표와 오른쪽 막대의 줄이 4px 남짓 어긋난다.
+       * id 선택자의 display가 UA의 `[hidden] { display: none }`을 이긴다. display를 준
+       * 칸은 감추는 규칙을 따로 적어야 일정이 없을 때 실제로 사라진다.
        */
-      #schedule-panel h2,
-      #gantt h2 {
-        font-size: 0.8rem;
-        line-height: 1.5rem;
-        height: 1.5rem;
-        margin: 0 0 0.35rem;
+      #schedule-panel[hidden] {
+        display: none;
       }
 
-      #gantt {
+      #schedule-panel h2 {
+        font-size: 0.8rem;
+        margin: 0;
+      }
+
+      /*
+       * 표와 막대를 한 줄에 둔다. 열 칸은 폭이 고정이고 막대 칸이 남는 자리를 전부 쓴다.
+       * 커서는 열 칸 폭만큼 밀어야 하므로 그 합을 변수 하나로 둔다.
+       */
+      #schedule-table {
         position: relative;
-        flex: 1 1 auto;
-        min-width: 0;
         border-top: 1px solid rgb(0 0 0 / 15%);
         /* 오른쪽은 넉넉히 둔다. 마지막 달 눈금의 날짜 글자가 들어갈 자리다. */
         padding: 0.5rem 4.5rem 0.5rem 0.75rem;
-        font-size: 0.8rem;
         max-height: 22rem;
         /*
-         * 세로 스크롤은 줄 목록만 한다. #gantt가 스크롤하면 커서가 스크롤포트를 기준으로
+         * 세로 스크롤은 줄 목록만 한다. 여기가 스크롤하면 커서가 스크롤포트를 기준으로
          * 잡혀 막대에서 어긋난다.
          */
         overflow: hidden;
       }
 
-      #gantt [data-testid='gantt-axis'] {
-        position: relative;
-        height: var(--gantt-axis-height);
-        border-bottom: 1px solid #2a2f3a;
+      #schedule-head,
+      #schedule-table li {
+        display: grid;
+        grid-template-columns: var(--schedule-columns) minmax(0, 1fr);
+        align-items: center;
+        gap: 0 0.5rem;
+        height: var(--schedule-row-height);
       }
 
-      #gantt [data-testid='gantt-tick'] {
-        position: absolute;
-        top: 0;
-        border-inline-start: 1px solid #2a2f3a;
-        padding-inline-start: 0.25rem;
-        white-space: nowrap;
+      #schedule-head {
+        border-bottom: 1px solid #2a2f3a;
+        font-weight: 600;
         color: #8b93a7;
       }
 
-      #gantt ol {
+      #schedule-table ol {
         list-style: none;
         margin: 0;
         padding: 0;
@@ -192,32 +193,56 @@
         overflow-y: auto;
       }
 
-      /* 한 줄에 숨 쉴 자리를 준다. 1.35rem에서는 막대가 서로 붙어 보였다. */
-      #gantt [data-testid='gantt-row'] {
-        display: flex;
-        align-items: center;
-        gap: 0.5rem;
-        height: var(--schedule-row-height);
-      }
-
-      #gantt [data-testid='gantt-row']:nth-child(even) {
+      #schedule-table li:nth-child(even) {
         background: rgb(128 128 128 / 8%);
       }
 
-      #gantt [data-testid='gantt-label'] {
-        flex: 0 0 auto;
-        overflow: hidden;
-        white-space: nowrap;
-        text-overflow: ellipsis;
+      #schedule-table li[data-summary='true'] {
+        font-weight: 600;
       }
 
-      #gantt [data-testid='gantt-track'] {
+      /* 이름이 아주 길면 줄임표로 자른다. 나머지 열은 자리가 고정이라야 눈으로 훑힌다. */
+      #schedule-table [data-testid='task-name'] {
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      #schedule-table [data-testid='task-id'],
+      #schedule-table [data-testid='task-start'],
+      #schedule-table [data-testid='task-finish'],
+      #schedule-table [data-testid='task-assigned'] {
+        white-space: nowrap;
+        font-family: ui-monospace, 'Cascadia Mono', Consolas, monospace;
+        font-size: 0.75rem;
+        opacity: 0.75;
+      }
+
+      #schedule-table [data-testid='task-assigned'] {
+        text-align: end;
+      }
+
+      #schedule-head [data-testid='gantt-axis'] {
         position: relative;
-        flex: 1 1 auto;
         height: 100%;
       }
 
-      #gantt [data-testid='gantt-bar'] {
+      #schedule-head [data-testid='gantt-tick'] {
+        position: absolute;
+        top: 0;
+        border-inline-start: 1px solid #2a2f3a;
+        padding-inline-start: 0.25rem;
+        white-space: nowrap;
+        font-weight: 400;
+      }
+
+      #schedule-table [data-testid='gantt-track'] {
+        position: relative;
+        height: 100%;
+      }
+
+      #schedule-table [data-testid='gantt-bar'] {
         position: absolute;
         top: 25%;
         height: 50%;
@@ -226,15 +251,15 @@
         background: #4f8cff;
       }
 
-      #gantt [data-testid='gantt-bar'][data-summary='true'] {
+      #schedule-table [data-testid='gantt-bar'][data-summary='true'] {
         background: #8b93a7;
         top: 40%;
         height: 20%;
       }
 
-      #gantt [data-testid='gantt-cursor'] {
+      #schedule-table [data-testid='gantt-cursor'] {
         position: absolute;
-        top: 3.4rem;
+        top: calc(0.5rem + var(--schedule-row-height));
         bottom: 1.6rem;
         width: 0;
         border-inline-start: 1px solid #ff9a56;
@@ -242,55 +267,12 @@
       }
 
       #schedule-warnings {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0 0.75rem;
         list-style: none;
         margin: 0;
         padding: 0;
-      }
-
-      /*
-       * 축 높이만큼 내려서 첫 줄을 오른쪽 막대의 첫 줄과 맞춘다. 두 칸은 서로 다른
-       * 컴포넌트가 그리므로 줄 높이와 이 여백을 함께 유지해야 눈금이 맞는다.
-       *
-       * margin이 아니라 padding이다. margin은 위 제목의 margin과 상쇄되어 큰 쪽만
-       * 남으므로 제목 아래 여백이 통째로 사라진다.
-       */
-      #task-list {
-        list-style: none;
-        margin: 0;
-        padding: var(--gantt-axis-height) 0 0;
-      }
-
-      /* 이름 · 기간 · 부재 수를 한 줄에 놓는다. 이름 칸만 늘어난다. */
-      #task-list li {
-        display: grid;
-        grid-template-columns: minmax(0, 1fr) auto auto;
-        align-items: center;
-        gap: 0 0.5rem;
-        height: var(--schedule-row-height);
-      }
-
-      #task-list li:nth-child(even) {
-        background: rgb(128 128 128 / 8%);
-      }
-
-      #task-list li[data-summary='true'] {
-        font-weight: 600;
-      }
-
-      /* 이름이 아주 길면 줄임표로 자른다. 기간과 부재 수는 늘 오른쪽에 보인다. */
-      #task-list [data-testid='task-name'] {
-        min-width: 0;
-        overflow: hidden;
-        text-overflow: ellipsis;
-        white-space: nowrap;
-      }
-
-      #task-list [data-testid='task-dates'],
-      #task-list [data-testid='task-assigned'] {
-        white-space: nowrap;
-        font-family: ui-monospace, 'Cascadia Mono', Consolas, monospace;
-        font-size: 0.75rem;
-        opacity: 0.7;
       }
 
       #schedule-warnings li {
@@ -572,13 +554,18 @@
       <div id="schedule-dock">
         <section id="schedule-panel" data-testid="schedule-panel" hidden>
           <h2 data-testid="schedule-name">일정 없음</h2>
-          <ol id="task-list" data-testid="task-list"></ol>
           <ul id="schedule-warnings" data-testid="schedule-warnings"></ul>
         </section>
-        <section id="gantt" data-testid="gantt" hidden>
-          <h2>Gantt</h2>
-          <div data-testid="gantt-axis"></div>
-          <ol data-testid="gantt-rows"></ol>
+        <section id="schedule-table" data-testid="schedule-table" hidden>
+          <div id="schedule-head">
+            <span>ID</span>
+            <span>Task 이름</span>
+            <span>시작</span>
+            <span>종료</span>
+            <span>부재</span>
+            <div data-testid="gantt-axis"></div>
+          </div>
+          <ol data-testid="task-rows"></ol>
           <div data-testid="gantt-cursor" hidden></div>
           <p data-testid="gantt-status"></p>
         </section>

@@ -2,7 +2,7 @@ import type { ScheduleCsvBundle, ScheduleCsvFile } from '@bim4d/domain';
 import type { AppComponent, AppContext, Unsubscribe } from '@bim4d/contracts';
 
 import '../scheduler/schedulerEvents.js';
-import type { ScheduleTaskRow, ScheduleWarningRow } from '../scheduler/schedulerEvents.js';
+import type { ScheduleWarningRow } from '../scheduler/schedulerEvents.js';
 
 /** 파일 하나를 사용자에게 넘긴다. 저장 위치는 브라우저가 정한다. */
 export type SaveFile = (file: ScheduleCsvFile) => void;
@@ -12,7 +12,6 @@ export interface SchedulerPanelOptions {
   /** 일정이 없을 때 통째로 감출 영역. */
   readonly panelSelector: string;
   readonly nameSelector: string;
-  readonly taskListSelector: string;
   readonly warningListSelector: string;
   readonly statusSelector: string;
   readonly exportJsonSelector: string;
@@ -64,16 +63,11 @@ const requireInput = (selector: string): HTMLInputElement => {
   return element;
 };
 
-/** 일정의 시각은 UTC 자정 기준이다. 지역 시간대로 바꾸면 하루 어긋나 보인다. */
-const formatDate = (time: number): string => new Date(time).toISOString().slice(0, 10);
-
-const formatSpan = (row: ScheduleTaskRow): string =>
-  row.start === undefined || row.finish === undefined
-    ? '일정 미정'
-    : `${formatDate(row.start)} ~ ${formatDate(row.finish)}`;
-
 /**
- * 일정을 열고 내용을 보여 주는 화면 조각.
+ * 일정을 열고 닫고 내보내는 화면 조각.
+ *
+ * 일정의 이름과 경고만 그린다. Task 줄은 표와 막대를 함께 그리는 scheduleTablePanel이
+ * 맡는다. 여는 일과 그리는 일은 서로 다른 이유로 바뀐다.
  *
  * 일정이 없으면 영역을 통째로 감춘다. 보여 줄 것이 없는데 자리를 차지하면 Viewer만 좁아진다.
  */
@@ -84,7 +78,6 @@ export const createSchedulerPanel = (options: SchedulerPanelOptions): AppCompone
   let fileInput: HTMLInputElement | null = null;
   let panel: HTMLElement | null = null;
   let nameText: HTMLElement | null = null;
-  let taskList: HTMLElement | null = null;
   let warningList: HTMLElement | null = null;
   let statusText: HTMLElement | null = null;
   let exportJsonButton: HTMLElement | null = null;
@@ -93,31 +86,6 @@ export const createSchedulerPanel = (options: SchedulerPanelOptions): AppCompone
 
   const write = (target: HTMLElement | null, value: string): void => {
     if (target !== null) target.textContent = value;
-  };
-
-  const createTaskRow = (row: ScheduleTaskRow): HTMLLIElement => {
-    const item = document.createElement('li');
-    item.dataset['testid'] = 'task-row';
-    item.dataset['taskId'] = row.taskId;
-    item.dataset['depth'] = String(row.depth);
-    item.dataset['summary'] = String(row.isSummary);
-    // 깊이는 데이터로도 남긴다. 들여쓰기 폭이 바뀌어도 계층을 읽을 수 있어야 한다.
-    item.style.paddingInlineStart = `${String(row.depth)}rem`;
-
-    const name = document.createElement('span');
-    name.dataset['testid'] = 'task-name';
-    name.textContent = row.name;
-
-    const dates = document.createElement('span');
-    dates.dataset['testid'] = 'task-dates';
-    dates.textContent = formatSpan(row);
-
-    const assigned = document.createElement('span');
-    assigned.dataset['testid'] = 'task-assigned';
-    assigned.textContent = `부재 ${String(row.assignedCount)}`;
-
-    item.append(name, dates, assigned);
-    return item;
   };
 
   const createWarningRow = (warning: ScheduleWarningRow): HTMLLIElement => {
@@ -231,7 +199,6 @@ export const createSchedulerPanel = (options: SchedulerPanelOptions): AppCompone
         fileInput = requireInput(options.fileInputSelector);
         panel = requireElement(options.panelSelector);
         nameText = requireElement(options.nameSelector);
-        taskList = requireElement(options.taskListSelector);
         warningList = requireElement(options.warningListSelector);
         statusText = requireElement(options.statusSelector);
         exportJsonButton = requireElement(options.exportJsonSelector);
@@ -262,7 +229,6 @@ export const createSchedulerPanel = (options: SchedulerPanelOptions): AppCompone
           write(nameText, payload.name);
           write(statusText, '');
 
-          taskList?.replaceChildren(...payload.tasks.map(createTaskRow));
           warningList?.replaceChildren(...payload.warnings.map(createWarningRow));
         }),
         context.events.subscribe('scheduler/load-failed', ({ payload }) => {
@@ -286,7 +252,6 @@ export const createSchedulerPanel = (options: SchedulerPanelOptions): AppCompone
       exportCsvButton = null;
       panel = null;
       nameText = null;
-      taskList = null;
       warningList = null;
       statusText = null;
       context = null;

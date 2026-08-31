@@ -59,7 +59,8 @@ test.describe('Scheduler', () => {
     await openSchedule(page, scheduleV2);
 
     // W1은 슬래브 시작부터 벽 B 완료까지다.
-    await expect(page.getByTestId('task-dates').first()).toHaveText('2026-03-02 ~ 2026-03-20');
+    await expect(page.getByTestId('task-start').first()).toHaveText('2026-03-02');
+    await expect(page.getByTestId('task-finish').first()).toHaveText('2026-03-20');
   });
 
   test('시간이 정해지지 않은 Task를 경고로 알린다', async ({ page }) => {
@@ -142,8 +143,8 @@ test.describe('Scheduler', () => {
   test('Gantt가 Task마다 막대를 그린다', async ({ page }) => {
     await openSchedule(page, scheduleV2);
 
-    await expect(page.getByTestId('gantt')).toBeVisible();
-    await expect(page.getByTestId('gantt-row')).toHaveCount(8);
+    await expect(page.getByTestId('schedule-table')).toBeVisible();
+    await expect(page.getByTestId('task-row')).toHaveCount(8);
     // 시간 미정 Task 하나만 막대가 없다.
     await expect(page.getByTestId('gantt-bar')).toHaveCount(7);
     await expect(page.getByTestId('gantt-range')).toHaveText('2026-03-02 ~ 2026-04-01');
