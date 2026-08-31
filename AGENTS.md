@@ -182,6 +182,8 @@ Schema 판별 → Entity/Attribute 추출 → Geometry/Placement 추출
 - 결정 사항은 `docs/adr/`에 ADR로 남긴다.
 - 마스터 계획은 2026-08-21에 승인됐다. 계획 자체를 바꾸는 변경은 먼저 확인을 받는다.
 - 검증 게이트는 `pnpm verify`(typecheck → lint → test → build)와 `pnpm test:e2e`다. 완료를 주장하기 전에 실행 결과를 제시한다.
+- 화면 배치를 바꾸면 `tests/e2e/scheduleLayout.spec.ts`류의 배치 계약 테스트로 덮는다. 나머지 테스트는 testid의 존재와 개수와 글자만 보므로 칸이 눌려 읽을 수 없는 화면이 되어도 전부 통과한다 (마스터 계획 10.2절 Visual 계층).
+- screenshot 기준선은 의도한 변경일 때만 `pnpm exec playwright test <파일> --update-snapshots`로 갱신하고, 갱신한 이유를 커밋 메시지에 적는다. 3D 캔버스는 GPU에 따라 픽셀이 달라지므로 찍지 않는다.
 
 ## 5. 문서 갱신
 

@@ -7,6 +7,10 @@
     <style>
       :root {
         color-scheme: light dark;
+        /* Gantt 축의 높이. 왼쪽 표는 같은 값만큼 첫 줄을 내려 오른쪽 막대와 줄을 맞춘다. */
+        --gantt-axis-height: 1.4rem;
+        /* 일정 독의 줄 높이. 두 칸이 같은 값을 써야 줄이 맞는다. */
+        --schedule-row-height: 1.9rem;
       }
 
       * {
@@ -137,8 +141,15 @@
         overflow: auto;
       }
 
-      #schedule-panel h2 {
+      /*
+       * 두 칸의 머리글 높이를 못박는다. 줄 상자를 폰트에 맡기면 한글 제목과 라틴 제목의
+       * 높이가 갈려 왼쪽 표와 오른쪽 막대의 줄이 4px 남짓 어긋난다.
+       */
+      #schedule-panel h2,
+      #gantt h2 {
         font-size: 0.8rem;
+        line-height: 1.5rem;
+        height: 1.5rem;
         margin: 0 0 0.35rem;
       }
 
@@ -158,14 +169,9 @@
         overflow: hidden;
       }
 
-      #gantt h2 {
-        font-size: 0.8rem;
-        margin: 0 0 0.35rem;
-      }
-
       #gantt [data-testid='gantt-axis'] {
         position: relative;
-        height: 1.4rem;
+        height: var(--gantt-axis-height);
         border-bottom: 1px solid #2a2f3a;
       }
 
@@ -191,7 +197,7 @@
         display: flex;
         align-items: center;
         gap: 0.5rem;
-        height: 1.9rem;
+        height: var(--schedule-row-height);
       }
 
       #gantt [data-testid='gantt-row']:nth-child(even) {
@@ -243,12 +249,15 @@
 
       /*
        * 축 높이만큼 내려서 첫 줄을 오른쪽 막대의 첫 줄과 맞춘다. 두 칸은 서로 다른
-       * 컴포넌트가 그리므로 줄 높이(1.9rem)와 이 여백을 함께 유지해야 눈금이 맞는다.
+       * 컴포넌트가 그리므로 줄 높이와 이 여백을 함께 유지해야 눈금이 맞는다.
+       *
+       * margin이 아니라 padding이다. margin은 위 제목의 margin과 상쇄되어 큰 쪽만
+       * 남으므로 제목 아래 여백이 통째로 사라진다.
        */
       #task-list {
         list-style: none;
-        margin: calc(1.4rem + 1px) 0 0;
-        padding: 0;
+        margin: 0;
+        padding: var(--gantt-axis-height) 0 0;
       }
 
       /* 이름 · 기간 · 부재 수를 한 줄에 놓는다. 이름 칸만 늘어난다. */
@@ -257,7 +266,7 @@
         grid-template-columns: minmax(0, 1fr) auto auto;
         align-items: center;
         gap: 0 0.5rem;
-        height: 1.9rem;
+        height: var(--schedule-row-height);
       }
 
       #task-list li:nth-child(even) {
