@@ -35,6 +35,15 @@ pnpm --filter "./packages/**" -r build
 
 빌드하지 않고 개발 서버를 띄우면 페이지 자체는 열리지만 모듈이 500으로 깨지고 화면이 `kernel: booting`에서 멈춘다. `packages/**`를 고친 뒤에도 다시 빌드해야 개발 서버가 알아본다. `apps/viewer-web/**`와 `index.html`은 빌드 없이 즉시 반영된다.
 
+패키지를 자주 고치는 동안에는 터미널 하나를 감시에 내준다.
+
+```bash
+pnpm dev:packages   # tsc --build --watch, packages/**의 dist를 계속 갱신한다
+pnpm dev            # 다른 터미널에서 Vite 개발 서버
+```
+
+**단위 테스트는 이 함정을 알려 주지 않는다.** `vitest.config.ts`는 `@bim4d/domain`을 `packages/domain/src`로 별칭하지만 브라우저는 `dist`를 읽는다. 빌드하지 않은 채로는 단위 테스트가 새 코드로 초록인데 화면은 옛 코드로 돈다. `packages/**`를 고쳤으면 브라우저로 확인하기 전에 빌드하거나 `pnpm dev:packages`를 띄워 둔다.
+
 ## 명령
 
 | 명령                | 설명                                                   |
@@ -45,6 +54,8 @@ pnpm --filter "./packages/**" -r build
 | `pnpm test`         | Vitest 단위·계약 테스트                                |
 | `pnpm test:e2e`     | Playwright 브라우저 테스트 (빌드 후 preview 서버 기동) |
 | `pnpm build`        | 패키지와 Viewer 웹 앱 빌드                             |
+| `pnpm dev`          | Viewer 웹 앱 개발 서버                                 |
+| `pnpm dev:packages` | `packages/**`를 감시하며 `dist` 갱신                   |
 | `pnpm verify`       | 위 게이트를 순서대로 실행                              |
 
 ## 저장소 구조
