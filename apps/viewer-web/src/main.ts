@@ -11,7 +11,6 @@ import { createPropertyPanel } from './shell/propertyPanel.js';
 import { createSectionPanel } from './shell/sectionPanel.js';
 import { createViewpointPanel } from './shell/viewpointPanel.js';
 import { createGanttPanel } from './shell/ganttPanel.js';
-import { createScheduleEditorPanel } from './shell/scheduleEditorPanel.js';
 import { createSchedulerPanel } from './shell/schedulerPanel.js';
 import { createSimulationPanel } from './shell/simulationPanel.js';
 import { createSpatialPanel } from './shell/spatialPanel.js';
@@ -94,28 +93,6 @@ const bootstrap = async (): Promise<void> => {
       rowListSelector: '[data-testid="gantt-rows"]',
       cursorSelector: '[data-testid="gantt-cursor"]',
       statusSelector: '[data-testid="gantt-status"]',
-    }),
-  );
-  kernel.register(
-    createScheduleEditorPanel({
-      panelSelector: '[data-testid="schedule-editor"]',
-      taskListSelector: '[data-testid="task-list"]',
-      taskIdSelector: '[data-testid="task-form-id"]',
-      taskNameSelector: '[data-testid="task-form-name"]',
-      taskParentSelector: '[data-testid="task-form-parent"]',
-      taskStartSelector: '[data-testid="task-form-start"]',
-      taskFinishSelector: '[data-testid="task-form-finish"]',
-      taskAddSelector: '[data-testid="task-add"]',
-      taskSaveSelector: '[data-testid="task-save"]',
-      taskRemoveSelector: '[data-testid="task-remove"]',
-      taskRaiseSelector: '[data-testid="task-raise"]',
-      dependencyListSelector: '[data-testid="dependency-list"]',
-      dependencyPredecessorSelector: '[data-testid="dependency-predecessor"]',
-      dependencySuccessorSelector: '[data-testid="dependency-successor"]',
-      dependencyTypeSelector: '[data-testid="dependency-type"]',
-      dependencyLagSelector: '[data-testid="dependency-lag"]',
-      dependencyAddSelector: '[data-testid="dependency-add"]',
-      statusSelector: '[data-testid="editor-status"]',
     }),
   );
   kernel.register(
