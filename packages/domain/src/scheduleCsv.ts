@@ -36,7 +36,13 @@ const TASK_COLUMNS = ['taskId', 'name', 'parentTaskId', 'start', 'finish'] as co
 const DEPENDENCY_COLUMNS = ['predecessorId', 'successorId', 'type', 'lagDays'] as const;
 const ASSIGNMENT_COLUMNS = ['taskId', 'modelRef', 'productGlobalId', 'operation'] as const;
 
-/** Excel이 붙이는 선행 BOM. 값의 일부가 아니므로 버린다. */
+/**
+ * UTF-8 선행 BOM.
+ *
+ * 읽을 때는 값의 일부가 아니므로 버린다. 쓸 때는 붙인다. Windows Excel은 BOM이 없는
+ * UTF-8 CSV를 현재 코드 페이지로 읽어 한글을 깨뜨린다 (ADR-0007). 읽는 쪽이 버리므로
+ * 왕복 결과는 붙이든 안 붙이든 같다.
+ */
 const BOM = '﻿';
 
 /** 내보낼 때 쓰는 개행. Excel이 기본으로 기대하는 쪽이다 (ADR-0007). */
@@ -289,7 +295,7 @@ const escapeCell = (value: string): string =>
   /["\r\n,]/u.test(value) ? `"${value.replaceAll('"', '""')}"` : value;
 
 const toCsv = (columns: readonly string[], rows: readonly (readonly string[])[]): string =>
-  `${[columns, ...rows].map((row) => row.map(escapeCell).join(',')).join(NEWLINE)}${NEWLINE}`;
+  `${BOM}${[columns, ...rows].map((row) => row.map(escapeCell).join(',')).join(NEWLINE)}${NEWLINE}`;
 
 /**
  * 일정을 CSV 묶음으로 쓴다.

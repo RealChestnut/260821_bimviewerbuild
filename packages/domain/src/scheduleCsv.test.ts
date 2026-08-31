@@ -284,21 +284,35 @@ describe('serializeScheduleCsv', () => {
       'assignments.csv',
     ]);
     // 선후행이 없으면 헤더만 남는다.
-    expect(contentOf(files, 'dependencies.csv')).toBe('predecessorId,successorId,type,lagDays\r\n');
+    expect(contentOf(files, 'dependencies.csv')).toBe(
+      '\uFEFFpredecessorId,successorId,type,lagDays\r\n',
+    );
   });
 
   it('CRLF로 쓰고 마지막 줄도 개행으로 닫는다', () => {
     const content = contentOf(serializeScheduleCsv(parsed()), 'schedule.csv');
 
-    expect(content).toBe('scheduleId,name,schemaVersion\r\nmock,시험 일정,2\r\n');
+    expect(content).toBe('\uFEFFscheduleId,name,schemaVersion\r\nmock,시험 일정,2\r\n');
   });
 
   it('날짜를 다시 YYYY-MM-DD로 쓰고 시간 미정 Task는 빈 칸으로 남긴다', () => {
     const lines = contentOf(serializeScheduleCsv(parsed()), 'tasks.csv').split('\r\n');
 
-    expect(lines[0]).toBe('taskId,name,parentTaskId,start,finish');
+    expect(lines[0]).toBe('\uFEFFtaskId,name,parentTaskId,start,finish');
     expect(lines).toContain('T001,벽 A 시공,W1,2026-03-02,2026-03-06');
     expect(lines).toContain('T003,검사 (일정 미정),,,');
+  });
+
+  it('Excel이 한글을 읽을 수 있게 선행 BOM을 붙인다', () => {
+    // BOM이 없으면 Windows Excel이 현재 코드 페이지로 읽어 한글이 깨진다 (ADR-0007).
+    for (const file of serializeScheduleCsv(parsed())) {
+      expect(file.content.startsWith('\uFEFF')).toBe(true);
+    }
+  });
+
+  it('JSON에는 BOM을 붙이지 않는다', () => {
+    // JSON.parse가 선행 BOM에서 실패한다.
+    expect(serializeScheduleJson(parsed()).startsWith('\uFEFF')).toBe(false);
   });
 
   it('쉼표·큰따옴표가 든 값만 감싼다', () => {
@@ -307,7 +321,7 @@ describe('serializeScheduleCsv', () => {
     });
     const content = contentOf(serializeScheduleCsv(parsed(quoted)), 'schedule.csv');
 
-    expect(content).toBe('scheduleId,name,schemaVersion\r\nmock,"A, B와 ""인용""",2\r\n');
+    expect(content).toBe('\uFEFFscheduleId,name,schemaVersion\r\nmock,"A, B와 ""인용""",2\r\n');
   });
 });
 
