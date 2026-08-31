@@ -399,3 +399,54 @@ export const parseSchedule = (raw: unknown): Parsed<Schedule> => {
     },
   };
 };
+
+/** epoch milliseconds를 UTC 달력 날짜로 되돌린다. 읽을 때 UTC로 고정했으므로 쓸 때도 UTC다. */
+export const formatScheduleDate = (time: number): string =>
+  new Date(time).toISOString().slice(0, 10);
+
+/** v2 JSON과 같은 모양의 평범한 값. 파일로 쓰기 전과 편집 중의 중간 표현이다. */
+export interface ScheduleRecord {
+  readonly scheduleId: string;
+  readonly name: string;
+  readonly schemaVersion: number;
+  readonly tasks: readonly {
+    readonly taskId: string;
+    readonly name: string;
+    readonly parentTaskId?: string;
+    readonly start?: string;
+    readonly finish?: string;
+  }[];
+  readonly dependencies: readonly {
+    readonly predecessorId: string;
+    readonly successorId: string;
+    readonly type: string;
+    readonly lagDays: number;
+  }[];
+  readonly assignments: readonly {
+    readonly taskId: string;
+    readonly modelRef: string;
+    readonly productGlobalId: string;
+    readonly operation: string;
+  }[];
+}
+
+/**
+ * 일정을 v2 JSON과 같은 모양의 평범한 값으로 되돌린다.
+ *
+ * 내보내기와 편집이 함께 쓴다. 편집은 이 값을 고쳐 `parseSchedule`에 다시 넘기므로,
+ * 되돌리기가 무손실이어야 편집이 값을 잃지 않는다.
+ */
+export const toScheduleRecord = (schedule: Schedule): ScheduleRecord => ({
+  scheduleId: schedule.scheduleId,
+  name: schedule.name,
+  schemaVersion: schedule.schemaVersion,
+  tasks: schedule.tasks.map((task) => ({
+    taskId: task.taskId,
+    name: task.name,
+    ...(task.parentTaskId === undefined ? {} : { parentTaskId: task.parentTaskId }),
+    ...(task.start === undefined ? {} : { start: formatScheduleDate(task.start) }),
+    ...(task.finish === undefined ? {} : { finish: formatScheduleDate(task.finish) }),
+  })),
+  dependencies: schedule.dependencies,
+  assignments: schedule.assignments,
+});

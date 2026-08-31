@@ -11,7 +11,7 @@
 import type { Schedule } from '@bim4d/contracts';
 
 import type { Parsed } from './productKey.js';
-import { parseSchedule } from './schedule.js';
+import { parseSchedule, toScheduleRecord } from './schedule.js';
 
 /**
  * CSV 묶음 하나. 값은 파일 내용이며 파일 이름이 아니다.
@@ -355,21 +355,4 @@ export const serializeScheduleCsv = (schedule: Schedule): readonly ScheduleCsvFi
  * v1으로 읽어 들였어도 v2로 나간다. 내부 표현이 v2 하나이기 때문이다 (ADR-0006).
  */
 export const serializeScheduleJson = (schedule: Schedule): string =>
-  `${JSON.stringify(
-    {
-      scheduleId: schedule.scheduleId,
-      name: schedule.name,
-      schemaVersion: schedule.schemaVersion,
-      tasks: schedule.tasks.map((task) => ({
-        taskId: task.taskId,
-        name: task.name,
-        ...(task.parentTaskId === undefined ? {} : { parentTaskId: task.parentTaskId }),
-        ...(task.start === undefined ? {} : { start: formatUtcDate(task.start) }),
-        ...(task.finish === undefined ? {} : { finish: formatUtcDate(task.finish) }),
-      })),
-      dependencies: schedule.dependencies,
-      assignments: schedule.assignments,
-    },
-    null,
-    2,
-  )}\n`;
+  `${JSON.stringify(toScheduleRecord(schedule), null, 2)}\n`;
