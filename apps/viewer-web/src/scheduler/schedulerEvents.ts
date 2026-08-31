@@ -8,8 +8,8 @@
  * 보관소에서 읽는다.
  */
 
-import type { ScheduleCsvBundle, ScheduleCsvFile } from '@bim4d/domain';
-import type { TaskId } from '@bim4d/contracts';
+import type { ScheduleCsvBundle, ScheduleCsvFile, ScheduleEdit } from '@bim4d/domain';
+import type { DependencyType, TaskId } from '@bim4d/contracts';
 
 /**
  * 일정을 내보낼 형식.
@@ -32,6 +32,14 @@ export interface ScheduleTaskRow {
   readonly assignedCount: number;
 }
 
+/** 화면에 한 줄로 그릴 선후행. 편집 화면이 지울 대상을 고르는 데 쓴다. */
+export interface ScheduleDependencyRow {
+  readonly predecessorId: TaskId;
+  readonly successorId: TaskId;
+  readonly type: DependencyType;
+  readonly lagDays: number;
+}
+
 export interface ScheduleWarningRow {
   readonly code: string;
   readonly message: string;
@@ -47,11 +55,16 @@ declare module '@bim4d/contracts' {
       readonly start?: number;
       readonly finish?: number;
       readonly tasks: readonly ScheduleTaskRow[];
+      readonly dependencies: readonly ScheduleDependencyRow[];
       readonly warnings: readonly ScheduleWarningRow[];
     };
     'scheduler/load-failed': {
       readonly reason: string;
       /** 기계가 분기할 수 있는 안정된 코드. */
+      readonly code: string;
+    };
+    'scheduler/edit-failed': {
+      readonly reason: string;
       readonly code: string;
     };
   }
@@ -71,6 +84,11 @@ declare module '@bim4d/contracts' {
       input: { readonly format: ScheduleExportFormat };
       /** 파일 이름까지 정해서 준다. 저장 위치와 방법은 Adapter가 정한다. */
       output: { readonly files: readonly ScheduleCsvFile[] };
+    };
+    'scheduler/edit-schedule': {
+      /** 여럿을 한 번에 보낸다. 하나라도 실패하면 전부 적용되지 않는다. */
+      input: { readonly edits: readonly ScheduleEdit[] };
+      output: { readonly taskCount: number };
     };
   }
 }

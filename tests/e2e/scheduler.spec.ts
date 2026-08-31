@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
 import { expect, test } from '@playwright/test';
@@ -137,6 +138,90 @@ test.describe('Scheduler', () => {
     await page.getByTestId('schedule-export-csv').click();
 
     await expect(page.getByTestId('schedule-status')).toContainText('내보내기 실패');
+  });
+
+  test('Task를 더하면 목록에 나타난다', async ({ page }) => {
+    await openSchedule(page, scheduleV2);
+
+    await page.getByTestId('task-form-id').fill('T007');
+    await page.getByTestId('task-form-name').fill('마감 검사');
+    await page.getByTestId('task-add').click();
+
+    await expect(page.getByTestId('task-row')).toHaveCount(9);
+    await expect(page.getByTestId('task-name').last()).toHaveText('마감 검사');
+  });
+
+  test('Task를 고쳐 이름과 기간을 바꾼다', async ({ page }) => {
+    await openSchedule(page, scheduleV2);
+
+    await page.getByTestId('task-row').filter({ hasText: '슬래브 타설' }).click();
+    await page.getByTestId('task-form-name').fill('슬래브 타설 2차');
+    await page.getByTestId('task-form-finish').fill('2026-03-10');
+    await page.getByTestId('task-save').click();
+
+    await expect(page.getByTestId('task-row').filter({ hasText: '슬래브 타설 2차' })).toHaveCount(
+      1,
+    );
+    await expect(
+      page.getByTestId('task-row').filter({ hasText: '슬래브 타설 2차' }).getByTestId('task-dates'),
+    ).toHaveText('2026-03-02 ~ 2026-03-10');
+  });
+
+  test('Task를 지우면 목록에서 빠진다', async ({ page }) => {
+    await openSchedule(page, scheduleV2);
+
+    await page.getByTestId('task-row').filter({ hasText: '슬래브 검사' }).click();
+    await page.getByTestId('task-remove').click();
+
+    await expect(page.getByTestId('task-row')).toHaveCount(7);
+  });
+
+  test('자식이 있는 Task를 지우면 이유를 표시하고 지우지 않는다', async ({ page }) => {
+    await openSchedule(page, scheduleV2);
+
+    await page.getByTestId('task-row').filter({ hasText: '1층 골조' }).click();
+    await page.getByTestId('task-remove').click();
+
+    await expect(page.getByTestId('editor-status')).toContainText('자식이 있는 Task');
+    await expect(page.getByTestId('task-row')).toHaveCount(8);
+  });
+
+  test('요약 Task를 고르면 시간 칸을 잠근다', async ({ page }) => {
+    await openSchedule(page, scheduleV2);
+
+    await page.getByTestId('task-row').filter({ hasText: '1층 골조' }).click();
+
+    await expect(page.getByTestId('task-form-start')).toBeDisabled();
+  });
+
+  test('선후행을 더하고 지운다', async ({ page }) => {
+    await openSchedule(page, scheduleV2);
+    await expect(page.getByTestId('dependency-row')).toHaveCount(4);
+
+    await page.getByTestId('dependency-predecessor').selectOption('T005');
+    await page.getByTestId('dependency-successor').selectOption('T006');
+    await page.getByTestId('dependency-type').selectOption('FINISH_START');
+    await page.getByTestId('dependency-add').click();
+    await expect(page.getByTestId('dependency-row')).toHaveCount(5);
+
+    await page.getByTestId('dependency-row').last().getByTestId('dependency-remove').click();
+    await expect(page.getByTestId('dependency-row')).toHaveCount(4);
+  });
+
+  test('고친 일정을 CSV로 내보내면 고친 내용이 들어 있다', async ({ page }) => {
+    await openSchedule(page, scheduleV2);
+
+    await page.getByTestId('task-row').filter({ hasText: '슬래브 타설' }).click();
+    await page.getByTestId('task-form-name').fill('슬래브 타설 2차');
+    await page.getByTestId('task-save').click();
+    await expect(page.getByTestId('task-row').filter({ hasText: '2차' })).toHaveCount(1);
+
+    const downloads = await collectDownloads(page, 'schedule-export-csv', 4);
+    const tasks = downloads.find((download) => download.suggestedFilename() === 'tasks.csv');
+    const path = await tasks?.path();
+
+    expect(path).toBeTruthy();
+    expect(readFileSync(String(path), 'utf8')).toContain('슬래브 타설 2차');
   });
 
   test('스키마에 맞지 않으면 이유를 표시하고 목록을 열지 않는다', async ({ page }) => {

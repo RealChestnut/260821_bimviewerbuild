@@ -128,6 +128,26 @@
       }
 
       #task-list,
+      #schedule-editor {
+        border-top: 1px solid #2a2f3a;
+        padding: 0.5rem;
+        display: flex;
+        flex-direction: column;
+        gap: 0.35rem;
+      }
+
+      #schedule-editor .editor-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.25rem;
+      }
+
+      #schedule-editor input,
+      #schedule-editor select {
+        min-width: 0;
+        flex: 1 1 6rem;
+      }
+
       #schedule-warnings {
         list-style: none;
         margin: 0;
@@ -453,6 +473,39 @@
             <h2 data-testid="schedule-name">일정 없음</h2>
             <ol id="task-list" data-testid="task-list"></ol>
             <ul id="schedule-warnings" data-testid="schedule-warnings"></ul>
+          </section>
+          <section id="schedule-editor" data-testid="schedule-editor" hidden>
+            <h2>일정 편집</h2>
+            <div class="editor-row">
+              <input data-testid="task-form-id" aria-label="Task ID" placeholder="Task ID" />
+              <input data-testid="task-form-name" aria-label="Task 이름" placeholder="이름" />
+            </div>
+            <div class="editor-row">
+              <select data-testid="task-form-parent" aria-label="상위 Task"></select>
+              <input type="date" data-testid="task-form-start" aria-label="시작일" />
+              <input type="date" data-testid="task-form-finish" aria-label="종료일" />
+            </div>
+            <div class="editor-row">
+              <button type="button" data-testid="task-add">추가</button>
+              <button type="button" data-testid="task-save" disabled>저장</button>
+              <button type="button" data-testid="task-remove" disabled>지우기</button>
+              <button type="button" data-testid="task-raise" disabled>최상위로</button>
+            </div>
+            <div class="editor-row">
+              <select data-testid="dependency-predecessor" aria-label="선행 Task"></select>
+              <select data-testid="dependency-successor" aria-label="후행 Task"></select>
+              <select data-testid="dependency-type" aria-label="선후행 유형"></select>
+              <input
+                type="number"
+                step="1"
+                data-testid="dependency-lag"
+                aria-label="지연 일수"
+                placeholder="지연"
+              />
+              <button type="button" data-testid="dependency-add">선후행 추가</button>
+            </div>
+            <ul data-testid="dependency-list"></ul>
+            <p data-testid="editor-status"></p>
           </section>
         </div>
         <main id="viewer-container" data-testid="viewer-container"></main>

@@ -1,4 +1,5 @@
 import {
+  applyScheduleEdits,
   effectiveTaskTimes,
   flattenTasks,
   parseSchedule,
@@ -7,7 +8,7 @@ import {
   serializeScheduleJson,
   validateSchedule,
 } from '@bim4d/domain';
-import type { Parsed, ScheduleCsvBundle, ScheduleCsvFile } from '@bim4d/domain';
+import type { Parsed, ScheduleCsvBundle, ScheduleCsvFile, ScheduleEdit } from '@bim4d/domain';
 import type {
   AppComponent,
   AppContext,
@@ -92,6 +93,7 @@ export const createSchedulerComponent = (options: SchedulerComponentOptions): Ap
       ...(start === undefined ? {} : { start }),
       ...(finish === undefined ? {} : { finish }),
       tasks: toRows(schedule),
+      dependencies: schedule.dependencies,
       warnings: toWarnings(schedule),
     });
   };
@@ -133,6 +135,37 @@ export const createSchedulerComponent = (options: SchedulerComponentOptions): Ap
     commit(parseScheduleCsv(bundle));
 
   /**
+   * 열려 있는 일정을 고친다.
+   *
+   * 편집 결과도 `parseSchedule`을 다시 거치므로 파일로 들어온 일정과 같은 규칙을 받는다.
+   * 실패하면 앞서 있던 일정을 그대로 둔다. 절반만 반영된 일정을 남기지 않는다.
+   */
+  const editSchedule = async (
+    edits: readonly ScheduleEdit[],
+  ): Promise<{ readonly taskCount: number }> => {
+    const app = requireContext();
+
+    const schedule = await repository.get();
+    if (schedule === null) {
+      throw new Error('열려 있는 일정이 없다.');
+    }
+
+    const applied = applyScheduleEdits(schedule, edits);
+    if (!applied.ok) {
+      await app.events.publish('scheduler/edit-failed', {
+        reason: applied.error.message,
+        code: applied.error.code,
+      });
+      throw new Error(applied.error.message);
+    }
+
+    await repository.save(applied.value);
+    await publishSchedule(applied.value);
+
+    return { taskCount: applied.value.tasks.length };
+  };
+
+  /**
    * 지금 열려 있는 일정을 파일로 쓴다.
    *
    * 읽어 들인 파일이 v1이었어도 v2로 나간다. 내부 표현이 v2 하나이기 때문이다 (ADR-0006).
@@ -168,6 +201,7 @@ export const createSchedulerComponent = (options: SchedulerComponentOptions): Ap
       app.commands.register('scheduler/load-schedule', ({ source }) => loadSchedule(source));
       app.commands.register('scheduler/load-schedule-csv', ({ bundle }) => loadScheduleCsv(bundle));
       app.commands.register('scheduler/export-schedule', ({ format }) => exportSchedule(format));
+      app.commands.register('scheduler/edit-schedule', ({ edits }) => editSchedule(edits));
       registered = true;
       return Promise.resolve();
     },

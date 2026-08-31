@@ -330,6 +330,97 @@ describe('createSchedulerComponent — 내보내기', () => {
   });
 });
 
+describe('createSchedulerComponent — 편집', () => {
+  it('Task를 더하고 새 목록을 알린다', async () => {
+    const context = createTestContext();
+    await startComponent(context);
+    await context.commands.dispatch('scheduler/load-schedule', { source });
+    const changes = listenChanges(context);
+
+    const result = await context.commands.dispatch('scheduler/edit-schedule', {
+      edits: [{ kind: 'add-task', taskId: 'T003', name: '마감', parentTaskId: 'W1' }],
+    });
+
+    expect(result.ok && result.value.taskCount).toBe(4);
+    expect(changes[0]?.tasks.map((row) => row.taskId)).toEqual(['W1', 'T001', 'T002', 'T003']);
+  });
+
+  it('고친 일정을 보관소에 넣는다', async () => {
+    const context = createTestContext();
+    await startComponent(context);
+    await context.commands.dispatch('scheduler/load-schedule', { source });
+
+    await context.commands.dispatch('scheduler/edit-schedule', {
+      edits: [{ kind: 'update-task', taskId: 'T001', name: '슬래브 타설' }],
+    });
+
+    const stored = await repository.get();
+    expect(stored?.tasks.find((task) => task.taskId === 'T001')?.name).toBe('슬래브 타설');
+  });
+
+  it('편집이 규칙을 깨면 알리고 보관소를 그대로 둔다', async () => {
+    const context = createTestContext();
+    await startComponent(context);
+    await context.commands.dispatch('scheduler/load-schedule', { source });
+    const failures: { code: string }[] = [];
+    context.events.subscribe('scheduler/edit-failed', ({ payload }) => {
+      failures.push(payload);
+    });
+
+    const result = await context.commands.dispatch('scheduler/edit-schedule', {
+      edits: [{ kind: 'update-task', taskId: 'W1', start: '2026-03-02' }],
+    });
+
+    expect(result.ok).toBe(false);
+    expect(failures[0]?.code).toBe('schedule.parse.summary-task-has-time');
+    expect((await repository.get())?.tasks).toHaveLength(3);
+  });
+
+  it('여럿 중 하나가 실패하면 아무것도 반영하지 않는다', async () => {
+    const context = createTestContext();
+    await startComponent(context);
+    await context.commands.dispatch('scheduler/load-schedule', { source });
+
+    await context.commands.dispatch('scheduler/edit-schedule', {
+      edits: [
+        { kind: 'add-task', taskId: 'T003', name: '마감' },
+        { kind: 'add-task', taskId: 'T001', name: '겹침' },
+      ],
+    });
+
+    expect((await repository.get())?.tasks).toHaveLength(3);
+  });
+
+  it('열려 있는 일정이 없으면 실패로 돌려준다', async () => {
+    const context = createTestContext();
+    await startComponent(context);
+
+    const result = await context.commands.dispatch('scheduler/edit-schedule', {
+      edits: [{ kind: 'add-task', taskId: 'T003', name: '마감' }],
+    });
+
+    expect(result.ok).toBe(false);
+  });
+
+  it('고친 일정을 CSV로 내보내면 고친 내용이 나온다', async () => {
+    const context = createTestContext();
+    await startComponent(context);
+    await context.commands.dispatch('scheduler/load-schedule', { source });
+    await context.commands.dispatch('scheduler/edit-schedule', {
+      edits: [{ kind: 'update-task', taskId: 'T001', name: '슬래브 타설' }],
+    });
+
+    const exported = await context.commands.dispatch('scheduler/export-schedule', {
+      format: 'csv',
+    });
+    if (!exported.ok) throw new Error(exported.error.message);
+
+    expect(exported.value.files.find((file) => file.fileName === 'tasks.csv')?.content).toContain(
+      '슬래브 타설',
+    );
+  });
+});
+
 describe('createSchedulerComponent — 정리', () => {
   it('dispose하면 보관소를 비운다', async () => {
     const context = createTestContext();
