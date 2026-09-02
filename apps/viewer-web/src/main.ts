@@ -1,5 +1,6 @@
 import type { AppEventName, ModelId } from '@bim4d/contracts';
 
+import { createInMemoryModelRefBinding } from './adapters/inMemoryModelRefBinding.js';
 import { createInMemoryModelRepository } from './adapters/inMemoryModelRepository.js';
 import { createInMemoryScheduleRepository } from './adapters/inMemoryScheduleRepository.js';
 import { createThatOpenViewerAdapter } from './adapters/thatopen/thatOpenViewerAdapter.js';
@@ -23,6 +24,7 @@ import { createSelectionComponent } from './viewer/selection/selectionComponent.
 import { createVisibilityComponent } from './viewer/visibility/visibilityComponent.js';
 import { createViewerWorldComponent } from './viewer/viewerWorldComponent.js';
 import { createViewpointComponent } from './viewer/viewpoint/viewpointComponent.js';
+import { createModelBindingComponent } from './scheduler/modelBindingComponent.js';
 import { createSchedulerComponent } from './scheduler/schedulerComponent.js';
 import { createSimulationComponent } from './simulation/simulationComponent.js';
 
@@ -37,6 +39,7 @@ const bootstrap = async (): Promise<void> => {
   const viewer = createThatOpenViewerAdapter();
   const repository = createInMemoryModelRepository();
   const scheduleRepository = createInMemoryScheduleRepository();
+  const modelRefBinding = createInMemoryModelRefBinding();
 
   kernel.register(createStatusComponent({ selector: '[data-testid="kernel-status"]' }));
   kernel.register(
@@ -62,9 +65,14 @@ const bootstrap = async (): Promise<void> => {
   kernel.register(createSectionComponent({ port: viewer.section }));
   kernel.register(createCameraComponent({ port: viewer.camera }));
   kernel.register(createViewpointComponent({ camera: viewer.camera, section: viewer.section }));
+  kernel.register(createModelBindingComponent({ registry: modelRefBinding }));
   kernel.register(createSchedulerComponent({ repository: scheduleRepository }));
   kernel.register(
-    createSimulationComponent({ port: viewer.simulation, repository: scheduleRepository }),
+    createSimulationComponent({
+      port: viewer.simulation,
+      repository: scheduleRepository,
+      binding: modelRefBinding,
+    }),
   );
   kernel.register(
     createModelPanel({

@@ -1,6 +1,7 @@
 export type { GlobalId, ModelFingerprint, ModelId, ProductKey } from './identity.js';
 export type { AppError, AppErrorKind, TraceId } from './errors.js';
 export type { IfcSchemaVersion, ModelRecord, ModelRepositoryPort } from './model.js';
+export type { ModelRefBindingPort } from './modelBinding.js';
 export type {
   DependencyType,
   ElementDisplayState,

@@ -3,7 +3,9 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { parseSchedule } from '@bim4d/domain';
 import type { ModelId, ProductKey, ScheduleRepositoryPort } from '@bim4d/contracts';
 
+import { createInMemoryModelRefBinding } from '../adapters/inMemoryModelRefBinding.js';
 import { createInMemoryScheduleRepository } from '../adapters/inMemoryScheduleRepository.js';
+import { createModelBindingComponent } from '../scheduler/modelBindingComponent.js';
 import { createTestContext } from '../kernel/testing/testContext.js';
 import type { TestContext } from '../kernel/testing/testContext.js';
 import '../scheduler/schedulerEvents.js';
@@ -94,10 +96,19 @@ let port: FakePort;
 let ticker: ReturnType<typeof createManualTicker>;
 let repository: ScheduleRepositoryPort;
 
+/**
+ * 시뮬레이션은 묶음을 직접 만들지 않는다. 실제 앱과 같게 묶는 Component를 함께 세운다.
+ */
 const startComponent = async (context: TestContext) => {
+  const binding = createInMemoryModelRefBinding();
+  const bindingComponent = createModelBindingComponent({ registry: binding });
+  await bindingComponent.initialize(context);
+  await bindingComponent.start();
+
   const component = createSimulationComponent({
     port,
     repository,
+    binding,
     scheduleTick: ticker.scheduleTick,
   });
   await component.initialize(context);

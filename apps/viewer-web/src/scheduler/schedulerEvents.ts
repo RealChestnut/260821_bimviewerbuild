@@ -74,6 +74,15 @@ declare module '@bim4d/contracts' {
       readonly reason: string;
       readonly code: string;
     };
+    /**
+     * 적재된 모델과 일정의 `modelRef` 묶음이 바뀌었다.
+     *
+     * 소비자는 이 Event를 받고 `ModelRefBindingPort`에서 읽는다. `model/loaded`를 저마다
+     * 듣게 하면 누가 먼저 처리되는지가 Component 등록 순서에 달린다.
+     */
+    'scheduler/model-binding-changed': {
+      readonly boundCount: number;
+    };
   }
 
   interface AppCommandMap {

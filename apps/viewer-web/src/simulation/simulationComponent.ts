@@ -4,6 +4,7 @@ import type {
   AppComponent,
   AppContext,
   ModelId,
+  ModelRefBindingPort,
   ProductKey,
   Schedule,
   ScheduleRepositoryPort,
@@ -23,6 +24,8 @@ export interface SimulationComponentOptions {
   readonly port: SimulationViewPort;
   /** 일정을 읽어 오는 곳. 쓰는 것은 Scheduler뿐이다. */
   readonly repository: ScheduleRepositoryPort;
+  /** 일정의 modelRef를 적재된 모델로 옮기는 자리. 채우는 일은 다른 Component가 한다. */
+  readonly binding: ModelRefBindingPort;
   /** 재생 틱. 테스트는 직접 돌릴 수 있는 구현을 넣는다. */
   readonly scheduleTick?: ScheduleTick;
 }
@@ -54,7 +57,7 @@ const clamp = (value: number, bounds: ScheduleBounds): number =>
  * 일정의 주인은 Scheduler다. 여기서는 바뀌었다는 Event를 받고 보관소에서 읽기만 한다.
  */
 export const createSimulationComponent = (options: SimulationComponentOptions): AppComponent => {
-  const { port, repository } = options;
+  const { port, repository, binding } = options;
   const scheduleTick = options.scheduleTick ?? defaultScheduleTick;
 
   let context: AppContext | null = null;
@@ -66,8 +69,6 @@ export const createSimulationComponent = (options: SimulationComponentOptions): 
   let assignments: readonly SimulationAssignment[] = [];
   let time = 0;
 
-  /** 적재된 모델. 일정의 modelRef는 파일명이므로 displayName으로 찾는다. */
-  const modelIdByRef = new Map<string, ModelId>();
   /** 지금 화면에 적용돼 있는 상태. 다음 이동에서 무엇이 바뀌었는지 가릴 기준이다. */
   const applied = new Map<string, ProductDisplayState>();
 
@@ -130,7 +131,7 @@ export const createSimulationComponent = (options: SimulationComponentOptions): 
   /** 모델이 열리거나 닫히면 할당을 다시 묶고 현재 시각의 상태를 맞춘다. */
   const rebind = async (): Promise<void> => {
     if (schedule === null) return;
-    assignments = bindSchedule(schedule, modelIdByRef);
+    assignments = bindSchedule(schedule, binding.entries());
     await applyStatesAt(time);
   };
 
@@ -199,7 +200,7 @@ export const createSimulationComponent = (options: SimulationComponentOptions): 
     schedule = next;
     timeline = bounds;
     time = bounds.start;
-    assignments = bindSchedule(next, modelIdByRef);
+    assignments = bindSchedule(next, binding.entries());
 
     await app.events.publish('simulation/timeline-changed', {
       start: bounds.start,
@@ -217,9 +218,6 @@ export const createSimulationComponent = (options: SimulationComponentOptions): 
   };
 
   const forgetModel = (modelId: ModelId): void => {
-    for (const [ref, id] of modelIdByRef) {
-      if (id === modelId) modelIdByRef.delete(ref);
-    }
     // 해제된 모델의 부재는 이미 화면에서 사라졌다. 되돌릴 것도, 비교할 기준도 남기지 않는다.
     for (const [key, entry] of applied) {
       if (entry.product.modelId === modelId) applied.delete(key);
@@ -238,13 +236,14 @@ export const createSimulationComponent = (options: SimulationComponentOptions): 
       const app = requireContext();
 
       subscriptions = [
-        app.events.subscribe('model/loaded', ({ payload }) => {
-          modelIdByRef.set(payload.displayName, payload.modelId);
-          void rebind();
-        }),
+        /*
+         * 묶음이 바뀌면 다시 묶는다. `model/loaded`를 직접 듣지 않는 것은 묶는 Component와
+         * 순서를 다투지 않기 위해서다. 묶기 전에 다시 묶으면 방금 열린 모델을 놓친다.
+         */
+        app.events.subscribe('scheduler/model-binding-changed', () => rebind()),
         app.events.subscribe('model/unloaded', ({ payload }) => {
+          // 묶음은 다른 Component가 푼다. 여기서는 화면에 걸어 둔 것만 잊는다.
           forgetModel(payload.modelId);
-          if (schedule !== null) assignments = bindSchedule(schedule, modelIdByRef);
         }),
         // 반환값을 넘겨 발행자가 기다리게 한다. 일정을 실은 직후의 화면 상태가
         // 적용을 마친 뒤여야 하고, 그래야 이어지는 조작이 헛돌지 않는다.
@@ -289,7 +288,6 @@ export const createSimulationComponent = (options: SimulationComponentOptions): 
       playing = false;
 
       await resetApplied();
-      modelIdByRef.clear();
       schedule = null;
       timeline = null;
       assignments = [];
