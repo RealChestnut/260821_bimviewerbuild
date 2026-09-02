@@ -88,6 +88,17 @@ describe('createSchedulerComponent — 적재', () => {
     ]);
   });
 
+  it('줄마다 상위 Task를 함께 알린다', async () => {
+    const context = createTestContext();
+    await startComponent(context);
+    const changes = listenChanges(context);
+
+    await context.commands.dispatch('scheduler/load-schedule', { source });
+
+    // 화면이 WBS를 옮기려면 깊이만으로 부족하다. 형제와 조부모를 알아야 한다.
+    expect(changes[0]?.tasks.map((row) => row.parentTaskId)).toEqual([undefined, 'W1', 'W1']);
+  });
+
   it('요약 Task의 시간은 자손에서 계산해 싣는다', async () => {
     const context = createTestContext();
     await startComponent(context);

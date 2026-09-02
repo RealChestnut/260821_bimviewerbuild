@@ -1,8 +1,17 @@
-import type { AppComponent, AppContext, Unsubscribe } from '@bim4d/contracts';
+import type { ScheduleEdit } from '@bim4d/domain';
+import type { AppComponent, AppContext, TaskId, Unsubscribe } from '@bim4d/contracts';
 
 import '../scheduler/schedulerEvents.js';
 import '../simulation/simulationEvents.js';
-import type { ScheduleTaskRow } from '../scheduler/schedulerEvents.js';
+import type { ScheduleDependencyRow, ScheduleTaskRow } from '../scheduler/schedulerEvents.js';
+
+import {
+  createDependencyEditor,
+  createDraftRow,
+  createEditableCell,
+  createRowActions,
+  formatDate,
+} from './scheduleRowEditing.js';
 
 export interface ScheduleTablePanelOptions {
   /** 표 전체. 그릴 기간이 없으면 통째로 감춘다. */
@@ -11,6 +20,8 @@ export interface ScheduleTablePanelOptions {
   readonly rowListSelector: string;
   readonly cursorSelector: string;
   readonly statusSelector: string;
+  /** 새 Task 줄을 여는 버튼. 머리글에 둔다. */
+  readonly addButtonSelector: string;
 }
 
 const DAY = 86_400_000;
@@ -29,9 +40,6 @@ const requireElement = (selector: string): HTMLElement => {
   return element;
 };
 
-/** 일정의 시각은 UTC 자정 기준이다. 지역 시간대로 바꾸면 하루 어긋나 보인다. */
-const formatDate = (time: number): string => new Date(time).toISOString().slice(0, 10);
-
 const formatMonth = (time: number): string => new Date(time).toISOString().slice(0, 7);
 
 /** 다음 달 1일 UTC 자정. 축 눈금을 달 경계에 놓는다. */
@@ -49,12 +57,19 @@ const cell = (testId: string, text: string): HTMLSpanElement => {
   return node;
 };
 
+/** 빈 칸은 "값 없음"이다. 지우려는 뜻이므로 null로 보낸다 (ADR-0002 경계 규칙 4). */
+const dateOrNull = (value: string): string | null => (value.trim().length === 0 ? null : value);
+
 /**
- * 일정을 표와 막대 그림으로 함께 그리는 화면 조각.
+ * 일정을 표와 막대 그림으로 함께 그리고 그 자리에서 고치는 화면 조각.
  *
  * 한 줄 안에 열과 막대가 같이 있다. 표와 막대를 두 컴포넌트로 나눠 그리면 두 칸의 줄
  * 높이와 머리 여백을 각각 맞춰야 하고, 어긋나도 testid를 세는 테스트는 통과한다. 실제로
  * 4.6px 어긋난 채로 있었다. 한 줄로 두면 어긋날 자리가 없다.
+ *
+ * 편집도 그 줄에서 한다. 값을 보는 자리와 고치는 자리가 갈라지면 CSV를 엑셀로 여는
+ * 편이 빨라진다 (79da5ac). 무엇이 규칙에 맞는지는 판단하지 않고 도메인이 낸 이유만
+ * 옮겨 적는다.
  *
  * `finish`는 그날까지 포함하므로 막대의 오른쪽 끝을 하루 뒤로 잡는다. 그러지 않으면
  * 하루짜리 Task의 폭이 0이 되어 보이지 않는다.
@@ -71,9 +86,25 @@ export const createScheduleTablePanel = (options: ScheduleTablePanelOptions): Ap
   let rowList: HTMLElement | null = null;
   let cursor: HTMLElement | null = null;
   let statusText: HTMLElement | null = null;
+  let addButton: HTMLElement | null = null;
 
   /** 지금 그리고 있는 기간. 커서를 놓을 때 다시 쓴다. */
   let span: { readonly start: number; readonly end: number } | null = null;
+  let rows: readonly ScheduleTaskRow[] = [];
+  let dependencies: readonly ScheduleDependencyRow[] = [];
+
+  /** 선후행 줄을 펼쳐 둔 Task. 다시 그려도 유지한다. */
+  let linksTaskId: TaskId | null = null;
+  /** 새 Task 줄을 열어 두었는가. */
+  let drafting = false;
+  /** 방금 연 칸. 편집 뒤 표를 다시 그려도 같은 자리로 돌아가려고 기억한다. */
+  let openCell: { readonly taskId: TaskId; readonly testId: string } | null = null;
+  /**
+   * 편집 실패 Event를 몇 번 받았는지.
+   *
+   * 도메인이 이미 이유를 적었으면 명령 실패 문구로 덮지 않는다.
+   */
+  let failureCount = 0;
 
   const write = (value: string): void => {
     if (statusText !== null) statusText.textContent = value;
@@ -87,16 +118,74 @@ export const createScheduleTablePanel = (options: ScheduleTablePanelOptions): Ap
     return Math.min(1, Math.max(0, (time - span.start) / width));
   };
 
+  const submit = (edits: readonly ScheduleEdit[], onDone?: () => void): void => {
+    if (context === null) return;
+    const app = context;
+
+    const before = failureCount;
+    void (async () => {
+      const result = await app.commands.dispatch('scheduler/edit-schedule', { edits });
+      if (!result.ok) {
+        // 도메인이 낸 이유가 이미 적혔으면 그대로 둔다. 명령 앞에서 막힌 경우만 여기서 적는다.
+        if (failureCount === before) write(`편집 실패: ${result.error.message}`);
+        return;
+      }
+      onDone?.();
+    })();
+  };
+
+  const remember = (row: ScheduleTaskRow, testId: string): void => {
+    openCell = { taskId: row.taskId, testId };
+  };
+
   const createRow = (row: ScheduleTaskRow): HTMLLIElement => {
     const item = document.createElement('li');
     item.dataset['testid'] = 'task-row';
     item.dataset['taskId'] = row.taskId;
     item.dataset['depth'] = String(row.depth);
     item.dataset['summary'] = String(row.isSummary);
+    item.dataset['selected'] = String(linksTaskId === row.taskId);
 
-    const name = cell('task-name', row.name);
+    const name = createEditableCell({
+      testId: 'task-name',
+      text: row.name,
+      editable: true,
+      onCommit: (value) => {
+        submit([{ kind: 'update-task', taskId: row.taskId, name: value }]);
+      },
+      onOpen: () => {
+        remember(row, 'task-name');
+      },
+    });
     // 계층은 이름 칸에서만 드러낸다. ID와 날짜 열은 자리가 고정이라야 읽힌다.
     name.style.paddingInlineStart = `${String(row.depth)}rem`;
+
+    // 요약 Task의 시간은 자손에서 계산한 값이다. 그 Task의 것이 아니므로 잠근다 (ADR-0006).
+    const timeEditable = !row.isSummary;
+    const start = createEditableCell({
+      testId: 'task-start',
+      text: formatDate(row.start),
+      editable: timeEditable,
+      inputType: 'date',
+      onCommit: (value) => {
+        submit([{ kind: 'update-task', taskId: row.taskId, start: dateOrNull(value) }]);
+      },
+      onOpen: () => {
+        remember(row, 'task-start');
+      },
+    });
+    const finish = createEditableCell({
+      testId: 'task-finish',
+      text: formatDate(row.finish),
+      editable: timeEditable,
+      inputType: 'date',
+      onCommit: (value) => {
+        submit([{ kind: 'update-task', taskId: row.taskId, finish: dateOrNull(value) }]);
+      },
+      onOpen: () => {
+        remember(row, 'task-finish');
+      },
+    });
 
     const track = document.createElement('span');
     track.dataset['testid'] = 'gantt-track';
@@ -118,14 +207,87 @@ export const createScheduleTablePanel = (options: ScheduleTablePanelOptions): Ap
     }
 
     item.append(
-      cell('task-id', row.taskId),
+      // ID는 부재 연결과 선후행의 키다. 바꾸면 연결이 끊기므로 잠근다.
+      createEditableCell({
+        testId: 'task-id',
+        text: row.taskId,
+        editable: false,
+        onCommit: () => undefined,
+      }),
       name,
-      cell('task-start', row.start === undefined ? '' : formatDate(row.start)),
-      cell('task-finish', row.finish === undefined ? '' : formatDate(row.finish)),
+      start,
+      finish,
       cell('task-assigned', String(row.assignedCount)),
+      createRowActions({
+        row,
+        rows,
+        submit,
+        linksOpen: linksTaskId === row.taskId,
+        onToggleLinks: () => {
+          linksTaskId = linksTaskId === row.taskId ? null : row.taskId;
+          drawRows();
+        },
+        write,
+      }),
       track,
     );
     return item;
+  };
+
+  /** 방금 열었던 칸으로 초점을 되돌린다. 다시 그리면 열려 있던 입력칸이 사라진다. */
+  const restoreFocus = (): void => {
+    if (openCell === null || rowList === null) return;
+
+    const line = rowList.querySelector<HTMLElement>(
+      `[data-testid="task-row"][data-task-id="${openCell.taskId}"]`,
+    );
+    const target = line?.querySelector<HTMLElement>(`[data-testid="${openCell.testId}"]`);
+    openCell = null;
+    target?.focus();
+  };
+
+  const drawRows = (): void => {
+    if (rowList === null) return;
+
+    // 사라진 Task의 줄은 붙일 자리가 없다.
+    if (linksTaskId !== null && !rows.some((row) => row.taskId === linksTaskId)) {
+      linksTaskId = null;
+    }
+
+    const items: HTMLLIElement[] = [];
+    for (const row of rows) {
+      items.push(createRow(row));
+      if (linksTaskId === row.taskId) {
+        items.push(
+          createDependencyEditor({
+            taskId: row.taskId,
+            rows,
+            dependencies,
+            submit,
+            write,
+          }),
+        );
+      }
+    }
+
+    if (drafting) {
+      const sibling = rows.find((row) => row.taskId === linksTaskId);
+      items.push(
+        createDraftRow({
+          // 고른 줄이 있으면 그 형제로 넣는다. 없으면 최상위다.
+          ...(sibling?.parentTaskId === undefined ? {} : { parentTaskId: sibling.parentTaskId }),
+          submit,
+          onCancel: () => {
+            drafting = false;
+            drawRows();
+          },
+          write,
+        }),
+      );
+    }
+
+    rowList.replaceChildren(...items);
+    restoreFocus();
   };
 
   /** 달 경계마다 눈금을 놓는다. 눈금이 하나도 없으면 양 끝 날짜만 적는다. */
@@ -165,7 +327,13 @@ export const createScheduleTablePanel = (options: ScheduleTablePanelOptions): Ap
     cursor.style.left = `calc(${COLUMNS_WIDTH} + (100% - ${COLUMNS_WIDTH}) * ${ratio.toFixed(6)})`;
   };
 
+  const onAdd = (): void => {
+    drafting = true;
+    drawRows();
+  };
+
   const detach = (): void => {
+    addButton?.removeEventListener('click', onAdd);
     for (const unsubscribe of subscriptions) unsubscribe();
     subscriptions = [];
   };
@@ -180,6 +348,7 @@ export const createScheduleTablePanel = (options: ScheduleTablePanelOptions): Ap
         rowList = requireElement(options.rowListSelector);
         cursor = requireElement(options.cursorSelector);
         statusText = requireElement(options.statusSelector);
+        addButton = requireElement(options.addButtonSelector);
       } catch (cause) {
         return Promise.reject(cause instanceof Error ? cause : new Error(String(cause)));
       }
@@ -195,13 +364,19 @@ export const createScheduleTablePanel = (options: ScheduleTablePanelOptions): Ap
       if (context === null) throw new Error('initialize를 먼저 호출해야 한다.');
       if (subscriptions.length > 0) return Promise.resolve();
 
+      addButton?.addEventListener('click', onAdd);
+
       subscriptions = [
         context.events.subscribe('scheduler/schedule-changed', ({ payload }) => {
           if (panel !== null) panel.hidden = false;
 
+          rows = payload.tasks;
+          dependencies = payload.dependencies;
+
           if (payload.start === undefined || payload.finish === undefined) {
             // 시간이 확정된 Task가 하나도 없으면 그릴 기간이 없다.
             span = null;
+            rows = [];
             rowList?.replaceChildren();
             axis?.replaceChildren();
             moveCursor(null);
@@ -212,8 +387,12 @@ export const createScheduleTablePanel = (options: ScheduleTablePanelOptions): Ap
           span = { start: payload.start, end: payload.finish + DAY };
           write('');
           drawAxis();
-          rowList?.replaceChildren(...payload.tasks.map(createRow));
+          drawRows();
           moveCursor(null);
+        }),
+        context.events.subscribe('scheduler/edit-failed', ({ payload }) => {
+          failureCount += 1;
+          write(`편집 실패: ${payload.reason}`);
         }),
         context.events.subscribe('simulation/time-changed', ({ payload }) => {
           moveCursor(payload.time);
@@ -231,11 +410,17 @@ export const createScheduleTablePanel = (options: ScheduleTablePanelOptions): Ap
     dispose: () => {
       detach();
       span = null;
+      rows = [];
+      dependencies = [];
+      linksTaskId = null;
+      drafting = false;
+      openCell = null;
       panel = null;
       axis = null;
       rowList = null;
       cursor = null;
       statusText = null;
+      addButton = null;
       context = null;
       return Promise.resolve();
     },

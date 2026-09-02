@@ -25,6 +25,13 @@ export interface ScheduleTaskRow {
   readonly name: string;
   /** 들여쓰기 깊이. 최상위가 0이다. */
   readonly depth: number;
+  /**
+   * 상위 Task. 최상위면 없다.
+   *
+   * 깊이만으로는 WBS를 옮길 수 없다. 들여쓰기는 바로 위 형제를 부모로 삼고 내어쓰기는
+   * 부모의 부모로 올리는데, 둘 다 부모가 누구인지 알아야 정해진다.
+   */
+  readonly parentTaskId?: TaskId;
   readonly isSummary: boolean;
   /** 계산된 시간. epoch milliseconds. 알 수 없으면 없다. */
   readonly start?: number;

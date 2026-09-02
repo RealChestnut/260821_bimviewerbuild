@@ -92,6 +92,7 @@ const bootstrap = async (): Promise<void> => {
       rowListSelector: '[data-testid="task-rows"]',
       cursorSelector: '[data-testid="gantt-cursor"]',
       statusSelector: '[data-testid="gantt-status"]',
+      addButtonSelector: '[data-testid="task-add"]',
     }),
   );
   kernel.register(

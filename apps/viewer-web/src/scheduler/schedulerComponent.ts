@@ -64,6 +64,7 @@ export const createSchedulerComponent = (options: SchedulerComponentOptions): Ap
         name: row.task.name,
         depth: row.depth,
         isSummary: row.isSummary,
+        ...(row.task.parentTaskId === undefined ? {} : { parentTaskId: row.task.parentTaskId }),
         ...(time === undefined ? {} : { start: time.start, finish: time.finish }),
         assignedCount: assignedCounts.get(row.task.taskId) ?? 0,
       };

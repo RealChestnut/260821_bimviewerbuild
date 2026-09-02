@@ -137,3 +137,54 @@ test.describe('일정 독 배치', () => {
     });
   });
 });
+
+test.describe('일정 독 배치 — 편집', () => {
+  test('줄 끝 버튼이 줄 높이를 넘지 않는다', async ({ page }) => {
+    await openSchedule(page);
+
+    const line = await boxOf(page.getByTestId('task-row').first());
+    const actions = page.getByTestId('task-row').first().locator('button');
+    const count = await actions.count();
+    expect(count).toBe(4);
+
+    // 버튼이 줄을 키우면 왼쪽 열과 오른쪽 막대가 어긋난다. 1bd32da가 잡은 어긋남이다.
+    for (let index = 0; index < count; index += 1) {
+      const box = await boxOf(actions.nth(index));
+      expect(box.y, `${String(index)}번째 버튼이 줄 위로 넘쳤다`).toBeGreaterThanOrEqual(
+        line.y - 1,
+      );
+      expect(box.y + box.height).toBeLessThanOrEqual(line.y + line.height + 1);
+    }
+  });
+
+  test('칸을 열어도 막대 칸이 밀리지 않는다', async ({ page }) => {
+    await openSchedule(page);
+    const before = await boxOf(page.getByTestId('gantt-track').nth(1));
+
+    await page.getByTestId('task-name').nth(1).click();
+    await expect(page.getByTestId('task-name-input')).toBeVisible();
+
+    // 입력칸이 칸을 넘치면 옆 열을 밀어 축과 막대가 어긋난다.
+    const after = await boxOf(page.getByTestId('gantt-track').nth(1));
+    expect(Math.abs(after.x - before.x)).toBeLessThanOrEqual(1);
+    expect(Math.abs(after.width - before.width)).toBeLessThanOrEqual(1);
+  });
+
+  test('펼친 선후행 줄이 표 밖으로 넘치지 않는다', async ({ page }) => {
+    await openSchedule(page);
+
+    await page.getByTestId('task-links').nth(2).click();
+    await expect(page.getByTestId('dependency-editor')).toBeVisible();
+
+    const table = await boxOf(page.getByTestId('schedule-table'));
+    const editor = await boxOf(page.getByTestId('dependency-editor'));
+
+    expect(editor.x).toBeGreaterThanOrEqual(table.x);
+    expect(editor.x + editor.width).toBeLessThanOrEqual(table.x + table.width + 1);
+
+    const overflow = await page.evaluate(
+      () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+    );
+    expect(overflow).toBeLessThanOrEqual(0);
+  });
+});

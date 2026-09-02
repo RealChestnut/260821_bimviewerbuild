@@ -11,8 +11,8 @@
          * 일정 표의 열 칸. 머리글·각 줄·커서가 모두 이 값을 쓴다. 커서를 막대 칸에만
          * 겹치려면 열 칸 전체 폭(--schedule-columns-width)이 필요하다.
          */
-        --schedule-columns: 6rem 16rem 6.5rem 6.5rem 3rem;
-        --schedule-columns-width: calc(6rem + 16rem + 6.5rem + 6.5rem + 3rem + 5 * 0.5rem);
+        --schedule-columns: 6rem 16rem 6.5rem 6.5rem 3rem 6rem;
+        --schedule-columns-width: calc(6rem + 16rem + 6.5rem + 6.5rem + 3rem + 6rem + 6 * 0.5rem);
         --schedule-row-height: 1.9rem;
       }
 
@@ -264,6 +264,108 @@
         width: 0;
         border-inline-start: 1px solid #ff9a56;
         pointer-events: none;
+      }
+
+      /*
+       * 눌러서 고치는 칸. 값을 보는 자리와 고치는 자리를 같게 둔다 (79da5ac).
+       * 잠긴 칸(ID, 요약 Task의 날짜)은 표시도 하지 않는다.
+       */
+      #schedule-table [data-editable='true'] {
+        cursor: text;
+        border-bottom: 1px dotted rgb(128 128 128 / 45%);
+      }
+
+      #schedule-table [data-editable='true']:focus-visible {
+        outline: 1px solid #4f8cff;
+      }
+
+      /* 입력칸이 칸을 넘치면 옆 열을 밀어 줄이 어긋난다. */
+      #schedule-table li input,
+      #schedule-table li select {
+        width: 100%;
+        min-width: 0;
+        font: inherit;
+        font-size: 0.75rem;
+        padding: 0 0.15rem;
+        color: inherit;
+        background: rgb(128 128 128 / 12%);
+        border: 1px solid rgb(79 140 255 / 60%);
+        border-radius: 2px;
+      }
+
+      #schedule-table [data-testid='row-actions'] {
+        display: flex;
+        gap: 0.1rem;
+      }
+
+      /* 버튼이 줄 높이를 키우면 왼쪽 열과 오른쪽 막대가 어긋난다. */
+      #schedule-table [data-testid='row-actions'] button,
+      #schedule-head [data-testid='task-add'],
+      #schedule-table li [data-testid='dependency-remove'],
+      #schedule-table li [data-testid='dependency-add'],
+      #schedule-table li [data-testid='task-draft-add'],
+      #schedule-table li [data-testid='task-draft-cancel'] {
+        flex: none;
+        font: inherit;
+        font-size: 0.72rem;
+        line-height: 1.1;
+        padding: 0.05rem 0.3rem;
+        color: inherit;
+        background: none;
+        border: 1px solid rgb(128 128 128 / 40%);
+        border-radius: 3px;
+        cursor: pointer;
+      }
+
+      #schedule-table button:disabled {
+        opacity: 0.3;
+        cursor: default;
+      }
+
+      #schedule-table li[data-selected='true'] {
+        background: rgb(79 140 255 / 12%);
+      }
+
+      /*
+       * 선후행 줄과 새 Task 줄. 열 격자를 쓰지 않고 한 줄로 펴며, ID 열만큼 들여
+       * 위 줄에 딸린 것으로 보이게 한다.
+       */
+      #schedule-table li[data-testid='dependency-editor'],
+      #schedule-table li[data-testid='task-draft'] {
+        display: flex;
+        align-items: center;
+        gap: 0.3rem;
+        padding-inline-start: 1.5rem;
+        background: rgb(79 140 255 / 8%);
+        font-size: 0.75rem;
+      }
+
+      #schedule-table li[data-testid='dependency-editor'] select,
+      #schedule-table li[data-testid='dependency-editor'] input,
+      #schedule-table li[data-testid='task-draft'] input {
+        width: auto;
+        max-width: 9rem;
+      }
+
+      #schedule-table [data-testid='dependency-chips'] {
+        display: flex;
+        align-items: center;
+        gap: 0.25rem;
+        min-width: 10rem;
+      }
+
+      #schedule-table [data-testid='dependency-chip'] {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.2rem;
+        padding: 0 0.15rem 0 0.35rem;
+        border: 1px solid rgb(128 128 128 / 40%);
+        border-radius: 999px;
+        white-space: nowrap;
+      }
+
+      #schedule-table [data-testid='dependency-empty'] {
+        opacity: 0.6;
       }
 
       #schedule-warnings {
@@ -563,6 +665,9 @@
             <span>시작</span>
             <span>종료</span>
             <span>부재</span>
+            <span>
+              <button type="button" data-testid="task-add" title="Task 추가">+ Task</button>
+            </span>
             <div data-testid="gantt-axis"></div>
           </div>
           <ol data-testid="task-rows"></ol>
