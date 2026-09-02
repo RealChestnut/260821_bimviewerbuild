@@ -135,18 +135,19 @@ const validV2 = {
 const changeV2 = (patch: Record<string, unknown>): unknown => ({ ...validV2, ...patch });
 
 describe('parseSchedule — v1 승격', () => {
-  it('v1을 읽으면 내부 표현은 v2가 된다', () => {
+  it('v1을 읽으면 내부 표현은 v3가 된다', () => {
     const parsed = parseSchedule(valid);
     if (!parsed.ok) throw new Error(parsed.error.message);
 
-    // 읽는 쪽이 버전을 분기하지 않도록 하나로 맞춘다 (ADR-0006).
-    expect(parsed.value.schemaVersion).toBe(2);
+    // 읽는 쪽이 버전을 분기하지 않도록 하나로 맞춘다 (ADR-0006, ADR-0008).
+    expect(parsed.value.schemaVersion).toBe(3);
     expect(parsed.value.dependencies).toEqual([]);
+    expect(parsed.value.models).toEqual([]);
     expect(parsed.value.tasks[0]?.parentTaskId).toBeUndefined();
   });
 
-  it('v1도 v2도 아닌 버전은 거부한다', () => {
-    expect(errorCode({ ...valid, schemaVersion: 3 })).toBe('schedule.parse.unsupported-version');
+  it('아는 버전이 아니면 거부한다', () => {
+    expect(errorCode({ ...valid, schemaVersion: 4 })).toBe('schedule.parse.unsupported-version');
   });
 });
 
@@ -396,5 +397,63 @@ describe('parseSchedule — 할당 중복', () => {
         ],
       }),
     ).toBeUndefined();
+  });
+});
+
+describe('parseSchedule — models (v3)', () => {
+  const FINGERPRINT = 'a'.repeat(64);
+
+  const withModels = (models: unknown): unknown => ({ ...valid, schemaVersion: 3, models });
+
+  it('modelRef와 fingerprint를 읽는다', () => {
+    const parsed = parseSchedule(withModels([{ modelRef: 'a.ifc', fingerprint: FINGERPRINT }]));
+    if (!parsed.ok) throw new Error(parsed.error.message);
+
+    expect(parsed.value.models).toEqual([{ modelRef: 'a.ifc', fingerprint: FINGERPRINT }]);
+  });
+
+  it('fingerprint는 생략할 수 있다', () => {
+    // 손으로 만든 일정에는 fingerprint가 없다. 그런 일정은 이름 대조로만 묶인다 (ADR-0008).
+    const parsed = parseSchedule(withModels([{ modelRef: 'a.ifc' }]));
+    if (!parsed.ok) throw new Error(parsed.error.message);
+
+    expect(parsed.value.models[0]?.fingerprint).toBeUndefined();
+  });
+
+  it('models 자체를 생략해도 읽는다', () => {
+    const parsed = parseSchedule({ ...valid, schemaVersion: 3 });
+    if (!parsed.ok) throw new Error(parsed.error.message);
+
+    expect(parsed.value.models).toEqual([]);
+  });
+
+  it('fingerprint가 소문자 hex 64자가 아니면 거부한다', () => {
+    expect(errorCode(withModels([{ modelRef: 'a.ifc', fingerprint: 'ABC' }]))).toBe(
+      'schedule.parse.invalid-fingerprint',
+    );
+    expect(errorCode(withModels([{ modelRef: 'a.ifc', fingerprint: 'A'.repeat(64) }]))).toBe(
+      'schedule.parse.invalid-fingerprint',
+    );
+  });
+
+  it('modelRef가 비면 거부한다', () => {
+    expect(errorCode(withModels([{ modelRef: '  ' }]))).toBe('schedule.parse.invalid-model-ref');
+  });
+
+  it('modelRef가 중복이면 거부한다', () => {
+    // 한 이름에 두 fingerprint가 적히면 어느 파일이 정본인지 알 수 없다.
+    expect(
+      errorCode(
+        withModels([{ modelRef: 'a.ifc' }, { modelRef: 'a.ifc', fingerprint: FINGERPRINT }]),
+      ),
+    ).toBe('schedule.parse.duplicate-model-ref');
+  });
+
+  it('부재가 걸리지 않은 모델도 적을 수 있다', () => {
+    // models는 assignments에서 유도되는 목록이 아니다. fingerprint라는 사실을 담는다.
+    const parsed = parseSchedule(withModels([{ modelRef: '설비.ifc', fingerprint: FINGERPRINT }]));
+    if (!parsed.ok) throw new Error(parsed.error.message);
+
+    expect(parsed.value.models).toHaveLength(1);
   });
 });

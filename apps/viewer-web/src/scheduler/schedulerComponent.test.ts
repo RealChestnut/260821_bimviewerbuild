@@ -259,7 +259,7 @@ describe('createSchedulerComponent — CSV 적재', () => {
 });
 
 describe('createSchedulerComponent — 내보내기', () => {
-  it('CSV로 내보내면 파일 넷을 준다', async () => {
+  it('CSV로 내보내면 파일 다섯을 준다', async () => {
     const context = createTestContext();
     await startComponent(context);
     await context.commands.dispatch('scheduler/load-schedule', { source });
@@ -269,6 +269,7 @@ describe('createSchedulerComponent — 내보내기', () => {
     expect(result.ok && result.value.files.map((file) => file.fileName)).toEqual([
       'schedule.csv',
       'tasks.csv',
+      'models.csv',
       'dependencies.csv',
       'assignments.csv',
     ]);
@@ -309,7 +310,7 @@ describe('createSchedulerComponent — 내보내기', () => {
     expect(await repository.get()).toEqual(original);
   });
 
-  it('v1로 읽어 들였어도 v2로 내보낸다', async () => {
+  it('v1로 읽어 들였어도 v3로 내보낸다', async () => {
     const context = createTestContext();
     await startComponent(context);
     await context.commands.dispatch('scheduler/load-schedule', {
@@ -328,7 +329,7 @@ describe('createSchedulerComponent — 내보내기', () => {
     const result = await context.commands.dispatch('scheduler/export-schedule', { format: 'json' });
     if (!result.ok) throw new Error(result.error.message);
 
-    expect(JSON.parse(result.value.files[0]?.content ?? '{}')).toMatchObject({ schemaVersion: 2 });
+    expect(JSON.parse(result.value.files[0]?.content ?? '{}')).toMatchObject({ schemaVersion: 3 });
   });
 
   it('열려 있는 일정이 없으면 실패로 돌려준다', async () => {

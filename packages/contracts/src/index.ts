@@ -7,6 +7,7 @@ export type {
   ElementDisplayState,
   Schedule,
   ScheduleAssignment,
+  ScheduleModel,
   ScheduleRepositoryPort,
   ScheduleTask,
   TaskDependency,

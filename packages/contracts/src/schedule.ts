@@ -6,7 +6,7 @@
  * 19.2절의 `SHOW`/`HIDE`/`REMOVE`는 폐기된 표기이므로 쓰지 않는다.
  */
 
-import type { GlobalId } from './identity.js';
+import type { GlobalId, ModelFingerprint } from './identity.js';
 
 declare const taskIdBrand: unique symbol;
 
@@ -68,16 +68,35 @@ export interface ScheduleAssignment {
   readonly operation: TaskOperation;
 }
 
+/**
+ * 일정이 아는 모델 하나.
+ *
+ * `modelRef`는 사람이 읽고 쓰는 논리 이름이며 연결의 키다. `fingerprint`는 그 이름이
+ * 가리키던 파일이 무엇이었는지를 남기는 증거이며, 손으로 만든 일정에는 없다 (ADR-0008).
+ */
+export interface ScheduleModel {
+  readonly modelRef: string;
+  /** 파일 내용의 SHA-256. 모르면 없다. */
+  readonly fingerprint?: ModelFingerprint;
+}
+
 export interface Schedule {
   readonly scheduleId: string;
   readonly name: string;
   /**
    * 내부 표현의 스키마 버전.
    *
-   * 파일은 1도 2도 될 수 있으나 읽고 나면 항상 2다. v1은 `parentTaskId` 없음,
-   * `dependencies` 빈 배열로 승격된다. 소비자는 버전을 분기하지 않는다 (ADR-0006).
+   * 파일은 1도 2도 3도 될 수 있으나 읽고 나면 항상 3이다. v1은 `parentTaskId` 없음,
+   * v1·v2는 `models` 빈 배열로 승격된다. 소비자는 버전을 분기하지 않는다 (ADR-0006, ADR-0008).
    */
-  readonly schemaVersion: 2;
+  readonly schemaVersion: 3;
+  /**
+   * 일정이 아는 모델 표.
+   *
+   * `assignments`의 `modelRef`에서 유도되는 목록이 아니다. 담는 것은 fingerprint라는
+   * 추가 사실이며, 부재가 하나도 걸리지 않은 모델도 적힐 수 있다 (ADR-0008).
+   */
+  readonly models: readonly ScheduleModel[];
   readonly tasks: readonly ScheduleTask[];
   readonly dependencies: readonly TaskDependency[];
   readonly assignments: readonly ScheduleAssignment[];

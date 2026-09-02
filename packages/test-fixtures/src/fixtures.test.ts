@@ -153,14 +153,14 @@ describe('일정 fixtures', () => {
   });
 });
 
-describe('일정 fixtures — 스키마 v2', () => {
-  it('읽고 나면 버전이 무엇이든 v2다', () => {
-    // 소비자가 버전을 분기하지 않게 하려는 것이다 (ADR-0006).
+describe('일정 fixtures — 스키마 v3', () => {
+  it('읽고 나면 버전이 무엇이든 v3다', () => {
+    // 소비자가 버전을 분기하지 않게 하려는 것이다 (ADR-0006, ADR-0008).
     for (const fixture of scheduleFixtures) {
       const parsed = parseSchedule(JSON.parse(readFixture(fixture.path)));
       if (!parsed.ok) throw new Error(`${fixture.id}: ${parsed.error.message}`);
 
-      expect(parsed.value.schemaVersion).toBe(2);
+      expect(parsed.value.schemaVersion).toBe(3);
     }
   });
 

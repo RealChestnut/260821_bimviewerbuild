@@ -466,3 +466,57 @@ describe('applyScheduleEdit — 부재 연결 해제', () => {
     expect(result.ok).toBe(false);
   });
 });
+
+describe('applyScheduleEdit — 모델 fingerprint', () => {
+  const FINGERPRINT = 'c'.repeat(64);
+
+  it('표에 없는 이름이면 줄을 더한다', () => {
+    const schedule = edited({
+      kind: 'set-model-fingerprint',
+      modelRef: 'a.ifc',
+      fingerprint: FINGERPRINT,
+    });
+
+    expect(schedule.models).toEqual([{ modelRef: 'a.ifc', fingerprint: FINGERPRINT }]);
+  });
+
+  it('있는 이름이면 값을 갈아 끼운다', () => {
+    const once = edited({
+      kind: 'set-model-fingerprint',
+      modelRef: 'a.ifc',
+      fingerprint: 'd'.repeat(64),
+    });
+    const twice = edited(
+      { kind: 'set-model-fingerprint', modelRef: 'a.ifc', fingerprint: FINGERPRINT },
+      once,
+    );
+
+    expect(twice.models).toEqual([{ modelRef: 'a.ifc', fingerprint: FINGERPRINT }]);
+  });
+
+  it('null은 아는 fingerprint가 없다는 뜻이며 줄은 남긴다', () => {
+    const once = edited({
+      kind: 'set-model-fingerprint',
+      modelRef: 'a.ifc',
+      fingerprint: FINGERPRINT,
+    });
+    const cleared = edited(
+      { kind: 'set-model-fingerprint', modelRef: 'a.ifc', fingerprint: null },
+      once,
+    );
+
+    expect(cleared.models).toEqual([{ modelRef: 'a.ifc' }]);
+  });
+
+  it('형식이 아니면 parseSchedule이 거부한다', () => {
+    expect(
+      errorCode({ kind: 'set-model-fingerprint', modelRef: 'a.ifc', fingerprint: '짧다' }),
+    ).toBe('schedule.parse.invalid-fingerprint');
+  });
+
+  it('빈 이름은 거부한다', () => {
+    expect(
+      errorCode({ kind: 'set-model-fingerprint', modelRef: '  ', fingerprint: FINGERPRINT }),
+    ).toBe('schedule.edit.invalid-model-ref');
+  });
+});

@@ -23,6 +23,7 @@ Phase 5는 일정의 JSON/CSV 가져오기·내보내기를 요구한다. JSON�
 | `tasks.csv` | `taskId,name,parentTaskId,start,finish` | 필수 |
 | `assignments.csv` | `taskId,modelRef,productGlobalId,operation` | 필수 |
 | `dependencies.csv` | `predecessorId,successorId,type,lagDays` | 선택. 없으면 선후행 없음 |
+| `models.csv` | `modelRef,fingerprint` | 선택. ADR-0008이 더했다. 없으면 아는 fingerprint 없음 |
 
 내보내기는 항상 넷을 모두 쓴다. 선후행이 없으면 `dependencies.csv`는 헤더만 남는다.
 

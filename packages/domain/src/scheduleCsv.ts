@@ -16,13 +16,15 @@ import { parseSchedule, toScheduleRecord } from './schedule.js';
 /**
  * CSV 묶음 하나. 값은 파일 내용이며 파일 이름이 아니다.
  *
- * `dependencies`는 없어도 된다. 선후행이 없는 일정이 정상이기 때문이다 (ADR-0007).
+ * `dependencies`와 `models`는 없어도 된다. 선후행이 없는 일정도, 아는 fingerprint가 없는
+ * 일정도 정상이기 때문이다 (ADR-0007, ADR-0008).
  */
 export interface ScheduleCsvBundle {
   readonly schedule: string;
   readonly tasks: string;
   readonly assignments: string;
   readonly dependencies?: string;
+  readonly models?: string;
 }
 
 /** 내보내기 결과 한 파일. 이름까지 정해서 돌려준다. */
@@ -35,6 +37,7 @@ const SCHEDULE_COLUMNS = ['scheduleId', 'name', 'schemaVersion'] as const;
 const TASK_COLUMNS = ['taskId', 'name', 'parentTaskId', 'start', 'finish'] as const;
 const DEPENDENCY_COLUMNS = ['predecessorId', 'successorId', 'type', 'lagDays'] as const;
 const ASSIGNMENT_COLUMNS = ['taskId', 'modelRef', 'productGlobalId', 'operation'] as const;
+const MODEL_COLUMNS = ['modelRef', 'fingerprint'] as const;
 
 /**
  * UTF-8 선행 BOM.
@@ -277,10 +280,26 @@ export const parseScheduleCsv = (bundle: ScheduleCsvBundle): Parsed<Schedule> =>
     }
   }
 
+  const models: Record<string, unknown>[] = [];
+  if (bundle.models !== undefined) {
+    const modelRows = readTable(bundle.models, 'models.csv', MODEL_COLUMNS);
+    if (!modelRows.ok) return modelRows;
+
+    for (const record of modelRows.value) {
+      // 빈 칸은 "모르는 fingerprint"다. 형식 검사는 parseSchedule이 한다.
+      const fingerprint = cellOf(record, 'fingerprint');
+      models.push({
+        modelRef: cellOf(record, 'modelRef'),
+        ...(fingerprint.length === 0 ? {} : { fingerprint }),
+      });
+    }
+  }
+
   return parseSchedule({
     scheduleId: cellOf(head, 'scheduleId'),
     name: cellOf(head, 'name'),
     schemaVersion: Number(rawVersion),
+    models,
     tasks,
     dependencies,
     assignments,
@@ -300,8 +319,8 @@ const toCsv = (columns: readonly string[], rows: readonly (readonly string[])[])
 /**
  * 일정을 CSV 묶음으로 쓴다.
  *
- * 선후행이 없어도 `dependencies.csv`를 헤더만 남겨 함께 쓴다. 파일 구성이 일정마다
- * 달라지면 받는 쪽이 무엇이 빠진 것인지 알 수 없다.
+ * 선후행이 없어도 `dependencies.csv`를, 아는 fingerprint가 없어도 `models.csv`를 헤더만
+ * 남겨 함께 쓴다. 파일 구성이 일정마다 달라지면 받는 쪽이 무엇이 빠진 것인지 알 수 없다.
  */
 export const serializeScheduleCsv = (schedule: Schedule): readonly ScheduleCsvFile[] => [
   {
@@ -321,6 +340,13 @@ export const serializeScheduleCsv = (schedule: Schedule): readonly ScheduleCsvFi
         task.start === undefined ? '' : formatUtcDate(task.start),
         task.finish === undefined ? '' : formatUtcDate(task.finish),
       ]),
+    ),
+  },
+  {
+    fileName: 'models.csv',
+    content: toCsv(
+      MODEL_COLUMNS,
+      schedule.models.map((model) => [model.modelRef, model.fingerprint ?? '']),
     ),
   },
   {
