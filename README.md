@@ -7,7 +7,7 @@
 - IFC 기술 기준서: [docs/IFC_통합_정리_2026-08-20.md](docs/IFC_통합_정리_2026-08-20.md)
 - 결정 기록: [docs/adr/](docs/adr/)
 
-현재 단계는 **Phase 5 — Scheduler**다. Phase 0~4가 `main`에 들어가 있다.
+현재 단계는 **Phase 6 — IFC–Task 매칭**이다. Phase 0~5가 `main`에 들어가 있다.
 
 ## 요구 환경
 
