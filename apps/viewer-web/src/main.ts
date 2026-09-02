@@ -96,6 +96,7 @@ const bootstrap = async (): Promise<void> => {
       nameSelector: '[data-testid="schedule-name"]',
       warningListSelector: '[data-testid="schedule-warnings"]',
       replacementListSelector: '[data-testid="model-replacements"]',
+      selectUnassignedSelector: '[data-testid="select-unassigned"]',
       statusSelector: '[data-testid="schedule-status"]',
       exportJsonSelector: '[data-testid="schedule-export-json"]',
       exportCsvSelector: '[data-testid="schedule-export-csv"]',
@@ -109,6 +110,7 @@ const bootstrap = async (): Promise<void> => {
       cursorSelector: '[data-testid="gantt-cursor"]',
       statusSelector: '[data-testid="gantt-status"]',
       addButtonSelector: '[data-testid="task-add"]',
+      filterButtonSelector: '[data-testid="filter-unassigned"]',
       binding: modelRefBinding,
     }),
   );

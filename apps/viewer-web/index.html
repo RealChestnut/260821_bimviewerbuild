@@ -153,6 +153,25 @@
         margin: 0;
       }
 
+      #schedule-panel button {
+        font: inherit;
+        font-size: 0.72rem;
+        line-height: 1.1;
+        padding: 0.1rem 0.35rem;
+        color: inherit;
+        background: none;
+        border: 1px solid rgb(128 128 128 / 40%);
+        border-radius: 3px;
+        cursor: pointer;
+        white-space: nowrap;
+      }
+
+      /* 켜 둔 필터는 눌린 채로 보인다. 목록이 짧아진 이유가 화면에 남아야 한다. */
+      #schedule-panel button[aria-pressed='true'] {
+        background: rgb(79 140 255 / 18%);
+        border-color: rgb(79 140 255 / 60%);
+      }
+
       /*
        * 표와 막대를 한 줄에 둔다. 열 칸은 폭이 고정이고 막대 칸이 남는 자리를 전부 쓴다.
        * 커서는 열 칸 폭만큼 밀어야 하므로 그 합을 변수 하나로 둔다.
@@ -740,6 +759,10 @@
       <div id="schedule-dock">
         <section id="schedule-panel" data-testid="schedule-panel" hidden>
           <h2 data-testid="schedule-name">일정 없음</h2>
+          <button type="button" data-testid="filter-unassigned" aria-pressed="false">
+            미연결 Task만
+          </button>
+          <button type="button" data-testid="select-unassigned">미연결 부재 고르기</button>
           <ul id="model-replacements" data-testid="model-replacements"></ul>
           <ul id="schedule-warnings" data-testid="schedule-warnings"></ul>
         </section>

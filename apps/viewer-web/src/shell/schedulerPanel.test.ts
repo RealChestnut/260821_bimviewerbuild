@@ -15,6 +15,7 @@ const markup = `
   <input type="file" data-testid="schedule-file" multiple />
   <aside data-testid="schedule-panel" hidden>
     <p data-testid="schedule-name"></p>
+    <button type="button" data-testid="select-unassigned"></button>
     <ul data-testid="model-replacements"></ul>
     <ul data-testid="schedule-warnings"></ul>
   </aside>
@@ -42,6 +43,7 @@ const startPanel = async (context: TestContext) => {
     nameSelector: '[data-testid="schedule-name"]',
     warningListSelector: '[data-testid="schedule-warnings"]',
     replacementListSelector: '[data-testid="model-replacements"]',
+    selectUnassignedSelector: '[data-testid="select-unassigned"]',
     statusSelector: '[data-testid="schedule-status"]',
     exportJsonSelector: '[data-testid="schedule-export-json"]',
     exportCsvSelector: '[data-testid="schedule-export-csv"]',
@@ -357,6 +359,7 @@ describe('createSchedulerPanel', () => {
       nameSelector: '[data-testid="schedule-name"]',
       warningListSelector: '[data-testid="schedule-warnings"]',
       replacementListSelector: '[data-testid="model-replacements"]',
+      selectUnassignedSelector: '[data-testid="select-unassigned"]',
       statusSelector: '[data-testid="schedule-status"]',
       exportJsonSelector: '[data-testid="schedule-export-json"]',
       exportCsvSelector: '[data-testid="schedule-export-csv"]',
@@ -462,5 +465,53 @@ describe('createSchedulerPanel — 모델 교체', () => {
 
     // 명령이 등록되지 않은 상태다. 조용히 넘어가지 않는다.
     expect(element('schedule-status').textContent).toContain('모델 교체 실패');
+  });
+});
+
+describe('createSchedulerPanel — 미연결 부재', () => {
+  beforeEach(() => {
+    document.body.innerHTML = markup;
+  });
+
+  const captureFind = (context: TestContext, count: number): number[] => {
+    const calls: number[] = [];
+    context.commands.register('scheduler/select-unassigned-products', () => {
+      calls.push(count);
+      return Promise.resolve({ count });
+    });
+    return calls;
+  };
+
+  it('버튼을 누르면 미연결 부재를 고르고 몇 개인지 적는다', async () => {
+    const context = createTestContext();
+    const calls = captureFind(context, 4);
+    await startPanel(context);
+
+    element('select-unassigned').click();
+    await flush();
+
+    expect(calls).toEqual([4]);
+    expect(element('schedule-status').textContent).toContain('4개');
+  });
+
+  it('하나도 없으면 없다고 적는다', async () => {
+    const context = createTestContext();
+    captureFind(context, 0);
+    await startPanel(context);
+
+    element('select-unassigned').click();
+    await flush();
+
+    expect(element('schedule-status').textContent).toContain('미연결 부재가 없다');
+  });
+
+  it('실패하면 이유를 적는다', async () => {
+    const context = createTestContext();
+    await startPanel(context);
+
+    element('select-unassigned').click();
+    await flush();
+
+    expect(element('schedule-status').textContent).toContain('미연결 부재 찾기 실패');
   });
 });

@@ -1,6 +1,12 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 
-import type { GlobalId, ModelFingerprint, ModelId, ScheduleRepositoryPort } from '@bim4d/contracts';
+import type {
+  GlobalId,
+  ModelFingerprint,
+  ModelId,
+  ProductKey,
+  ScheduleRepositoryPort,
+} from '@bim4d/contracts';
 
 import { createInMemoryModelRefBinding } from '../adapters/inMemoryModelRefBinding.js';
 import type { ModelRefBindingRegistry } from '../adapters/inMemoryModelRefBinding.js';
@@ -8,6 +14,7 @@ import { createInMemoryScheduleRepository } from '../adapters/inMemoryScheduleRe
 import { createTestContext } from '../kernel/testing/testContext.js';
 import type { TestContext } from '../kernel/testing/testContext.js';
 import '../viewer/model/modelEvents.js';
+import '../viewer/selection/selectionEvents.js';
 
 import { createModelBindingComponent } from './modelBindingComponent.js';
 import { createSchedulerComponent } from './schedulerComponent.js';
@@ -288,5 +295,76 @@ describe('createModelBindingComponent — 정리', () => {
     await component.dispose();
 
     expect(registry.entries().size).toBe(0);
+  });
+});
+
+describe('createModelBindingComponent — 미연결 부재', () => {
+  const EXTRA = '1MjTgR8dp5NkXbC2wFyQsA' as GlobalId;
+
+  /** 3D 선택 명령을 가로챈다. */
+  const captureSelection = (context: TestContext): ProductKey[][] => {
+    const seen: ProductKey[][] = [];
+    context.commands.register('viewer/select-products', (input) => {
+      seen.push([...input.products]);
+      return Promise.resolve({ selected: [] });
+    });
+    context.commands.register('viewer/clear-selection', () => Promise.resolve({ cleared: true }));
+    return seen;
+  };
+
+  const selectUnassigned = async (context: TestContext) =>
+    context.commands.dispatch('scheduler/select-unassigned-products', {});
+
+  it('어느 Task에도 걸리지 않은 부재를 고른다', async () => {
+    const context = createTestContext();
+    const selected = captureSelection(context);
+    await startComponents(context);
+    await openSchedule(context);
+    await load(context, MODEL, 'a.ifc', FP_A);
+    // 모델에는 셋이 있고 일정은 둘만 건다.
+    products = [SLAB, WALL, EXTRA];
+
+    const result = await selectUnassigned(context);
+
+    expect(result.ok && result.value.count).toBe(1);
+    expect(selected).toEqual([[{ modelId: MODEL, globalId: EXTRA }]]);
+  });
+
+  it('모두 걸려 있으면 선택을 비운다', async () => {
+    const context = createTestContext();
+    const selected = captureSelection(context);
+    await startComponents(context);
+    await openSchedule(context);
+    await load(context, MODEL, 'a.ifc', FP_A);
+
+    const result = await selectUnassigned(context);
+
+    // 앞서 고른 것이 남아 있으면 결과를 잘못 읽는다.
+    expect(result.ok && result.value.count).toBe(0);
+    expect(selected).toEqual([]);
+  });
+
+  it('묶이지 않은 모델의 부재는 세지 않는다', async () => {
+    const context = createTestContext();
+    captureSelection(context);
+    await startComponents(context);
+    await openSchedule(context);
+    // 일정이 가리키지 않는 이름이다.
+    await load(context, OTHER, 'b.ifc', FP_B);
+    products = [SLAB, WALL, EXTRA];
+
+    const result = await selectUnassigned(context);
+
+    expect(result.ok && result.value.count).toBe(0);
+  });
+
+  it('열려 있는 일정이 없으면 실패로 돌려준다', async () => {
+    const context = createTestContext();
+    captureSelection(context);
+    await startComponents(context);
+
+    const result = await selectUnassigned(context);
+
+    expect(result.ok).toBe(false);
   });
 });

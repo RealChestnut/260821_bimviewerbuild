@@ -127,6 +127,16 @@ declare module '@bim4d/contracts' {
      * fingerprint를 자동으로 갱신하지 않기로 했으므로(ADR-0008) 이 명령은 사용자의
      * 결정으로만 들어온다. 사라진 부재는 세어서 돌려주되 연결을 지우지 않는다.
      */
+    /**
+     * 열린 모델의 부재 중 어느 Task에도 걸리지 않은 것을 3D에서 고른다.
+     *
+     * 무엇이 남았는지 눈으로 확인하는 길이다. 목록으로 세어 보여 주는 것보다 3D에서
+     * 보이는 편이 빠르다.
+     */
+    'scheduler/select-unassigned-products': {
+      input: Record<string, never>;
+      output: { readonly count: number };
+    };
     'scheduler/adopt-model': {
       input: { readonly modelRef: string };
       output: { readonly missing: readonly GlobalId[] };

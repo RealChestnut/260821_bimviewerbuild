@@ -36,6 +36,8 @@ export interface ScheduleTablePanelOptions {
   readonly statusSelector: string;
   /** 새 Task 줄을 여는 버튼. 머리글에 둔다. */
   readonly addButtonSelector: string;
+  /** 부재가 걸리지 않은 Task만 보여 주는 토글. */
+  readonly filterButtonSelector: string;
   /** 일정의 modelRef와 적재된 모델을 잇는 자리. 부재를 걸고 3D에서 찾을 때 쓴다. */
   readonly binding: ModelRefBindingPort;
 }
@@ -103,6 +105,7 @@ export const createScheduleTablePanel = (options: ScheduleTablePanelOptions): Ap
   let cursor: HTMLElement | null = null;
   let statusText: HTMLElement | null = null;
   let addButton: HTMLElement | null = null;
+  let filterButton: HTMLElement | null = null;
 
   /** 지금 그리고 있는 기간. 커서를 놓을 때 다시 쓴다. */
   let span: { readonly start: number; readonly end: number } | null = null;
@@ -118,6 +121,8 @@ export const createScheduleTablePanel = (options: ScheduleTablePanelOptions): Ap
   let selection: readonly SelectedProduct[] = [];
   /** 새 Task 줄을 열어 두었는가. */
   let drafting = false;
+  /** 부재가 걸리지 않은 Task만 보여 주는가. */
+  let onlyUnassigned = false;
   /** 방금 연 칸. 편집 뒤 표를 다시 그려도 같은 자리로 돌아가려고 기억한다. */
   let openCell: { readonly taskId: TaskId; readonly testId: string } | null = null;
   /**
@@ -303,8 +308,16 @@ export const createScheduleTablePanel = (options: ScheduleTablePanelOptions): Ap
       assignTaskId = null;
     }
 
+    /*
+     * 미연결만 보는 동안에는 요약 Task를 빼고 부재가 없는 줄만 남긴다. 요약 Task는 자기
+     * 부재를 가질 수 없으므로(ADR-0006) "연결이 없다"가 아니라 "연결할 수 없다"다.
+     */
+    const visible = onlyUnassigned
+      ? rows.filter((row) => !row.isSummary && row.assignedCount === 0)
+      : rows;
+
     const items: HTMLLIElement[] = [];
-    for (const row of rows) {
+    for (const row of visible) {
       items.push(createRow(row));
       if (linksTaskId === row.taskId) {
         items.push(
@@ -394,8 +407,16 @@ export const createScheduleTablePanel = (options: ScheduleTablePanelOptions): Ap
     drawRows();
   };
 
+  const onToggleFilter = (): void => {
+    onlyUnassigned = !onlyUnassigned;
+    // 목록이 짧아진 이유가 화면에 남아야 한다.
+    filterButton?.setAttribute('aria-pressed', String(onlyUnassigned));
+    drawRows();
+  };
+
   const detach = (): void => {
     addButton?.removeEventListener('click', onAdd);
+    filterButton?.removeEventListener('click', onToggleFilter);
     for (const unsubscribe of subscriptions) unsubscribe();
     subscriptions = [];
   };
@@ -411,6 +432,7 @@ export const createScheduleTablePanel = (options: ScheduleTablePanelOptions): Ap
         cursor = requireElement(options.cursorSelector);
         statusText = requireElement(options.statusSelector);
         addButton = requireElement(options.addButtonSelector);
+        filterButton = requireElement(options.filterButtonSelector);
       } catch (cause) {
         return Promise.reject(cause instanceof Error ? cause : new Error(String(cause)));
       }
@@ -427,6 +449,7 @@ export const createScheduleTablePanel = (options: ScheduleTablePanelOptions): Ap
       if (subscriptions.length > 0) return Promise.resolve();
 
       addButton?.addEventListener('click', onAdd);
+      filterButton?.addEventListener('click', onToggleFilter);
 
       subscriptions = [
         context.events.subscribe('scheduler/schedule-changed', ({ payload }) => {
@@ -485,6 +508,7 @@ export const createScheduleTablePanel = (options: ScheduleTablePanelOptions): Ap
       assignments = [];
       selection = [];
       drafting = false;
+      onlyUnassigned = false;
       openCell = null;
       panel = null;
       axis = null;
@@ -492,6 +516,7 @@ export const createScheduleTablePanel = (options: ScheduleTablePanelOptions): Ap
       cursor = null;
       statusText = null;
       addButton = null;
+      filterButton = null;
       context = null;
       return Promise.resolve();
     },

@@ -111,18 +111,19 @@ test.describe('Scheduler', () => {
     await expect(page.getByTestId('schedule-panel')).toBeHidden();
   });
 
-  test('CSV로 내보내면 파일 넷을 내려받는다', async ({ page }) => {
+  test('CSV로 내보내면 파일 다섯을 내려받는다', async ({ page }) => {
     await openSchedule(page, scheduleV2);
 
-    const downloads = await collectDownloads(page, 'schedule-export-csv', 4);
+    const downloads = await collectDownloads(page, 'schedule-export-csv', 5);
 
     expect(downloads.map((download) => download.suggestedFilename()).sort()).toEqual([
       'assignments.csv',
       'dependencies.csv',
+      'models.csv',
       'schedule.csv',
       'tasks.csv',
     ]);
-    await expect(page.getByTestId('schedule-status')).toContainText('4개');
+    await expect(page.getByTestId('schedule-status')).toContainText('5개');
   });
 
   test('JSON으로 내보내면 파일 하나를 내려받는다', async ({ page }) => {

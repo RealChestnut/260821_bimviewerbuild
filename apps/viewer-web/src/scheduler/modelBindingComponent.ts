@@ -5,12 +5,14 @@ import type {
   AppContext,
   GlobalId,
   ModelId,
+  ProductKey,
   ScheduleRepositoryPort,
   Unsubscribe,
 } from '@bim4d/contracts';
 
 import type { ModelRefBindingRegistry } from '../adapters/inMemoryModelRefBinding.js';
 import '../viewer/model/modelEvents.js';
+import '../viewer/selection/selectionEvents.js';
 
 import './schedulerEvents.js';
 
@@ -161,6 +163,42 @@ export const createModelBindingComponent = (
     return { missing };
   };
 
+  /**
+   * 열린 모델의 부재 중 어느 Task에도 걸리지 않은 것을 고른다.
+   *
+   * 묶이지 않은 모델은 보지 않는다. 일정이 가리키지 않는 모델의 부재는 "미연결"이 아니라
+   * "이 일정의 대상이 아님"이다.
+   */
+  const selectUnassigned = async (): Promise<{ readonly count: number }> => {
+    const app = requireContext();
+
+    const schedule = await repository.get();
+    if (schedule === null) throw new Error('열려 있는 일정이 없다.');
+
+    const products: ProductKey[] = [];
+    for (const [modelRef, modelId] of registry.entries()) {
+      const assigned = new Set(
+        schedule.assignments
+          .filter((assignment) => assignment.modelRef === modelRef)
+          .map((assignment) => assignment.productGlobalId),
+      );
+
+      for (const globalId of await productsOf(modelId)) {
+        if (assigned.has(globalId)) continue;
+        products.push({ modelId, globalId });
+      }
+    }
+
+    // 하나도 없으면 선택을 비운다. 앞서 고른 것이 남아 있으면 결과를 잘못 읽는다.
+    const result = await app.commands.dispatch(
+      products.length === 0 ? 'viewer/clear-selection' : 'viewer/select-products',
+      products.length === 0 ? {} : { products },
+    );
+    if (!result.ok) throw new Error(result.error.message);
+
+    return { count: products.length };
+  };
+
   const detach = (): void => {
     for (const unsubscribe of subscriptions) unsubscribe();
     subscriptions = [];
@@ -180,6 +218,7 @@ export const createModelBindingComponent = (
 
       if (!registered) {
         app.commands.register('scheduler/adopt-model', ({ modelRef }) => adoptModel(modelRef));
+        app.commands.register('scheduler/select-unassigned-products', () => selectUnassigned());
         registered = true;
       }
       if (subscriptions.length > 0) return Promise.resolve();

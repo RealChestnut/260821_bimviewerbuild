@@ -15,6 +15,8 @@ export interface SchedulerPanelOptions {
   readonly warningListSelector: string;
   /** 모델이 바뀌었다는 알림을 그릴 자리. */
   readonly replacementListSelector: string;
+  /** 미연결 부재를 3D에서 고르는 버튼. */
+  readonly selectUnassignedSelector: string;
   readonly statusSelector: string;
   readonly exportJsonSelector: string;
   readonly exportCsvSelector: string;
@@ -83,6 +85,7 @@ export const createSchedulerPanel = (options: SchedulerPanelOptions): AppCompone
   let nameText: HTMLElement | null = null;
   let warningList: HTMLElement | null = null;
   let replacementList: HTMLElement | null = null;
+  let selectUnassignedButton: HTMLElement | null = null;
   let statusText: HTMLElement | null = null;
   let exportJsonButton: HTMLElement | null = null;
   let exportCsvButton: HTMLElement | null = null;
@@ -136,6 +139,33 @@ export const createSchedulerPanel = (options: SchedulerPanelOptions): AppCompone
         missing === 0
           ? `${modelRef}를 새 파일로 바꿨다. 사라진 부재는 없다.`
           : `${modelRef}를 새 파일로 바꿨다. 새 모델에 없는 부재 ${String(missing)}개의 연결이 남아 있다.`,
+      );
+    })();
+  };
+
+  /**
+   * 어느 Task에도 걸리지 않은 부재를 3D에서 고른다.
+   *
+   * 목록으로 세어 보여 주는 것보다 3D에서 보이는 편이 빠르다. 무엇이 남았는지 눈으로
+   * 확인하는 길이다.
+   */
+  const onSelectUnassigned = (): void => {
+    if (context === null) return;
+    const app = context;
+
+    void (async () => {
+      const result = await app.commands.dispatch('scheduler/select-unassigned-products', {});
+      if (!result.ok) {
+        write(statusText, `미연결 부재 찾기 실패: ${result.error.message}`);
+        return;
+      }
+
+      const { count } = result.value;
+      write(
+        statusText,
+        count === 0
+          ? '열린 모델에 미연결 부재가 없다.'
+          : `미연결 부재 ${String(count)}개를 3D에서 골랐다.`,
       );
     })();
   };
@@ -239,6 +269,7 @@ export const createSchedulerPanel = (options: SchedulerPanelOptions): AppCompone
 
   const detach = (): void => {
     fileInput?.removeEventListener('change', onFileChosen);
+    selectUnassignedButton?.removeEventListener('click', onSelectUnassigned);
     exportJsonButton?.removeEventListener('click', onExportJson);
     exportCsvButton?.removeEventListener('click', onExportCsv);
     for (const unsubscribe of subscriptions) unsubscribe();
@@ -255,6 +286,7 @@ export const createSchedulerPanel = (options: SchedulerPanelOptions): AppCompone
         nameText = requireElement(options.nameSelector);
         warningList = requireElement(options.warningListSelector);
         replacementList = requireElement(options.replacementListSelector);
+        selectUnassignedButton = requireElement(options.selectUnassignedSelector);
         statusText = requireElement(options.statusSelector);
         exportJsonButton = requireElement(options.exportJsonSelector);
         exportCsvButton = requireElement(options.exportCsvSelector);
@@ -275,6 +307,7 @@ export const createSchedulerPanel = (options: SchedulerPanelOptions): AppCompone
       if (subscriptions.length > 0) return Promise.resolve();
 
       fileInput.addEventListener('change', onFileChosen);
+      selectUnassignedButton?.addEventListener('click', onSelectUnassigned);
       exportJsonButton?.addEventListener('click', onExportJson);
       exportCsvButton?.addEventListener('click', onExportCsv);
 
@@ -312,6 +345,7 @@ export const createSchedulerPanel = (options: SchedulerPanelOptions): AppCompone
       nameText = null;
       warningList = null;
       replacementList = null;
+      selectUnassignedButton = null;
       statusText = null;
       context = null;
       return Promise.resolve();

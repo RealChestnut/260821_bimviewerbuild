@@ -23,6 +23,7 @@ const markup = `
   <section data-testid="schedule-table" hidden>
     <div>
       <button type="button" data-testid="task-add">+</button>
+      <button type="button" data-testid="filter-unassigned" aria-pressed="false">미연결</button>
       <div data-testid="gantt-axis"></div>
     </div>
     <ol data-testid="task-rows"></ol>
@@ -48,6 +49,7 @@ const panelOptions = {
   cursorSelector: '[data-testid="gantt-cursor"]',
   statusSelector: '[data-testid="gantt-status"]',
   addButtonSelector: '[data-testid="task-add"]',
+  filterButtonSelector: '[data-testid="filter-unassigned"]',
 };
 
 const startPanel = async (
@@ -1092,5 +1094,76 @@ describe('createScheduleTablePanel — 부재 연결', () => {
 
     expect(button('assignment-add').disabled).toBe(false);
     expect(element('assignment-add').textContent).toContain('1');
+  });
+});
+
+describe('createScheduleTablePanel — 미연결 Task 필터', () => {
+  beforeEach(() => {
+    document.body.innerHTML = markup;
+  });
+
+  const mixed = [
+    row('W1', { isSummary: true }),
+    row('T001', { depth: 1, parentTaskId: 'W1' as TaskId, assignedCount: 2 }),
+    row('T002', { depth: 1, parentTaskId: 'W1' as TaskId, assignedCount: 0 }),
+  ];
+
+  it('켜면 부재가 걸리지 않은 Task만 남는다', async () => {
+    const context = createTestContext();
+    await startPanel(context);
+    await publish(context, mixed);
+
+    element('filter-unassigned').click();
+
+    // 요약 Task는 자기 부재를 가질 수 없으므로 미연결로 세지 않는다 (ADR-0006).
+    expect(all('task-row').map((node) => node.dataset['taskId'])).toEqual(['T002']);
+  });
+
+  it('다시 누르면 모두 보여 준다', async () => {
+    const context = createTestContext();
+    await startPanel(context);
+    await publish(context, mixed);
+    element('filter-unassigned').click();
+
+    element('filter-unassigned').click();
+
+    expect(all('task-row')).toHaveLength(3);
+  });
+
+  it('켜 둔 상태를 버튼에 남긴다', async () => {
+    const context = createTestContext();
+    await startPanel(context);
+    await publish(context, mixed);
+
+    element('filter-unassigned').click();
+
+    // 목록이 짧아진 이유가 화면에 남아야 한다.
+    expect(element('filter-unassigned').getAttribute('aria-pressed')).toBe('true');
+  });
+
+  it('일정을 다시 실어도 필터를 유지한다', async () => {
+    const context = createTestContext();
+    await startPanel(context);
+    await publish(context, mixed);
+    element('filter-unassigned').click();
+
+    await publish(context, mixed);
+
+    expect(all('task-row').map((node) => node.dataset['taskId'])).toEqual(['T002']);
+  });
+
+  it('부재를 걸면 목록에서 빠진다', async () => {
+    const context = createTestContext();
+    await startPanel(context);
+    await publish(context, mixed);
+    element('filter-unassigned').click();
+
+    await publish(context, [
+      mixed[0]!,
+      mixed[1]!,
+      row('T002', { depth: 1, parentTaskId: 'W1' as TaskId, assignedCount: 1 }),
+    ]);
+
+    expect(all('task-row')).toHaveLength(0);
   });
 });
