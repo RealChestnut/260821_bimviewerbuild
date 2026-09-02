@@ -199,3 +199,81 @@ describe('validateSchedule — 선후행 위반', () => {
     expect(violated?.taskId).toBe('B');
   });
 });
+
+describe('validateSchedule — 부재 연결 충돌', () => {
+  const twoTasks = (
+    first: Record<string, unknown>,
+    second: Record<string, unknown>,
+  ): Record<string, unknown> => ({
+    tasks: [
+      { taskId: 'T001', name: '먼저', start: iso(2), finish: iso(6) },
+      { taskId: 'T002', name: '나중', start: iso(9), finish: iso(13) },
+    ],
+    assignments: [
+      { taskId: 'T001', modelRef: 'a.ifc', productGlobalId: SLAB, ...first },
+      { taskId: 'T002', modelRef: 'a.ifc', productGlobalId: SLAB, ...second },
+    ],
+  });
+
+  it('같은 부재를 두 Task가 시공하면 알린다', () => {
+    const schedule = build(twoTasks({ operation: 'CONSTRUCT' }, { operation: 'CONSTRUCT' }));
+
+    expect(codesOf(schedule)).toContain('schedule.warn.product-constructed-twice');
+  });
+
+  it('시공한 뒤 철거하는 것은 정상이다', () => {
+    const schedule = build(twoTasks({ operation: 'CONSTRUCT' }, { operation: 'DEMOLISH' }));
+
+    expect(codesOf(schedule)).not.toContain('schedule.warn.product-constructed-twice');
+    expect(codesOf(schedule)).not.toContain('schedule.warn.demolish-before-construct');
+  });
+
+  it('시공보다 먼저 철거하면 알린다', () => {
+    const schedule = build(twoTasks({ operation: 'DEMOLISH' }, { operation: 'CONSTRUCT' }));
+
+    expect(codesOf(schedule)).toContain('schedule.warn.demolish-before-construct');
+  });
+
+  it('시공 없이 철거만 있는 부재는 알리지 않는다', () => {
+    // 모델에 이미 서 있는 기존 구조물을 철거하는 것은 정상 입력이다.
+    const schedule = build({
+      tasks: [{ taskId: 'T001', name: '철거', start: iso(2), finish: iso(6) }],
+      assignments: [
+        { taskId: 'T001', modelRef: 'a.ifc', productGlobalId: SLAB, operation: 'DEMOLISH' },
+      ],
+    });
+
+    expect(codesOf(schedule)).not.toContain('schedule.warn.demolish-before-construct');
+  });
+
+  it('다른 모델의 같은 GlobalId는 충돌이 아니다', () => {
+    const schedule = build({
+      tasks: [
+        { taskId: 'T001', name: 'a', start: iso(2), finish: iso(6) },
+        { taskId: 'T002', name: 'b', start: iso(9), finish: iso(13) },
+      ],
+      assignments: [
+        { taskId: 'T001', modelRef: 'a.ifc', productGlobalId: SLAB, operation: 'CONSTRUCT' },
+        { taskId: 'T002', modelRef: 'b.ifc', productGlobalId: SLAB, operation: 'CONSTRUCT' },
+      ],
+    });
+
+    expect(codesOf(schedule)).not.toContain('schedule.warn.product-constructed-twice');
+  });
+
+  it('시간이 없으면 시공과 철거의 앞뒤를 판정하지 않는다', () => {
+    const schedule = build({
+      tasks: [
+        { taskId: 'T001', name: '철거' },
+        { taskId: 'T002', name: '시공', start: iso(9), finish: iso(13) },
+      ],
+      assignments: [
+        { taskId: 'T001', modelRef: 'a.ifc', productGlobalId: SLAB, operation: 'DEMOLISH' },
+        { taskId: 'T002', modelRef: 'a.ifc', productGlobalId: SLAB, operation: 'CONSTRUCT' },
+      ],
+    });
+
+    // 판정할 수 없는 것을 위반이라 부르지 않는다. 시간 미정은 그 자체로 이미 경고다.
+    expect(codesOf(schedule)).not.toContain('schedule.warn.demolish-before-construct');
+  });
+});

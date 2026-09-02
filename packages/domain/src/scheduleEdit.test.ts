@@ -324,3 +324,145 @@ describe('applyScheduleEdits — 여럿을 한 번에', () => {
     expect(schedule.tasks).toHaveLength(4);
   });
 });
+
+const assignmentsOf = (schedule: Schedule, taskId: string) =>
+  schedule.assignments.filter((assignment) => assignment.taskId === taskId);
+
+describe('applyScheduleEdit — 부재 연결', () => {
+  it('여러 부재를 한 Task에 한 번에 건다', () => {
+    const schedule = edited({
+      kind: 'assign-products',
+      taskId: 'T003',
+      modelRef: 'a.ifc',
+      operation: 'CONSTRUCT',
+      productGlobalIds: [SLAB, WALL],
+    });
+
+    expect(assignmentsOf(schedule, 'T003').map((a) => a.productGlobalId)).toEqual([SLAB, WALL]);
+  });
+
+  it('이미 걸린 부재는 행을 늘리지 않고 operation만 갱신한다', () => {
+    // 뷰어에서 여럿을 골랐을 때 하나가 이미 걸려 있다고 전부 실패시키면 쓸 수 없다.
+    const schedule = edited({
+      kind: 'assign-products',
+      taskId: 'T001',
+      modelRef: 'a.ifc',
+      operation: 'DEMOLISH',
+      productGlobalIds: [SLAB],
+    });
+
+    expect(assignmentsOf(schedule, 'T001')).toHaveLength(1);
+    expect(assignmentsOf(schedule, 'T001')[0]?.operation).toBe('DEMOLISH');
+  });
+
+  it('다른 모델의 같은 GlobalId는 다른 부재다', () => {
+    const schedule = edited({
+      kind: 'assign-products',
+      taskId: 'T001',
+      modelRef: 'b.ifc',
+      operation: 'CONSTRUCT',
+      productGlobalIds: [SLAB],
+    });
+
+    // 영구 키는 modelId + GlobalId다 (AGENTS.md 2.2절).
+    expect(assignmentsOf(schedule, 'T001')).toHaveLength(2);
+  });
+
+  it('없는 Task에는 걸 수 없다', () => {
+    expect(
+      errorCode({
+        kind: 'assign-products',
+        taskId: 'T900',
+        modelRef: 'a.ifc',
+        operation: 'CONSTRUCT',
+        productGlobalIds: [SLAB],
+      }),
+    ).toBe('schedule.edit.unknown-task-id');
+  });
+
+  it('요약 Task에는 걸 수 없다', () => {
+    // 요약 Task는 자기 할당을 갖지 않는다 (ADR-0006). parseSchedule이 거부한다.
+    expect(
+      errorCode({
+        kind: 'assign-products',
+        taskId: 'W1',
+        modelRef: 'a.ifc',
+        operation: 'CONSTRUCT',
+        productGlobalIds: [SLAB],
+      }),
+    ).toBe('schedule.parse.summary-task-has-assignment');
+  });
+
+  it('부재를 하나도 주지 않으면 거부한다', () => {
+    // 아무것도 아닌 편집을 성공으로 돌려주면 화면이 무엇이 반영됐는지 알 수 없다.
+    expect(
+      errorCode({
+        kind: 'assign-products',
+        taskId: 'T003',
+        modelRef: 'a.ifc',
+        operation: 'CONSTRUCT',
+        productGlobalIds: [],
+      }),
+    ).toBe('schedule.edit.empty-products');
+  });
+
+  it('GlobalId 형식이 아니면 거부한다', () => {
+    expect(
+      errorCode({
+        kind: 'assign-products',
+        taskId: 'T003',
+        modelRef: 'a.ifc',
+        operation: 'CONSTRUCT',
+        productGlobalIds: ['너무-짧다'],
+      }),
+    ).toBe('identity.global-id.invalid-length');
+  });
+});
+
+describe('applyScheduleEdit — 부재 연결 해제', () => {
+  it('연결을 지운다', () => {
+    const schedule = edited({
+      kind: 'unassign-products',
+      taskId: 'T001',
+      modelRef: 'a.ifc',
+      productGlobalIds: [SLAB],
+    });
+
+    expect(assignmentsOf(schedule, 'T001')).toHaveLength(0);
+    // 다른 Task의 연결은 건드리지 않는다.
+    expect(assignmentsOf(schedule, 'T002')).toHaveLength(1);
+  });
+
+  it('없는 연결을 지우면 거부한다', () => {
+    expect(
+      errorCode({
+        kind: 'unassign-products',
+        taskId: 'T001',
+        modelRef: 'a.ifc',
+        productGlobalIds: [WALL],
+      }),
+    ).toBe('schedule.edit.unknown-assignment');
+  });
+
+  it('부재를 하나도 주지 않으면 거부한다', () => {
+    expect(
+      errorCode({
+        kind: 'unassign-products',
+        taskId: 'T001',
+        modelRef: 'a.ifc',
+        productGlobalIds: [],
+      }),
+    ).toBe('schedule.edit.empty-products');
+  });
+
+  it('여럿 중 하나라도 없으면 아무것도 지우지 않는다', () => {
+    const result = applyScheduleEdit(base(), {
+      kind: 'unassign-products',
+      taskId: 'T001',
+      modelRef: 'a.ifc',
+      productGlobalIds: [SLAB, WALL],
+    });
+
+    expect(result.ok).toBe(false);
+  });
+});

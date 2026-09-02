@@ -340,3 +340,61 @@ describe('parseSchedule — 선후행', () => {
     expect(parsed.ok).toBe(true);
   });
 });
+
+describe('parseSchedule — 할당 중복', () => {
+  const SLAB = '2YsHnV6bk3PgZdL9uCxWtM';
+
+  it('같은 Task에 같은 부재를 두 번 걸면 거부한다', () => {
+    // 같은 줄이 둘이면 부재 수가 부풀고 시뮬레이션이 같은 상태를 두 번 센다.
+    expect(
+      errorCode({
+        ...valid,
+        assignments: [
+          { taskId: 'T001', modelRef: 'a.ifc', productGlobalId: WALL, operation: 'CONSTRUCT' },
+          { taskId: 'T001', modelRef: 'a.ifc', productGlobalId: WALL, operation: 'DEMOLISH' },
+        ],
+      }),
+    ).toBe('schedule.parse.duplicate-assignment');
+  });
+
+  it('같은 부재를 다른 Task에 거는 것은 받는다', () => {
+    // 시공한 뒤 철거하는 것은 정상이다. 충돌 여부는 경고로 알린다.
+    expect(
+      errorCode({
+        ...valid,
+        tasks: [
+          { taskId: 'T001', name: '시공', start: '2026-03-02', finish: '2026-03-06' },
+          { taskId: 'T002', name: '철거', start: '2026-03-09', finish: '2026-03-13' },
+        ],
+        assignments: [
+          { taskId: 'T001', modelRef: 'a.ifc', productGlobalId: WALL, operation: 'CONSTRUCT' },
+          { taskId: 'T002', modelRef: 'a.ifc', productGlobalId: WALL, operation: 'DEMOLISH' },
+        ],
+      }),
+    ).toBeUndefined();
+  });
+
+  it('다른 모델의 같은 GlobalId는 중복이 아니다', () => {
+    expect(
+      errorCode({
+        ...valid,
+        assignments: [
+          { taskId: 'T001', modelRef: 'a.ifc', productGlobalId: WALL, operation: 'CONSTRUCT' },
+          { taskId: 'T001', modelRef: 'b.ifc', productGlobalId: WALL, operation: 'CONSTRUCT' },
+        ],
+      }),
+    ).toBeUndefined();
+  });
+
+  it('같은 Task의 다른 부재는 중복이 아니다', () => {
+    expect(
+      errorCode({
+        ...valid,
+        assignments: [
+          { taskId: 'T001', modelRef: 'a.ifc', productGlobalId: WALL, operation: 'CONSTRUCT' },
+          { taskId: 'T001', modelRef: 'a.ifc', productGlobalId: SLAB, operation: 'CONSTRUCT' },
+        ],
+      }),
+    ).toBeUndefined();
+  });
+});

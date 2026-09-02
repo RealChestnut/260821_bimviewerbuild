@@ -374,6 +374,7 @@ export const parseSchedule = (raw: unknown): Parsed<Schedule> => {
   }
 
   const assignments: ScheduleAssignment[] = [];
+  const seenAssignments = new Set<string>();
   for (const [index, rawAssignment] of rawAssignments.entries()) {
     const parsed = parseAssignment(rawAssignment, index, taskIds);
     if (!parsed.ok) return parsed;
@@ -384,6 +385,22 @@ export const parseSchedule = (raw: unknown): Parsed<Schedule> => {
         `요약 Task에는 부재를 걸 수 없다: ${parsed.value.taskId}`,
       );
     }
+
+    /*
+     * 한 Task와 한 부재의 연결은 하나다. 같은 줄이 둘이면 부재 수가 부풀고 시뮬레이션이
+     * 같은 상태를 두 번 센다. 부재의 영구 키는 모델까지 포함하므로 modelRef도 키에 넣는다
+     * (AGENTS.md 2.2절). 다른 Task가 같은 부재를 다루는 것은 정상이며(시공한 뒤 철거),
+     * 그 조합이 말이 되는지는 validateSchedule이 경고로 알린다.
+     */
+    const key = `${parsed.value.taskId} ${parsed.value.modelRef} ${parsed.value.productGlobalId}`;
+    if (seenAssignments.has(key)) {
+      return fail(
+        'schedule.parse.duplicate-assignment',
+        `같은 Task에 같은 부재가 두 번 걸렸다: ${parsed.value.taskId} / ${parsed.value.productGlobalId}`,
+      );
+    }
+    seenAssignments.add(key);
+
     assignments.push(parsed.value);
   }
 
