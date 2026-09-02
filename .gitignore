@@ -45,3 +45,6 @@ packages/test-fixtures/ifc/local/
 
 # vendor 자산은 빌드 시 node_modules에서 복사한다 (ADR-0004)
 apps/viewer-web/public/vendor/
+
+# 바이너리 문서는 diff가 되지 않는다. 참고 자료는 로컬에 둔다.
+docs/**/*.docx
