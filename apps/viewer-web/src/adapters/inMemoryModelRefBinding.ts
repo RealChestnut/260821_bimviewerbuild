@@ -3,26 +3,24 @@ import type { ModelId, ModelRefBindingPort } from '@bim4d/contracts';
 /**
  * 쓰기까지 할 수 있는 `ModelRefBindingPort`.
  *
- * 읽는 쪽은 Port만 본다. 채우는 일은 모델 적재 Event를 듣는 Component 하나가 맡는다.
+ * 읽는 쪽은 Port만 본다. 무엇과 무엇을 묶을지 정하는 일은 도메인(`resolveModelBindings`)이
+ * 하고, 그 결과를 여기에 넣는 일은 Component 하나가 맡는다. 이 어댑터는 결과를 들고만 있다.
  */
 export interface ModelRefBindingRegistry extends ModelRefBindingPort {
-  bind(modelId: ModelId, modelRef: string): void;
-  unbind(modelId: ModelId): void;
+  /** 묶음 전체를 갈아 끼운다. 부분 갱신을 두지 않는다. 규칙이 전체를 보고 정해지기 때문이다. */
+  replaceAll(bindings: ReadonlyMap<string, ModelId>): void;
   clear(): void;
 }
 
 /**
  * 메모리에 두는 modelRef 바인딩.
  *
- * 지금 규칙은 "일정에 적힌 이름 = 모델 파일명"이며 ADR-0005가 잠정으로 표시했다.
- * fingerprint 기반으로 바꿀 때 고칠 자리는 여기 하나다.
- *
- * 한 이름에는 모델 하나만 묶는다. 같은 파일을 다시 열면 새 `ModelId`가 붙는데, 두 모델이
- * 한 이름을 함께 쓰면 일정이 어느 쪽을 가리키는지 알 수 없다. 나중에 연 것이 이긴다.
+ * 묶는 규칙의 정본은 ADR-0008이며 도메인에 있다. 여기서는 한 이름에 모델 하나, 한 모델에
+ * 이름 하나라는 결과만 유지한다.
  */
 export const createInMemoryModelRefBinding = (): ModelRefBindingRegistry => {
-  const idByRef = new Map<string, ModelId>();
-  const refById = new Map<ModelId, string>();
+  let idByRef = new Map<string, ModelId>();
+  let refById = new Map<ModelId, string>();
 
   return {
     idOf: (modelRef) => idByRef.get(modelRef) ?? null,
@@ -31,28 +29,14 @@ export const createInMemoryModelRefBinding = (): ModelRefBindingRegistry => {
 
     entries: () => new Map(idByRef),
 
-    bind: (modelId, modelRef) => {
-      const displaced = idByRef.get(modelRef);
-      if (displaced !== undefined) refById.delete(displaced);
-
-      // 한 모델이 두 이름을 갖지도 않는다. 옮겨 묶으면 옛 이름을 놓는다.
-      const previous = refById.get(modelId);
-      if (previous !== undefined) idByRef.delete(previous);
-
-      idByRef.set(modelRef, modelId);
-      refById.set(modelId, modelRef);
-    },
-
-    unbind: (modelId) => {
-      const modelRef = refById.get(modelId);
-      if (modelRef === undefined) return;
-      refById.delete(modelId);
-      idByRef.delete(modelRef);
+    replaceAll: (bindings) => {
+      idByRef = new Map(bindings);
+      refById = new Map([...bindings].map(([modelRef, modelId]) => [modelId, modelRef]));
     },
 
     clear: () => {
-      idByRef.clear();
-      refById.clear();
+      idByRef = new Map();
+      refById = new Map();
     },
   };
 };

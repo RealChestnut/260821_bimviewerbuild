@@ -421,6 +421,37 @@
         opacity: 0.6;
       }
 
+      /* 모델이 바뀌었다는 알림. 사용자가 정본으로 삼을지 고른다 (ADR-0008). */
+      #model-replacements {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0 0.5rem;
+        list-style: none;
+        margin: 0;
+        padding: 0;
+      }
+
+      #model-replacements li {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.3rem;
+        padding: 0.1rem 0;
+        color: rgb(180 90 0);
+      }
+
+      #model-replacements button {
+        font: inherit;
+        font-size: 0.72rem;
+        line-height: 1.1;
+        padding: 0.05rem 0.3rem;
+        color: inherit;
+        background: none;
+        border: 1px solid rgb(180 90 0 / 60%);
+        border-radius: 3px;
+        cursor: pointer;
+        white-space: nowrap;
+      }
+
       #schedule-warnings {
         display: flex;
         flex-wrap: wrap;
@@ -709,6 +740,7 @@
       <div id="schedule-dock">
         <section id="schedule-panel" data-testid="schedule-panel" hidden>
           <h2 data-testid="schedule-name">일정 없음</h2>
+          <ul id="model-replacements" data-testid="model-replacements"></ul>
           <ul id="schedule-warnings" data-testid="schedule-warnings"></ul>
         </section>
         <section id="schedule-table" data-testid="schedule-table" hidden>

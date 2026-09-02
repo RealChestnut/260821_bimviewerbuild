@@ -988,7 +988,7 @@ describe('createScheduleTablePanel — 부재 연결', () => {
     const context = createTestContext();
     const edits = captureEdits(context);
     const binding = createInMemoryModelRefBinding();
-    binding.bind(MODEL, 'a.ifc');
+    binding.replaceAll(new Map([['a.ifc', MODEL]]));
     await startPanel(context, binding);
     await publishWith(context, pair, [], []);
 
@@ -1015,7 +1015,7 @@ describe('createScheduleTablePanel — 부재 연결', () => {
     const context = createTestContext();
     const edits = captureEdits(context);
     const binding = createInMemoryModelRefBinding();
-    binding.bind(MODEL, 'a.ifc');
+    binding.replaceAll(new Map([['a.ifc', MODEL]]));
     await startPanel(context, binding);
     await publishWith(context, pair, [], []);
 
@@ -1047,7 +1047,7 @@ describe('createScheduleTablePanel — 부재 연결', () => {
     const context = createTestContext();
     const shown = captureShown(context);
     const binding = createInMemoryModelRefBinding();
-    binding.bind(MODEL, 'a.ifc');
+    binding.replaceAll(new Map([['a.ifc', MODEL]]));
     await startPanel(context, binding);
     await publishWith(context, pair, [], [link('T001', SLAB)]);
 
@@ -1083,7 +1083,7 @@ describe('createScheduleTablePanel — 부재 연결', () => {
   it('선택이 바뀌면 걸기 버튼이 풀린다', async () => {
     const context = createTestContext();
     const binding = createInMemoryModelRefBinding();
-    binding.bind(MODEL, 'a.ifc');
+    binding.replaceAll(new Map([['a.ifc', MODEL]]));
     await startPanel(context, binding);
     await publishWith(context, pair, [], []);
     all('task-assigned')[0]?.click();

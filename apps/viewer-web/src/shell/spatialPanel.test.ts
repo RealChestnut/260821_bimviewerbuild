@@ -114,7 +114,12 @@ const setup = async (): Promise<Harness> => {
     port,
     selections,
     loadModel: async (id = modelId, displayName = 'fixture.ifc') => {
-      await context.events.publish('model/loaded', { modelId: id, displayName, schema: 'IFC4' });
+      await context.events.publish('model/loaded', {
+        modelId: id,
+        displayName,
+        schema: 'IFC4',
+        fingerprint: '0'.repeat(64),
+      });
     },
     dispose: () => panel.dispose(),
   };

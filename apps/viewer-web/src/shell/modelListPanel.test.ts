@@ -58,7 +58,12 @@ const setup = async (): Promise<Harness> => {
     context,
     calls,
     load: (modelId, displayName) =>
-      context.events.publish('model/loaded', { modelId, displayName, schema: 'IFC4' }),
+      context.events.publish('model/loaded', {
+        modelId,
+        displayName,
+        schema: 'IFC4',
+        fingerprint: '0'.repeat(64),
+      }),
     setHiddenModels: (hiddenModels) =>
       context.events.publish('visibility/changed', {
         hiddenCount: 0,

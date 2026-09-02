@@ -96,6 +96,12 @@ declare module '@bim4d/contracts' {
      */
     'scheduler/model-binding-changed': {
       readonly boundCount: number;
+      /**
+       * 이름은 같은데 파일 내용이 달라진 모델.
+       *
+       * 묶기는 했다. 연결을 지키는 것이 목적이고 바뀐 사실은 따로 알린다 (ADR-0008).
+       */
+      readonly replacedRefs: readonly string[];
     };
   }
 
@@ -114,6 +120,16 @@ declare module '@bim4d/contracts' {
       input: { readonly format: ScheduleExportFormat };
       /** 파일 이름까지 정해서 준다. 저장 위치와 방법은 Adapter가 정한다. */
       output: { readonly files: readonly ScheduleCsvFile[] };
+    };
+    /**
+     * 열린 모델을 그 이름의 정본으로 삼는다.
+     *
+     * fingerprint를 자동으로 갱신하지 않기로 했으므로(ADR-0008) 이 명령은 사용자의
+     * 결정으로만 들어온다. 사라진 부재는 세어서 돌려주되 연결을 지우지 않는다.
+     */
+    'scheduler/adopt-model': {
+      input: { readonly modelRef: string };
+      output: { readonly missing: readonly GlobalId[] };
     };
     'scheduler/edit-schedule': {
       /** 여럿을 한 번에 보낸다. 하나라도 실패하면 전부 적용되지 않는다. */

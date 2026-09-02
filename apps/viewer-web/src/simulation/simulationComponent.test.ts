@@ -101,7 +101,12 @@ let repository: ScheduleRepositoryPort;
  */
 const startComponent = async (context: TestContext) => {
   const binding = createInMemoryModelRefBinding();
-  const bindingComponent = createModelBindingComponent({ registry: binding });
+  const bindingComponent = createModelBindingComponent({
+    registry: binding,
+    repository,
+    // 모델 교체 승인에만 쓰인다. 여기서는 부르지 않는다.
+    productsOf: () => Promise.resolve([]),
+  });
   await bindingComponent.initialize(context);
   await bindingComponent.start();
 
@@ -121,6 +126,7 @@ const openModel = async (context: TestContext, displayName = 'a.ifc'): Promise<v
     modelId: MODEL,
     displayName,
     schema: 'IFC4',
+    fingerprint: '0'.repeat(64),
   });
 };
 

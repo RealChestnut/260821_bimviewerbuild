@@ -1,6 +1,7 @@
 import type { AppEventName, ModelId } from '@bim4d/contracts';
 
 import { createInMemoryModelRefBinding } from './adapters/inMemoryModelRefBinding.js';
+import { createSpatialTreeProducts } from './adapters/spatialTreeProducts.js';
 import { createInMemoryModelRepository } from './adapters/inMemoryModelRepository.js';
 import { createInMemoryScheduleRepository } from './adapters/inMemoryScheduleRepository.js';
 import { createThatOpenViewerAdapter } from './adapters/thatopen/thatOpenViewerAdapter.js';
@@ -65,7 +66,13 @@ const bootstrap = async (): Promise<void> => {
   kernel.register(createSectionComponent({ port: viewer.section }));
   kernel.register(createCameraComponent({ port: viewer.camera }));
   kernel.register(createViewpointComponent({ camera: viewer.camera, section: viewer.section }));
-  kernel.register(createModelBindingComponent({ registry: modelRefBinding }));
+  kernel.register(
+    createModelBindingComponent({
+      registry: modelRefBinding,
+      repository: scheduleRepository,
+      productsOf: createSpatialTreeProducts(viewer.spatialTree),
+    }),
+  );
   kernel.register(createSchedulerComponent({ repository: scheduleRepository }));
   kernel.register(
     createSimulationComponent({
@@ -88,6 +95,7 @@ const bootstrap = async (): Promise<void> => {
       panelSelector: '[data-testid="schedule-panel"]',
       nameSelector: '[data-testid="schedule-name"]',
       warningListSelector: '[data-testid="schedule-warnings"]',
+      replacementListSelector: '[data-testid="model-replacements"]',
       statusSelector: '[data-testid="schedule-status"]',
       exportJsonSelector: '[data-testid="schedule-export-json"]',
       exportCsvSelector: '[data-testid="schedule-export-csv"]',

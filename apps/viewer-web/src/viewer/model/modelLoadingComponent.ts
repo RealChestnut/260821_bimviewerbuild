@@ -92,9 +92,10 @@ export const createModelLoadingComponent = (
     const modelId = newModelId();
     await app.events.publish('model/load-started', { modelId, displayName });
 
-    try {
-      const fingerprint = await sha256Hex(bytes);
+    // 적재 결과와 함께 알려야 하므로 try 밖에서 구한다. 실패해도 남는 값이 아니다.
+    const fingerprint = await sha256Hex(bytes);
 
+    try {
       await loader.load({
         modelId,
         bytes,
@@ -126,6 +127,7 @@ export const createModelLoadingComponent = (
       modelId,
       displayName,
       schema: header.value.schema,
+      fingerprint,
     });
 
     return { modelId };
