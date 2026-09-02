@@ -141,6 +141,7 @@ const loadSchedule = async (
     name: parsed.value.name,
     tasks: [],
     dependencies: [],
+    assignments: [],
     warnings: [],
   });
 };

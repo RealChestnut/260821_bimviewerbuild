@@ -331,6 +331,7 @@
        * 위 줄에 딸린 것으로 보이게 한다.
        */
       #schedule-table li[data-testid='dependency-editor'],
+      #schedule-table li[data-testid='assignment-editor'],
       #schedule-table li[data-testid='task-draft'] {
         display: flex;
         align-items: center;
@@ -342,9 +343,61 @@
 
       #schedule-table li[data-testid='dependency-editor'] select,
       #schedule-table li[data-testid='dependency-editor'] input,
+      #schedule-table li[data-testid='assignment-editor'] select,
       #schedule-table li[data-testid='task-draft'] input {
         width: auto;
         max-width: 9rem;
+      }
+
+      /* 부재 수 칸을 누르면 그 Task의 연결 줄이 열린다. */
+      #schedule-table [data-testid='task-assigned'][data-expandable='true'] {
+        cursor: pointer;
+        text-decoration: underline dotted;
+        text-underline-offset: 2px;
+      }
+
+      #schedule-table [data-testid='assignment-chips'] {
+        display: flex;
+        align-items: center;
+        gap: 0.25rem;
+        min-width: 12rem;
+        overflow: hidden;
+      }
+
+      #schedule-table [data-testid='assignment-chip'] {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.2rem;
+        padding: 0 0.15rem 0 0.35rem;
+        border: 1px solid rgb(128 128 128 / 40%);
+        border-radius: 999px;
+        white-space: nowrap;
+      }
+
+      /* 모델이 열려 있지 않은 연결. 지울 수는 있지만 3D에서 찾을 수는 없다. */
+      #schedule-table [data-testid='assignment-chip'][data-bound='false'] {
+        opacity: 0.55;
+        border-style: dashed;
+      }
+
+      #schedule-table [data-testid='assignment-empty'] {
+        opacity: 0.6;
+      }
+
+      #schedule-table li [data-testid='assignment-remove'],
+      #schedule-table li [data-testid='assignment-show'],
+      #schedule-table li [data-testid='assignment-add'] {
+        flex: none;
+        font: inherit;
+        font-size: 0.72rem;
+        line-height: 1.1;
+        padding: 0.05rem 0.3rem;
+        color: inherit;
+        background: none;
+        border: 1px solid rgb(128 128 128 / 40%);
+        border-radius: 3px;
+        cursor: pointer;
+        white-space: nowrap;
       }
 
       #schedule-table [data-testid='dependency-chips'] {

@@ -187,4 +187,22 @@ test.describe('일정 독 배치 — 편집', () => {
     );
     expect(overflow).toBeLessThanOrEqual(0);
   });
+
+  test('펼친 부재 연결 줄이 표 밖으로 넘치지 않는다', async ({ page }) => {
+    await openSchedule(page);
+
+    await page.getByTestId('task-assigned').nth(1).click();
+    await expect(page.getByTestId('assignment-editor')).toBeVisible();
+
+    const table = await boxOf(page.getByTestId('schedule-table'));
+    const editor = await boxOf(page.getByTestId('assignment-editor'));
+
+    expect(editor.x).toBeGreaterThanOrEqual(table.x);
+    expect(editor.x + editor.width).toBeLessThanOrEqual(table.x + table.width + 1);
+
+    const overflow = await page.evaluate(
+      () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+    );
+    expect(overflow).toBeLessThanOrEqual(0);
+  });
 });

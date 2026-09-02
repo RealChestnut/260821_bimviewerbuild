@@ -73,6 +73,7 @@ const publishSchedule = (
     finish: Date.UTC(2026, 2, 13),
     tasks,
     dependencies: [],
+    assignments: [],
     warnings,
   });
 

@@ -9,7 +9,7 @@
  */
 
 import type { ScheduleCsvBundle, ScheduleCsvFile, ScheduleEdit } from '@bim4d/domain';
-import type { DependencyType, TaskId } from '@bim4d/contracts';
+import type { DependencyType, GlobalId, TaskId, TaskOperation } from '@bim4d/contracts';
 
 /**
  * 일정을 내보낼 형식.
@@ -47,6 +47,19 @@ export interface ScheduleDependencyRow {
   readonly lagDays: number;
 }
 
+/**
+ * 화면에 한 줄로 그릴 부재 연결.
+ *
+ * `modelRef`를 그대로 싣는다. 모델이 열려 있지 않아도 무엇에 걸려 있는지는 보여야 한다.
+ * 열린 모델로 옮기는 일은 `ModelRefBindingPort`가 한다.
+ */
+export interface ScheduleAssignmentRow {
+  readonly taskId: TaskId;
+  readonly modelRef: string;
+  readonly productGlobalId: GlobalId;
+  readonly operation: TaskOperation;
+}
+
 export interface ScheduleWarningRow {
   readonly code: string;
   readonly message: string;
@@ -63,6 +76,7 @@ declare module '@bim4d/contracts' {
       readonly finish?: number;
       readonly tasks: readonly ScheduleTaskRow[];
       readonly dependencies: readonly ScheduleDependencyRow[];
+      readonly assignments: readonly ScheduleAssignmentRow[];
       readonly warnings: readonly ScheduleWarningRow[];
     };
     'scheduler/load-failed': {

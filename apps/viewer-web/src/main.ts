@@ -101,6 +101,7 @@ const bootstrap = async (): Promise<void> => {
       cursorSelector: '[data-testid="gantt-cursor"]',
       statusSelector: '[data-testid="gantt-status"]',
       addButtonSelector: '[data-testid="task-add"]',
+      binding: modelRefBinding,
     }),
   );
   kernel.register(
