@@ -28,12 +28,12 @@ $ python -m ifc_worker
 
 ## 메서드
 
-| method | params | result |
-| --- | --- | --- |
-| `ping` | `{}` | `{ "pong": true }` |
-| `inspect` | `{ "path" }` | Schema, 부재 수, GlobalId 중복·누락, 일정 유무, 길이 단위 |
-| `import-schedule` | `{ "path" }` | `{ "schedule": <일정 v3 JSON> }` |
-| `export-schedule` | `{ "sourcePath", "outputPath", "schedule" }` | `{ "outputPath", "taskCount", "skippedAssignments" }` |
+| method            | params                                       | result                                                    |
+| ----------------- | -------------------------------------------- | --------------------------------------------------------- |
+| `ping`            | `{}`                                         | `{ "pong": true }`                                        |
+| `inspect`         | `{ "path" }`                                 | Schema, 부재 수, GlobalId 중복·누락, 일정 유무, 길이 단위 |
+| `import-schedule` | `{ "path" }`                                 | `{ "schedule": <일정 v3 JSON> }`                          |
+| `export-schedule` | `{ "sourcePath", "outputPath", "schedule" }` | `{ "outputPath", "taskCount", "skippedAssignments" }`     |
 
 `inspect`는 **사실만** 돌려준다. "받아들일 만한 파일인가"는 부르는 쪽이 정한다. 검증 게이트는
 `AGENTS.md` 1.4절이 아직 미결정으로 둔 항목이다.
