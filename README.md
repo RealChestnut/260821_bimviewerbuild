@@ -7,7 +7,7 @@
 - IFC 기술 기준서: [docs/IFC_통합_정리_2026-08-20.md](docs/IFC_통합_정리_2026-08-20.md)
 - 결정 기록: [docs/adr/](docs/adr/)
 
-현재 단계는 **Phase 8 — C# Desktop Shell**이다. Phase 0~7이 `main`에 들어가 있다.
+현재 단계는 **Phase 9 — 배포**다. Phase 0~8이 `main`에 들어가 있다.
 
 ## 요구 환경
 
@@ -47,26 +47,28 @@ pnpm dev            # 다른 터미널에서 Vite 개발 서버
 
 ## 명령
 
-| 명령                | 설명                                                   |
-| ------------------- | ------------------------------------------------------ |
-| `pnpm typecheck`    | 빌드 대상과 테스트 코드의 strict 타입 검사             |
-| `pnpm lint`         | ESLint (type-aware)                                    |
-| `pnpm format:check` | Prettier 형식 검사                                     |
-| `pnpm test`         | Vitest 단위·계약 테스트                                |
-| `pnpm test:e2e`     | Playwright 브라우저 테스트 (빌드 후 preview 서버 기동) |
-| `pnpm test:python`  | IFC Worker의 pytest (Python과 ifcopenshell 필요)       |
-| `pnpm test:worker`  | 실제 Worker를 띄워 stdio 규약과 수명을 검사            |
-| `pnpm build`        | 패키지와 Viewer 웹 앱 빌드                             |
-| `pnpm dev`          | Viewer 웹 앱 개발 서버                                 |
-| `pnpm dev:packages` | `packages/**`를 감시하며 `dist` 갱신                   |
-| `pnpm verify`       | 위 게이트를 순서대로 실행                              |
+| 명령                | 설명                                                    |
+| ------------------- | ------------------------------------------------------- |
+| `pnpm typecheck`    | 빌드 대상과 테스트 코드의 strict 타입 검사              |
+| `pnpm lint`         | ESLint (type-aware)                                     |
+| `pnpm format:check` | Prettier 형식 검사                                      |
+| `pnpm test`         | Vitest 단위·계약 테스트                                 |
+| `pnpm test:e2e`     | Playwright 브라우저 테스트 (빌드 후 preview 서버 기동)  |
+| `pnpm test:python`  | IFC Worker의 pytest (Python과 ifcopenshell 필요)        |
+| `pnpm test:worker`  | 실제 Worker를 띄워 stdio 규약과 수명을 검사             |
+| `pnpm shell`        | Desktop Shell 실행. `pnpm build`로 뷰어를 먼저 빌드한다 |
+| `pnpm shell:test`   | Desktop Shell의 xunit 테스트                            |
+| `pnpm build`        | 패키지와 Viewer 웹 앱 빌드                              |
+| `pnpm dev`          | Viewer 웹 앱 개발 서버                                  |
+| `pnpm dev:packages` | `packages/**`를 감시하며 `dist` 갱신                    |
+| `pnpm verify`       | 위 게이트를 순서대로 실행                               |
 
 ## 저장소 구조
 
 ```text
 apps/
  ├─ viewer-web/          TypeScript Viewer와 Scheduler UI (Kernel 포함)
- └─ desktop/             C# WPF Shell (Phase 8)
+ └─ desktop/             C# WPF Shell — WebView2 호스팅, Worker 관리 (ADR-0010)
 services/
  └─ ifc-worker/          Python IfcOpenShell Worker (Phase 7)
 packages/

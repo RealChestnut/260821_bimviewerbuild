@@ -49,3 +49,7 @@ apps/viewer-web/public/vendor/
 
 # 바이너리 문서는 diff가 되지 않는다. 참고 자료는 로컬에 둔다.
 docs/**/*.docx
+
+# .NET 빌드 산출물
+[Bb]in/
+[Oo]bj/
