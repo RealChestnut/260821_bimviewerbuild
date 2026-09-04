@@ -132,6 +132,20 @@ jobs:
         run: pnpm shell:publish
         timeout-minutes: 15
 
+      # 이미지에 Inno Setup이 있으면 그대로 쓴다. 없을 때만 깐다.
+      - name: Ensure Inno Setup
+        shell: pwsh
+        run: |
+          $iscc = Get-Command ISCC -ErrorAction SilentlyContinue
+          if (-not $iscc -and -not (Test-Path "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe")) {
+            choco install innosetup -y --no-progress
+          }
+
+      # 설치 프로그램까지 실제로 만든다 (ADR-0012). 설치·제거는 사람이 하는 시험이다.
+      - name: Build installer
+        run: pnpm shell:installer
+        timeout-minutes: 20
+
   e2e:
     name: browser test
     runs-on: windows-latest

@@ -23,6 +23,7 @@
     "shell": "dotnet run --project apps/desktop/src/Bim4d.Desktop",
     "shell:test": "dotnet test apps/desktop/tests/Bim4d.Desktop.Core.Tests --nologo",
     "shell:publish": "python apps/desktop/tools/publish.py",
+    "shell:installer": "python apps/desktop/tools/make_installer.py",
     "verify": "pnpm typecheck && pnpm lint && pnpm test && pnpm build"
   },
   "devDependencies": {

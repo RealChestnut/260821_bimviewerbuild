@@ -1,0 +1,13 @@
+<Project>
+
+  <!--
+    셸과 설치본이 같은 버전을 말하게 하는 한 자리다 (ADR-0012).
+    설치 프로그램은 이 값을 읽어 산출물 이름과 표시 버전에 쓴다.
+  -->
+  <PropertyGroup>
+    <Version>0.1.0</Version>
+    <Company>BIM 4D Viewer</Company>
+    <Product>BIM 4D Viewer</Product>
+  </PropertyGroup>
+
+</Project>
