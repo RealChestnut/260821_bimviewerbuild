@@ -17,6 +17,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:e2e": "playwright test",
+    "test:worker": "vitest run --config vitest.worker.config.ts",
+    "test:python": "cd services/ifc-worker && python -m pytest",
     "verify": "pnpm typecheck && pnpm lint && pnpm test && pnpm build"
   },
   "devDependencies": {

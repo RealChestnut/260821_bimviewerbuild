@@ -59,7 +59,7 @@ describe('parseScheduleCsv', () => {
 
     expect(schedule.scheduleId).toBe('mock');
     expect(schedule.name).toBe('시험 일정');
-    expect(schedule.schemaVersion).toBe(2);
+    expect(schedule.schemaVersion).toBe(3);
     expect(schedule.tasks).toHaveLength(4);
     expect(schedule.dependencies).toHaveLength(1);
     expect(schedule.assignments).toHaveLength(3);
@@ -268,31 +268,34 @@ describe('의미 검증은 parseSchedule이 맡는다', () => {
       dependencies: 'predecessorId,successorId,type,lagDays\r\n',
     });
 
-    expect(parsed(v1).schemaVersion).toBe(2);
+    expect(parsed(v1).schemaVersion).toBe(3);
   });
 });
 
 describe('serializeScheduleCsv', () => {
-  it('선후행이 없어도 파일 넷을 모두 쓴다', () => {
+  it('선후행도 모델 표도 없이 파일 다섯을 모두 쓴다', () => {
     const { dependencies: _omitted, ...withoutDependencies } = bundle;
     const files = serializeScheduleCsv(parsed(withoutDependencies));
 
+    // 파일 구성이 일정마다 달라지면 받는 쪽이 무엇이 빠진 것인지 알 수 없다.
     expect(files.map((file) => file.fileName)).toEqual([
       'schedule.csv',
       'tasks.csv',
+      'models.csv',
       'dependencies.csv',
       'assignments.csv',
     ]);
-    // 선후행이 없으면 헤더만 남는다.
+    // 비어 있으면 헤더만 남는다.
     expect(contentOf(files, 'dependencies.csv')).toBe(
       '\uFEFFpredecessorId,successorId,type,lagDays\r\n',
     );
+    expect(contentOf(files, 'models.csv')).toBe('\uFEFFmodelRef,fingerprint\r\n');
   });
 
   it('CRLF로 쓰고 마지막 줄도 개행으로 닫는다', () => {
     const content = contentOf(serializeScheduleCsv(parsed()), 'schedule.csv');
 
-    expect(content).toBe('\uFEFFscheduleId,name,schemaVersion\r\nmock,시험 일정,2\r\n');
+    expect(content).toBe('\uFEFFscheduleId,name,schemaVersion\r\nmock,시험 일정,3\r\n');
   });
 
   it('날짜를 다시 YYYY-MM-DD로 쓰고 시간 미정 Task는 빈 칸으로 남긴다', () => {
@@ -321,7 +324,7 @@ describe('serializeScheduleCsv', () => {
     });
     const content = contentOf(serializeScheduleCsv(parsed(quoted)), 'schedule.csv');
 
-    expect(content).toBe('\uFEFFscheduleId,name,schemaVersion\r\nmock,"A, B와 ""인용""",2\r\n');
+    expect(content).toBe('\uFEFFscheduleId,name,schemaVersion\r\nmock,"A, B와 ""인용""",3\r\n');
   });
 });
 
@@ -399,7 +402,7 @@ describe('serializeScheduleJson', () => {
     if (!v1.ok) throw new Error(v1.error.message);
 
     const written: unknown = JSON.parse(serializeScheduleJson(v1.value));
-    expect((written as { schemaVersion: number }).schemaVersion).toBe(2);
+    expect((written as { schemaVersion: number }).schemaVersion).toBe(3);
   });
 
   it('날짜를 epoch가 아니라 YYYY-MM-DD로 쓴다', () => {

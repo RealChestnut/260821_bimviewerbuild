@@ -9,7 +9,7 @@
  */
 
 import type { ScheduleCsvBundle, ScheduleCsvFile, ScheduleEdit } from '@bim4d/domain';
-import type { DependencyType, TaskId } from '@bim4d/contracts';
+import type { DependencyType, GlobalId, TaskId, TaskOperation } from '@bim4d/contracts';
 
 /**
  * 일정을 내보낼 형식.
@@ -47,6 +47,19 @@ export interface ScheduleDependencyRow {
   readonly lagDays: number;
 }
 
+/**
+ * 화면에 한 줄로 그릴 부재 연결.
+ *
+ * `modelRef`를 그대로 싣는다. 모델이 열려 있지 않아도 무엇에 걸려 있는지는 보여야 한다.
+ * 열린 모델로 옮기는 일은 `ModelRefBindingPort`가 한다.
+ */
+export interface ScheduleAssignmentRow {
+  readonly taskId: TaskId;
+  readonly modelRef: string;
+  readonly productGlobalId: GlobalId;
+  readonly operation: TaskOperation;
+}
+
 export interface ScheduleWarningRow {
   readonly code: string;
   readonly message: string;
@@ -63,6 +76,7 @@ declare module '@bim4d/contracts' {
       readonly finish?: number;
       readonly tasks: readonly ScheduleTaskRow[];
       readonly dependencies: readonly ScheduleDependencyRow[];
+      readonly assignments: readonly ScheduleAssignmentRow[];
       readonly warnings: readonly ScheduleWarningRow[];
     };
     'scheduler/load-failed': {
@@ -73,6 +87,21 @@ declare module '@bim4d/contracts' {
     'scheduler/edit-failed': {
       readonly reason: string;
       readonly code: string;
+    };
+    /**
+     * 적재된 모델과 일정의 `modelRef` 묶음이 바뀌었다.
+     *
+     * 소비자는 이 Event를 받고 `ModelRefBindingPort`에서 읽는다. `model/loaded`를 저마다
+     * 듣게 하면 누가 먼저 처리되는지가 Component 등록 순서에 달린다.
+     */
+    'scheduler/model-binding-changed': {
+      readonly boundCount: number;
+      /**
+       * 이름은 같은데 파일 내용이 달라진 모델.
+       *
+       * 묶기는 했다. 연결을 지키는 것이 목적이고 바뀐 사실은 따로 알린다 (ADR-0008).
+       */
+      readonly replacedRefs: readonly string[];
     };
   }
 
@@ -91,6 +120,26 @@ declare module '@bim4d/contracts' {
       input: { readonly format: ScheduleExportFormat };
       /** 파일 이름까지 정해서 준다. 저장 위치와 방법은 Adapter가 정한다. */
       output: { readonly files: readonly ScheduleCsvFile[] };
+    };
+    /**
+     * 열린 모델을 그 이름의 정본으로 삼는다.
+     *
+     * fingerprint를 자동으로 갱신하지 않기로 했으므로(ADR-0008) 이 명령은 사용자의
+     * 결정으로만 들어온다. 사라진 부재는 세어서 돌려주되 연결을 지우지 않는다.
+     */
+    /**
+     * 열린 모델의 부재 중 어느 Task에도 걸리지 않은 것을 3D에서 고른다.
+     *
+     * 무엇이 남았는지 눈으로 확인하는 길이다. 목록으로 세어 보여 주는 것보다 3D에서
+     * 보이는 편이 빠르다.
+     */
+    'scheduler/select-unassigned-products': {
+      input: Record<string, never>;
+      output: { readonly count: number };
+    };
+    'scheduler/adopt-model': {
+      input: { readonly modelRef: string };
+      output: { readonly missing: readonly GlobalId[] };
     };
     'scheduler/edit-schedule': {
       /** 여럿을 한 번에 보낸다. 하나라도 실패하면 전부 적용되지 않는다. */

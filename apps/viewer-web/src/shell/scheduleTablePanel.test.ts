@@ -1,13 +1,21 @@
 // @vitest-environment jsdom
 import { beforeEach, describe, expect, it } from 'vitest';
 
-import type { TaskId } from '@bim4d/contracts';
+import type { GlobalId, ModelId, ProductKey, TaskId, TaskOperation } from '@bim4d/contracts';
+
+import { createInMemoryModelRefBinding } from '../adapters/inMemoryModelRefBinding.js';
+import type { ModelRefBindingRegistry } from '../adapters/inMemoryModelRefBinding.js';
 
 import { createTestContext } from '../kernel/testing/testContext.js';
 import type { TestContext } from '../kernel/testing/testContext.js';
 import '../scheduler/schedulerEvents.js';
 import '../simulation/simulationEvents.js';
-import type { ScheduleDependencyRow, ScheduleTaskRow } from '../scheduler/schedulerEvents.js';
+import '../viewer/selection/selectionEvents.js';
+import type {
+  ScheduleAssignmentRow,
+  ScheduleDependencyRow,
+  ScheduleTaskRow,
+} from '../scheduler/schedulerEvents.js';
 
 import { createScheduleTablePanel } from './scheduleTablePanel.js';
 
@@ -15,6 +23,7 @@ const markup = `
   <section data-testid="schedule-table" hidden>
     <div>
       <button type="button" data-testid="task-add">+</button>
+      <button type="button" data-testid="filter-unassigned" aria-pressed="false">미연결</button>
       <div data-testid="gantt-axis"></div>
     </div>
     <ol data-testid="task-rows"></ol>
@@ -40,10 +49,14 @@ const panelOptions = {
   cursorSelector: '[data-testid="gantt-cursor"]',
   statusSelector: '[data-testid="gantt-status"]',
   addButtonSelector: '[data-testid="task-add"]',
+  filterButtonSelector: '[data-testid="filter-unassigned"]',
 };
 
-const startPanel = async (context: TestContext) => {
-  const panel = createScheduleTablePanel(panelOptions);
+const startPanel = async (
+  context: TestContext,
+  binding: ModelRefBindingRegistry = createInMemoryModelRefBinding(),
+) => {
+  const panel = createScheduleTablePanel({ ...panelOptions, binding });
   await panel.initialize(context);
   await panel.start();
   return panel;
@@ -76,6 +89,7 @@ const publish = async (
     ...(bounds.finish === undefined ? {} : { finish: bounds.finish }),
     tasks,
     dependencies: [],
+    assignments: [],
     warnings: [],
   });
 };
@@ -329,7 +343,10 @@ describe('createScheduleTablePanel — 정리', () => {
   it('필요한 요소가 없으면 initialize에서 실패한다', async () => {
     document.body.innerHTML = '';
     const context = createTestContext();
-    const panel = createScheduleTablePanel(panelOptions);
+    const panel = createScheduleTablePanel({
+      ...panelOptions,
+      binding: createInMemoryModelRefBinding(),
+    });
 
     await expect(panel.initialize(context)).rejects.toThrow(/schedule-table/u);
   });
@@ -352,6 +369,7 @@ const publishWith = async (
   context: TestContext,
   tasks: readonly ScheduleTaskRow[],
   dependencies: readonly ScheduleDependencyRow[],
+  assignments: readonly ScheduleAssignmentRow[] = [],
 ): Promise<void> => {
   await context.events.publish('scheduler/schedule-changed', {
     scheduleId: 's1',
@@ -360,6 +378,7 @@ const publishWith = async (
     finish: Date.UTC(2026, 2, 31),
     tasks,
     dependencies,
+    assignments,
     warnings: [],
   });
 };
@@ -847,5 +866,304 @@ describe('createScheduleTablePanel — 초점', () => {
     await publish(context, [row('T001')]);
 
     expect(document.activeElement).toBe(document.body);
+  });
+});
+
+describe('createScheduleTablePanel — 부재 연결', () => {
+  beforeEach(() => {
+    document.body.innerHTML = markup;
+  });
+
+  const MODEL = 'm1' as ModelId;
+  const SLAB = '2YsHnV6bk3PgZdL9uCxWtM' as GlobalId;
+  const WALL = '0BnKdW4tq7SfUcM3vHxZgR' as GlobalId;
+
+  const pair = [row('T001'), row('T002')];
+
+  const link = (
+    taskId: string,
+    productGlobalId: GlobalId,
+    operation: TaskOperation = 'CONSTRUCT',
+  ): ScheduleAssignmentRow => ({
+    taskId: taskId as TaskId,
+    modelRef: 'a.ifc',
+    productGlobalId,
+    operation,
+  });
+
+  /** 부재를 고른 상태로 만든다. 뷰어가 발행하는 것과 같은 Event다. */
+  const select = async (context: TestContext, ...globalIds: GlobalId[]): Promise<void> => {
+    await context.events.publish('selection/changed', {
+      selected: globalIds.map((globalId) => ({ modelId: MODEL, globalId })),
+    });
+  };
+
+  /** 3D 선택 명령을 가로챈다. */
+  const captureShown = (context: TestContext): ProductKey[][] => {
+    const seen: ProductKey[][] = [];
+    context.commands.register('viewer/select-products', (input) => {
+      seen.push([...input.products]);
+      return Promise.resolve({ selected: [] });
+    });
+    return seen;
+  };
+
+  it('부재 칸을 누르면 연결 줄이 열리고 다시 누르면 닫힌다', async () => {
+    const context = createTestContext();
+    await startPanel(context);
+    await publishWith(context, pair, [], []);
+
+    all('task-assigned')[0]?.click();
+    expect(all('assignment-editor')).toHaveLength(1);
+    expect(element('assignment-editor').dataset['taskId']).toBe('T001');
+
+    all('task-assigned')[0]?.click();
+    expect(all('assignment-editor')).toHaveLength(0);
+  });
+
+  it('그 Task에 걸린 부재만 칩으로 늘어놓는다', async () => {
+    const context = createTestContext();
+    await startPanel(context);
+    await publishWith(context, pair, [], [link('T001', SLAB), link('T002', WALL)]);
+
+    all('task-assigned')[0]?.click();
+
+    expect(all('assignment-chip')).toHaveLength(1);
+    expect(element('assignment-chip').dataset['globalId']).toBe(SLAB);
+    expect(element('assignment-label').textContent).toContain('시공');
+  });
+
+  it('걸린 부재가 없으면 없다고 적는다', async () => {
+    const context = createTestContext();
+    await startPanel(context);
+    await publishWith(context, pair, [], []);
+
+    all('task-assigned')[0]?.click();
+
+    expect(element('assignment-empty').textContent).toBe('걸린 부재 없음');
+  });
+
+  it('열려 있지 않은 모델의 부재도 보여 준다', async () => {
+    const context = createTestContext();
+    await startPanel(context);
+    await publishWith(context, pair, [], [link('T001', SLAB)]);
+
+    all('task-assigned')[0]?.click();
+
+    // 모델이 닫혀 있어도 무엇에 걸려 있는지는 보여야 한다. 지울 수도 있어야 한다.
+    expect(element('assignment-chip').dataset['bound']).toBe('false');
+  });
+
+  it('칩을 지우면 연결을 끊는다', async () => {
+    const context = createTestContext();
+    const edits = captureEdits(context);
+    await startPanel(context);
+    await publishWith(context, pair, [], [link('T001', SLAB)]);
+
+    all('task-assigned')[0]?.click();
+    button('assignment-remove').click();
+    await flush();
+
+    expect(edits).toEqual([
+      [
+        {
+          kind: 'unassign-products',
+          taskId: 'T001',
+          modelRef: 'a.ifc',
+          productGlobalIds: [SLAB],
+        },
+      ],
+    ]);
+  });
+
+  it('고른 부재가 없으면 걸기 버튼이 잠긴다', async () => {
+    const context = createTestContext();
+    await startPanel(context);
+    await publishWith(context, pair, [], []);
+
+    all('task-assigned')[0]?.click();
+
+    expect(button('assignment-add').disabled).toBe(true);
+  });
+
+  it('뷰어에서 고른 부재를 Task에 건다', async () => {
+    const context = createTestContext();
+    const edits = captureEdits(context);
+    const binding = createInMemoryModelRefBinding();
+    binding.replaceAll(new Map([['a.ifc', MODEL]]));
+    await startPanel(context, binding);
+    await publishWith(context, pair, [], []);
+
+    all('task-assigned')[0]?.click();
+    await select(context, SLAB, WALL);
+    button('assignment-add').click();
+    await flush();
+
+    // 파일에 적는 값은 modelRef다. 변환은 ModelRefBindingPort 한 곳을 지난다.
+    expect(edits).toEqual([
+      [
+        {
+          kind: 'assign-products',
+          taskId: 'T001',
+          modelRef: 'a.ifc',
+          operation: 'CONSTRUCT',
+          productGlobalIds: [SLAB, WALL],
+        },
+      ],
+    ]);
+  });
+
+  it('고른 operation으로 건다', async () => {
+    const context = createTestContext();
+    const edits = captureEdits(context);
+    const binding = createInMemoryModelRefBinding();
+    binding.replaceAll(new Map([['a.ifc', MODEL]]));
+    await startPanel(context, binding);
+    await publishWith(context, pair, [], []);
+
+    all('task-assigned')[0]?.click();
+    await select(context, SLAB);
+    (element('assignment-operation') as HTMLSelectElement).value = 'DEMOLISH';
+    button('assignment-add').click();
+    await flush();
+
+    expect(edits[0]?.[0]).toMatchObject({ operation: 'DEMOLISH' });
+  });
+
+  it('묶이지 않은 모델의 부재는 걸지 않고 이유를 적는다', async () => {
+    const context = createTestContext();
+    const edits = captureEdits(context);
+    await startPanel(context);
+    await publishWith(context, pair, [], []);
+
+    all('task-assigned')[0]?.click();
+    await select(context, SLAB);
+    button('assignment-add').click();
+    await flush();
+
+    expect(edits).toEqual([]);
+    expect(element('gantt-status').textContent).toContain('모델');
+  });
+
+  it('걸린 부재를 3D에서 고른다', async () => {
+    const context = createTestContext();
+    const shown = captureShown(context);
+    const binding = createInMemoryModelRefBinding();
+    binding.replaceAll(new Map([['a.ifc', MODEL]]));
+    await startPanel(context, binding);
+    await publishWith(context, pair, [], [link('T001', SLAB)]);
+
+    all('task-assigned')[0]?.click();
+    button('assignment-show').click();
+    await flush();
+
+    expect(shown).toEqual([[{ modelId: MODEL, globalId: SLAB }]]);
+  });
+
+  it('열린 모델의 부재가 없으면 3D 보기가 잠긴다', async () => {
+    const context = createTestContext();
+    await startPanel(context);
+    await publishWith(context, pair, [], [link('T001', SLAB)]);
+
+    all('task-assigned')[0]?.click();
+
+    expect(button('assignment-show').disabled).toBe(true);
+  });
+
+  it('일정이 다시 실려도 펼친 연결 줄은 그대로 둔다', async () => {
+    const context = createTestContext();
+    await startPanel(context);
+    await publishWith(context, pair, [], []);
+    all('task-assigned')[0]?.click();
+
+    await publishWith(context, pair, [], [link('T001', SLAB)]);
+
+    expect(all('assignment-editor')).toHaveLength(1);
+    expect(all('assignment-chip')).toHaveLength(1);
+  });
+
+  it('선택이 바뀌면 걸기 버튼이 풀린다', async () => {
+    const context = createTestContext();
+    const binding = createInMemoryModelRefBinding();
+    binding.replaceAll(new Map([['a.ifc', MODEL]]));
+    await startPanel(context, binding);
+    await publishWith(context, pair, [], []);
+    all('task-assigned')[0]?.click();
+
+    await select(context, SLAB);
+
+    expect(button('assignment-add').disabled).toBe(false);
+    expect(element('assignment-add').textContent).toContain('1');
+  });
+});
+
+describe('createScheduleTablePanel — 미연결 Task 필터', () => {
+  beforeEach(() => {
+    document.body.innerHTML = markup;
+  });
+
+  const mixed = [
+    row('W1', { isSummary: true }),
+    row('T001', { depth: 1, parentTaskId: 'W1' as TaskId, assignedCount: 2 }),
+    row('T002', { depth: 1, parentTaskId: 'W1' as TaskId, assignedCount: 0 }),
+  ];
+
+  it('켜면 부재가 걸리지 않은 Task만 남는다', async () => {
+    const context = createTestContext();
+    await startPanel(context);
+    await publish(context, mixed);
+
+    element('filter-unassigned').click();
+
+    // 요약 Task는 자기 부재를 가질 수 없으므로 미연결로 세지 않는다 (ADR-0006).
+    expect(all('task-row').map((node) => node.dataset['taskId'])).toEqual(['T002']);
+  });
+
+  it('다시 누르면 모두 보여 준다', async () => {
+    const context = createTestContext();
+    await startPanel(context);
+    await publish(context, mixed);
+    element('filter-unassigned').click();
+
+    element('filter-unassigned').click();
+
+    expect(all('task-row')).toHaveLength(3);
+  });
+
+  it('켜 둔 상태를 버튼에 남긴다', async () => {
+    const context = createTestContext();
+    await startPanel(context);
+    await publish(context, mixed);
+
+    element('filter-unassigned').click();
+
+    // 목록이 짧아진 이유가 화면에 남아야 한다.
+    expect(element('filter-unassigned').getAttribute('aria-pressed')).toBe('true');
+  });
+
+  it('일정을 다시 실어도 필터를 유지한다', async () => {
+    const context = createTestContext();
+    await startPanel(context);
+    await publish(context, mixed);
+    element('filter-unassigned').click();
+
+    await publish(context, mixed);
+
+    expect(all('task-row').map((node) => node.dataset['taskId'])).toEqual(['T002']);
+  });
+
+  it('부재를 걸면 목록에서 빠진다', async () => {
+    const context = createTestContext();
+    await startPanel(context);
+    await publish(context, mixed);
+    element('filter-unassigned').click();
+
+    await publish(context, [
+      mixed[0]!,
+      mixed[1]!,
+      row('T002', { depth: 1, parentTaskId: 'W1' as TaskId, assignedCount: 1 }),
+    ]);
+
+    expect(all('task-row')).toHaveLength(0);
   });
 });

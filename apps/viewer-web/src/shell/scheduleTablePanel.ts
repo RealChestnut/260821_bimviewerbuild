@@ -1,10 +1,24 @@
 import type { ScheduleEdit } from '@bim4d/domain';
-import type { AppComponent, AppContext, TaskId, Unsubscribe } from '@bim4d/contracts';
+import type {
+  AppComponent,
+  AppContext,
+  ModelRefBindingPort,
+  ProductKey,
+  TaskId,
+  Unsubscribe,
+} from '@bim4d/contracts';
 
 import '../scheduler/schedulerEvents.js';
 import '../simulation/simulationEvents.js';
-import type { ScheduleDependencyRow, ScheduleTaskRow } from '../scheduler/schedulerEvents.js';
+import '../viewer/selection/selectionEvents.js';
+import type {
+  ScheduleAssignmentRow,
+  ScheduleDependencyRow,
+  ScheduleTaskRow,
+} from '../scheduler/schedulerEvents.js';
+import type { SelectedProduct } from '../viewer/selection/selectionEvents.js';
 
+import { createAssignmentEditor } from './scheduleAssignmentEditing.js';
 import {
   createDependencyEditor,
   createDraftRow,
@@ -22,6 +36,10 @@ export interface ScheduleTablePanelOptions {
   readonly statusSelector: string;
   /** 새 Task 줄을 여는 버튼. 머리글에 둔다. */
   readonly addButtonSelector: string;
+  /** 부재가 걸리지 않은 Task만 보여 주는 토글. */
+  readonly filterButtonSelector: string;
+  /** 일정의 modelRef와 적재된 모델을 잇는 자리. 부재를 걸고 3D에서 찾을 때 쓴다. */
+  readonly binding: ModelRefBindingPort;
 }
 
 const DAY = 86_400_000;
@@ -87,6 +105,7 @@ export const createScheduleTablePanel = (options: ScheduleTablePanelOptions): Ap
   let cursor: HTMLElement | null = null;
   let statusText: HTMLElement | null = null;
   let addButton: HTMLElement | null = null;
+  let filterButton: HTMLElement | null = null;
 
   /** 지금 그리고 있는 기간. 커서를 놓을 때 다시 쓴다. */
   let span: { readonly start: number; readonly end: number } | null = null;
@@ -95,8 +114,15 @@ export const createScheduleTablePanel = (options: ScheduleTablePanelOptions): Ap
 
   /** 선후행 줄을 펼쳐 둔 Task. 다시 그려도 유지한다. */
   let linksTaskId: TaskId | null = null;
+  /** 부재 연결 줄을 펼쳐 둔 Task. */
+  let assignTaskId: TaskId | null = null;
+  let assignments: readonly ScheduleAssignmentRow[] = [];
+  /** 지금 뷰어에서 고른 부재. 걸기 버튼이 무엇을 걸지가 여기서 정해진다. */
+  let selection: readonly SelectedProduct[] = [];
   /** 새 Task 줄을 열어 두었는가. */
   let drafting = false;
+  /** 부재가 걸리지 않은 Task만 보여 주는가. */
+  let onlyUnassigned = false;
   /** 방금 연 칸. 편집 뒤 표를 다시 그려도 같은 자리로 돌아가려고 기억한다. */
   let openCell: { readonly taskId: TaskId; readonly testId: string } | null = null;
   /**
@@ -132,6 +158,12 @@ export const createScheduleTablePanel = (options: ScheduleTablePanelOptions): Ap
       }
       onDone?.();
     })();
+  };
+
+  /** 부재를 3D에서 고르게 한다. 고르는 일의 주인은 Viewer다. */
+  const showInViewer = (products: readonly ProductKey[]): void => {
+    if (context === null || products.length === 0) return;
+    void context.commands.dispatch('viewer/select-products', { products });
   };
 
   const remember = (row: ScheduleTaskRow, testId: string): void => {
@@ -217,7 +249,7 @@ export const createScheduleTablePanel = (options: ScheduleTablePanelOptions): Ap
       name,
       start,
       finish,
-      cell('task-assigned', String(row.assignedCount)),
+      assignedCell(row),
       createRowActions({
         row,
         rows,
@@ -232,6 +264,25 @@ export const createScheduleTablePanel = (options: ScheduleTablePanelOptions): Ap
       track,
     );
     return item;
+  };
+
+  /** 부재 수 칸. 누르면 그 Task의 연결 줄을 펼친다. */
+  const assignedCell = (row: ScheduleTaskRow): HTMLElement => {
+    const node = cell('task-assigned', String(row.assignedCount));
+    node.dataset['expandable'] = 'true';
+    node.tabIndex = 0;
+
+    const toggle = (): void => {
+      assignTaskId = assignTaskId === row.taskId ? null : row.taskId;
+      drawRows();
+    };
+    node.addEventListener('click', toggle);
+    node.addEventListener('keydown', (event) => {
+      if (event.key !== 'Enter') return;
+      event.preventDefault();
+      toggle();
+    });
+    return node;
   };
 
   /** 방금 열었던 칸으로 초점을 되돌린다. 다시 그리면 열려 있던 입력칸이 사라진다. */
@@ -253,9 +304,20 @@ export const createScheduleTablePanel = (options: ScheduleTablePanelOptions): Ap
     if (linksTaskId !== null && !rows.some((row) => row.taskId === linksTaskId)) {
       linksTaskId = null;
     }
+    if (assignTaskId !== null && !rows.some((row) => row.taskId === assignTaskId)) {
+      assignTaskId = null;
+    }
+
+    /*
+     * 미연결만 보는 동안에는 요약 Task를 빼고 부재가 없는 줄만 남긴다. 요약 Task는 자기
+     * 부재를 가질 수 없으므로(ADR-0006) "연결이 없다"가 아니라 "연결할 수 없다"다.
+     */
+    const visible = onlyUnassigned
+      ? rows.filter((row) => !row.isSummary && row.assignedCount === 0)
+      : rows;
 
     const items: HTMLLIElement[] = [];
-    for (const row of rows) {
+    for (const row of visible) {
       items.push(createRow(row));
       if (linksTaskId === row.taskId) {
         items.push(
@@ -265,6 +327,19 @@ export const createScheduleTablePanel = (options: ScheduleTablePanelOptions): Ap
             dependencies,
             submit,
             write,
+          }),
+        );
+      }
+      if (assignTaskId === row.taskId) {
+        items.push(
+          createAssignmentEditor({
+            taskId: row.taskId,
+            assignments,
+            selection,
+            binding: options.binding,
+            submit,
+            write,
+            showInViewer,
           }),
         );
       }
@@ -332,8 +407,16 @@ export const createScheduleTablePanel = (options: ScheduleTablePanelOptions): Ap
     drawRows();
   };
 
+  const onToggleFilter = (): void => {
+    onlyUnassigned = !onlyUnassigned;
+    // 목록이 짧아진 이유가 화면에 남아야 한다.
+    filterButton?.setAttribute('aria-pressed', String(onlyUnassigned));
+    drawRows();
+  };
+
   const detach = (): void => {
     addButton?.removeEventListener('click', onAdd);
+    filterButton?.removeEventListener('click', onToggleFilter);
     for (const unsubscribe of subscriptions) unsubscribe();
     subscriptions = [];
   };
@@ -349,6 +432,7 @@ export const createScheduleTablePanel = (options: ScheduleTablePanelOptions): Ap
         cursor = requireElement(options.cursorSelector);
         statusText = requireElement(options.statusSelector);
         addButton = requireElement(options.addButtonSelector);
+        filterButton = requireElement(options.filterButtonSelector);
       } catch (cause) {
         return Promise.reject(cause instanceof Error ? cause : new Error(String(cause)));
       }
@@ -365,6 +449,7 @@ export const createScheduleTablePanel = (options: ScheduleTablePanelOptions): Ap
       if (subscriptions.length > 0) return Promise.resolve();
 
       addButton?.addEventListener('click', onAdd);
+      filterButton?.addEventListener('click', onToggleFilter);
 
       subscriptions = [
         context.events.subscribe('scheduler/schedule-changed', ({ payload }) => {
@@ -372,6 +457,7 @@ export const createScheduleTablePanel = (options: ScheduleTablePanelOptions): Ap
 
           rows = payload.tasks;
           dependencies = payload.dependencies;
+          assignments = payload.assignments;
 
           if (payload.start === undefined || payload.finish === undefined) {
             // 시간이 확정된 Task가 하나도 없으면 그릴 기간이 없다.
@@ -394,6 +480,11 @@ export const createScheduleTablePanel = (options: ScheduleTablePanelOptions): Ap
           failureCount += 1;
           write(`편집 실패: ${payload.reason}`);
         }),
+        context.events.subscribe('selection/changed', ({ payload }) => {
+          selection = payload.selected;
+          // 연결 줄을 펼쳐 두지 않았으면 그릴 것이 없다. 편집 중인 칸을 헛되이 닫지 않는다.
+          if (assignTaskId !== null) drawRows();
+        }),
         context.events.subscribe('simulation/time-changed', ({ payload }) => {
           moveCursor(payload.time);
         }),
@@ -413,7 +504,11 @@ export const createScheduleTablePanel = (options: ScheduleTablePanelOptions): Ap
       rows = [];
       dependencies = [];
       linksTaskId = null;
+      assignTaskId = null;
+      assignments = [];
+      selection = [];
       drafting = false;
+      onlyUnassigned = false;
       openCell = null;
       panel = null;
       axis = null;
@@ -421,6 +516,7 @@ export const createScheduleTablePanel = (options: ScheduleTablePanelOptions): Ap
       cursor = null;
       statusText = null;
       addButton = null;
+      filterButton = null;
       context = null;
       return Promise.resolve();
     },

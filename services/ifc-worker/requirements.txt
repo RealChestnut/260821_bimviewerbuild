@@ -1,0 +1,2 @@
+# IFC Worker 실행 조건. 버전을 고정한다 (ADR-0009).
+ifcopenshell==0.8.5

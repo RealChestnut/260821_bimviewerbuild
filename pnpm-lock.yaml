@@ -81,6 +81,12 @@ importers:
         specifier: workspace:*
         version: link:../contracts
 
+  packages/ifc-worker-client:
+    dependencies:
+      '@bim4d/contracts':
+        specifier: workspace:*
+        version: link:../contracts
+
   packages/test-fixtures:
     devDependencies:
       '@bim4d/domain':

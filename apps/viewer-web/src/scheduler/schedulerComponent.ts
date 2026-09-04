@@ -95,6 +95,7 @@ export const createSchedulerComponent = (options: SchedulerComponentOptions): Ap
       ...(finish === undefined ? {} : { finish }),
       tasks: toRows(schedule),
       dependencies: schedule.dependencies,
+      assignments: schedule.assignments,
       warnings: toWarnings(schedule),
     });
   };

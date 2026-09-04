@@ -72,7 +72,7 @@ C# WPF Desktop Shell
 ### 3.2 각 기술의 책임
 
 | 영역 | 기술 | 책임 |
-|---|---|---|
+|--------------|-------------|-------------------------------------------------------|
 | Desktop Host | C#/.NET/WPF | 창, 메뉴, 파일 대화상자, 프로세스 관리, 설치·업데이트 |
 | Web Container | WebView2 | TypeScript UI와 3D Viewer 실행 |
 | Viewer | That Open Components, Three.js | IFC/Fragments 표시, 선택, 강조, 단면, 가시성 |
@@ -252,6 +252,7 @@ services/
 packages/
  ├─ contracts/           Command, Event, DTO
  ├─ domain/              순수 도메인 규칙
+ ├─ ifc-worker-client/   Python Worker와 말하는 stdio 클라이언트 (ADR-0009)
  └─ test-fixtures/       IFC와 일정 fixture
 tests/
  ├─ integration/

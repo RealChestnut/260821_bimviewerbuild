@@ -13,6 +13,10 @@ export interface SchedulerPanelOptions {
   readonly panelSelector: string;
   readonly nameSelector: string;
   readonly warningListSelector: string;
+  /** 모델이 바뀌었다는 알림을 그릴 자리. */
+  readonly replacementListSelector: string;
+  /** 미연결 부재를 3D에서 고르는 버튼. */
+  readonly selectUnassignedSelector: string;
   readonly statusSelector: string;
   readonly exportJsonSelector: string;
   readonly exportCsvSelector: string;
@@ -23,14 +27,15 @@ export interface SchedulerPanelOptions {
 /**
  * CSV 묶음의 파일 이름과 역할.
  *
- * 이름이 곧 역할이다 (ADR-0007). `dependencies.csv`만 없어도 된다. 선후행이 없는 일정이
- * 정상이기 때문이다.
+ * 이름이 곧 역할이다 (ADR-0007). `dependencies.csv`와 `models.csv`는 없어도 된다. 선후행이
+ * 없는 일정도, 아는 fingerprint가 없는 일정도 정상이기 때문이다 (ADR-0008).
  */
 const CSV_ROLES: ReadonlyMap<string, keyof ScheduleCsvBundle> = new Map([
   ['schedule.csv', 'schedule'],
   ['tasks.csv', 'tasks'],
   ['assignments.csv', 'assignments'],
   ['dependencies.csv', 'dependencies'],
+  ['models.csv', 'models'],
 ]);
 
 const REQUIRED_CSV_ROLES = ['schedule', 'tasks', 'assignments'] as const;
@@ -79,6 +84,8 @@ export const createSchedulerPanel = (options: SchedulerPanelOptions): AppCompone
   let panel: HTMLElement | null = null;
   let nameText: HTMLElement | null = null;
   let warningList: HTMLElement | null = null;
+  let replacementList: HTMLElement | null = null;
+  let selectUnassignedButton: HTMLElement | null = null;
   let statusText: HTMLElement | null = null;
   let exportJsonButton: HTMLElement | null = null;
   let exportCsvButton: HTMLElement | null = null;
@@ -86,6 +93,81 @@ export const createSchedulerPanel = (options: SchedulerPanelOptions): AppCompone
 
   const write = (target: HTMLElement | null, value: string): void => {
     if (target !== null) target.textContent = value;
+  };
+
+  /**
+   * 모델이 바뀌었다는 알림 한 줄.
+   *
+   * 묶기는 이미 됐다. 여기서 묻는 것은 "이 파일을 이 이름의 정본으로 삼을까"이며,
+   * fingerprint를 자동으로 갱신하지 않기로 했으므로 사용자가 고른다 (ADR-0008).
+   */
+  const createReplacementRow = (modelRef: string): HTMLLIElement => {
+    const item = document.createElement('li');
+    item.dataset['testid'] = 'model-replaced';
+    item.dataset['modelRef'] = modelRef;
+
+    const label = document.createElement('span');
+    label.textContent = `${modelRef}의 파일 내용이 일정이 아는 것과 다르다.`;
+
+    const adopt = document.createElement('button');
+    adopt.type = 'button';
+    adopt.dataset['testid'] = 'model-adopt';
+    adopt.textContent = '이 모델로 교체';
+    adopt.addEventListener('click', () => {
+      onAdopt(modelRef);
+    });
+
+    item.append(label, adopt);
+    return item;
+  };
+
+  const onAdopt = (modelRef: string): void => {
+    if (context === null) return;
+    const app = context;
+
+    void (async () => {
+      const result = await app.commands.dispatch('scheduler/adopt-model', { modelRef });
+      if (!result.ok) {
+        write(statusText, `모델 교체 실패: ${result.error.message}`);
+        return;
+      }
+
+      const missing = result.value.missing.length;
+      // 사라진 부재의 연결은 지우지 않는다. 무엇을 잃을지 알려 주고 결정은 사용자가 한다.
+      write(
+        statusText,
+        missing === 0
+          ? `${modelRef}를 새 파일로 바꿨다. 사라진 부재는 없다.`
+          : `${modelRef}를 새 파일로 바꿨다. 새 모델에 없는 부재 ${String(missing)}개의 연결이 남아 있다.`,
+      );
+    })();
+  };
+
+  /**
+   * 어느 Task에도 걸리지 않은 부재를 3D에서 고른다.
+   *
+   * 목록으로 세어 보여 주는 것보다 3D에서 보이는 편이 빠르다. 무엇이 남았는지 눈으로
+   * 확인하는 길이다.
+   */
+  const onSelectUnassigned = (): void => {
+    if (context === null) return;
+    const app = context;
+
+    void (async () => {
+      const result = await app.commands.dispatch('scheduler/select-unassigned-products', {});
+      if (!result.ok) {
+        write(statusText, `미연결 부재 찾기 실패: ${result.error.message}`);
+        return;
+      }
+
+      const { count } = result.value;
+      write(
+        statusText,
+        count === 0
+          ? '열린 모델에 미연결 부재가 없다.'
+          : `미연결 부재 ${String(count)}개를 3D에서 골랐다.`,
+      );
+    })();
   };
 
   const createWarningRow = (warning: ScheduleWarningRow): HTMLLIElement => {
@@ -119,12 +201,14 @@ export const createSchedulerPanel = (options: SchedulerPanelOptions): AppCompone
     }
 
     const dependencies = collected.get('dependencies');
+    const models = collected.get('models');
     return {
       schedule: collected.get('schedule') ?? '',
       tasks: collected.get('tasks') ?? '',
       assignments: collected.get('assignments') ?? '',
       // 없으면 필드를 만들지 않는다. 빈 문자열은 "헤더가 없는 파일"이라 거부당한다.
       ...(dependencies === undefined ? {} : { dependencies }),
+      ...(models === undefined ? {} : { models }),
     };
   };
 
@@ -185,6 +269,7 @@ export const createSchedulerPanel = (options: SchedulerPanelOptions): AppCompone
 
   const detach = (): void => {
     fileInput?.removeEventListener('change', onFileChosen);
+    selectUnassignedButton?.removeEventListener('click', onSelectUnassigned);
     exportJsonButton?.removeEventListener('click', onExportJson);
     exportCsvButton?.removeEventListener('click', onExportCsv);
     for (const unsubscribe of subscriptions) unsubscribe();
@@ -200,6 +285,8 @@ export const createSchedulerPanel = (options: SchedulerPanelOptions): AppCompone
         panel = requireElement(options.panelSelector);
         nameText = requireElement(options.nameSelector);
         warningList = requireElement(options.warningListSelector);
+        replacementList = requireElement(options.replacementListSelector);
+        selectUnassignedButton = requireElement(options.selectUnassignedSelector);
         statusText = requireElement(options.statusSelector);
         exportJsonButton = requireElement(options.exportJsonSelector);
         exportCsvButton = requireElement(options.exportCsvSelector);
@@ -220,6 +307,7 @@ export const createSchedulerPanel = (options: SchedulerPanelOptions): AppCompone
       if (subscriptions.length > 0) return Promise.resolve();
 
       fileInput.addEventListener('change', onFileChosen);
+      selectUnassignedButton?.addEventListener('click', onSelectUnassigned);
       exportJsonButton?.addEventListener('click', onExportJson);
       exportCsvButton?.addEventListener('click', onExportCsv);
 
@@ -230,6 +318,9 @@ export const createSchedulerPanel = (options: SchedulerPanelOptions): AppCompone
           write(statusText, '');
 
           warningList?.replaceChildren(...payload.warnings.map(createWarningRow));
+        }),
+        context.events.subscribe('scheduler/model-binding-changed', ({ payload }) => {
+          replacementList?.replaceChildren(...payload.replacedRefs.map(createReplacementRow));
         }),
         context.events.subscribe('scheduler/load-failed', ({ payload }) => {
           // 앞서 실린 일정은 그대로 둔다. 읽지 못한 파일 때문에 쓰던 것을 지우지 않는다.
@@ -253,6 +344,8 @@ export const createSchedulerPanel = (options: SchedulerPanelOptions): AppCompone
       panel = null;
       nameText = null;
       warningList = null;
+      replacementList = null;
+      selectUnassignedButton = null;
       statusText = null;
       context = null;
       return Promise.resolve();

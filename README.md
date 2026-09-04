@@ -7,11 +7,12 @@
 - IFC 기술 기준서: [docs/IFC_통합_정리_2026-08-20.md](docs/IFC_통합_정리_2026-08-20.md)
 - 결정 기록: [docs/adr/](docs/adr/)
 
-현재 단계는 **Phase 6 — IFC–Task 매칭**이다. Phase 0~5가 `main`에 들어가 있다.
+현재 단계는 **Phase 8 — C# Desktop Shell**이다. Phase 0~7이 `main`에 들어가 있다.
 
 ## 요구 환경
 
 - Node.js 22 이상
+- Python 3.11 이상 (IFC Worker를 시험할 때만. `pip install -r services/ifc-worker/requirements-dev.txt`)
 - pnpm 10.34.5 (`npm i -g pnpm@10`)
 - Playwright 브라우저 (`pnpm exec playwright install chromium`)
 
@@ -53,6 +54,8 @@ pnpm dev            # 다른 터미널에서 Vite 개발 서버
 | `pnpm format:check` | Prettier 형식 검사                                     |
 | `pnpm test`         | Vitest 단위·계약 테스트                                |
 | `pnpm test:e2e`     | Playwright 브라우저 테스트 (빌드 후 preview 서버 기동) |
+| `pnpm test:python`  | IFC Worker의 pytest (Python과 ifcopenshell 필요)       |
+| `pnpm test:worker`  | 실제 Worker를 띄워 stdio 규약과 수명을 검사            |
 | `pnpm build`        | 패키지와 Viewer 웹 앱 빌드                             |
 | `pnpm dev`          | Viewer 웹 앱 개발 서버                                 |
 | `pnpm dev:packages` | `packages/**`를 감시하며 `dist` 갱신                   |
@@ -69,6 +72,7 @@ services/
 packages/
  ├─ contracts/           Command, Event, DTO 타입 계약
  ├─ domain/              순수 도메인 규칙
+ ├─ ifc-worker-client/   Python Worker와 말하는 stdio 클라이언트 (ADR-0009)
  └─ test-fixtures/       IFC와 일정 fixture
 tests/
  ├─ e2e/                 Playwright 시나리오

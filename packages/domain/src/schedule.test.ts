@@ -135,18 +135,19 @@ const validV2 = {
 const changeV2 = (patch: Record<string, unknown>): unknown => ({ ...validV2, ...patch });
 
 describe('parseSchedule — v1 승격', () => {
-  it('v1을 읽으면 내부 표현은 v2가 된다', () => {
+  it('v1을 읽으면 내부 표현은 v3가 된다', () => {
     const parsed = parseSchedule(valid);
     if (!parsed.ok) throw new Error(parsed.error.message);
 
-    // 읽는 쪽이 버전을 분기하지 않도록 하나로 맞춘다 (ADR-0006).
-    expect(parsed.value.schemaVersion).toBe(2);
+    // 읽는 쪽이 버전을 분기하지 않도록 하나로 맞춘다 (ADR-0006, ADR-0008).
+    expect(parsed.value.schemaVersion).toBe(3);
     expect(parsed.value.dependencies).toEqual([]);
+    expect(parsed.value.models).toEqual([]);
     expect(parsed.value.tasks[0]?.parentTaskId).toBeUndefined();
   });
 
-  it('v1도 v2도 아닌 버전은 거부한다', () => {
-    expect(errorCode({ ...valid, schemaVersion: 3 })).toBe('schedule.parse.unsupported-version');
+  it('아는 버전이 아니면 거부한다', () => {
+    expect(errorCode({ ...valid, schemaVersion: 4 })).toBe('schedule.parse.unsupported-version');
   });
 });
 
@@ -338,5 +339,121 @@ describe('parseSchedule — 선후행', () => {
     );
 
     expect(parsed.ok).toBe(true);
+  });
+});
+
+describe('parseSchedule — 할당 중복', () => {
+  const SLAB = '2YsHnV6bk3PgZdL9uCxWtM';
+
+  it('같은 Task에 같은 부재를 두 번 걸면 거부한다', () => {
+    // 같은 줄이 둘이면 부재 수가 부풀고 시뮬레이션이 같은 상태를 두 번 센다.
+    expect(
+      errorCode({
+        ...valid,
+        assignments: [
+          { taskId: 'T001', modelRef: 'a.ifc', productGlobalId: WALL, operation: 'CONSTRUCT' },
+          { taskId: 'T001', modelRef: 'a.ifc', productGlobalId: WALL, operation: 'DEMOLISH' },
+        ],
+      }),
+    ).toBe('schedule.parse.duplicate-assignment');
+  });
+
+  it('같은 부재를 다른 Task에 거는 것은 받는다', () => {
+    // 시공한 뒤 철거하는 것은 정상이다. 충돌 여부는 경고로 알린다.
+    expect(
+      errorCode({
+        ...valid,
+        tasks: [
+          { taskId: 'T001', name: '시공', start: '2026-03-02', finish: '2026-03-06' },
+          { taskId: 'T002', name: '철거', start: '2026-03-09', finish: '2026-03-13' },
+        ],
+        assignments: [
+          { taskId: 'T001', modelRef: 'a.ifc', productGlobalId: WALL, operation: 'CONSTRUCT' },
+          { taskId: 'T002', modelRef: 'a.ifc', productGlobalId: WALL, operation: 'DEMOLISH' },
+        ],
+      }),
+    ).toBeUndefined();
+  });
+
+  it('다른 모델의 같은 GlobalId는 중복이 아니다', () => {
+    expect(
+      errorCode({
+        ...valid,
+        assignments: [
+          { taskId: 'T001', modelRef: 'a.ifc', productGlobalId: WALL, operation: 'CONSTRUCT' },
+          { taskId: 'T001', modelRef: 'b.ifc', productGlobalId: WALL, operation: 'CONSTRUCT' },
+        ],
+      }),
+    ).toBeUndefined();
+  });
+
+  it('같은 Task의 다른 부재는 중복이 아니다', () => {
+    expect(
+      errorCode({
+        ...valid,
+        assignments: [
+          { taskId: 'T001', modelRef: 'a.ifc', productGlobalId: WALL, operation: 'CONSTRUCT' },
+          { taskId: 'T001', modelRef: 'a.ifc', productGlobalId: SLAB, operation: 'CONSTRUCT' },
+        ],
+      }),
+    ).toBeUndefined();
+  });
+});
+
+describe('parseSchedule — models (v3)', () => {
+  const FINGERPRINT = 'a'.repeat(64);
+
+  const withModels = (models: unknown): unknown => ({ ...valid, schemaVersion: 3, models });
+
+  it('modelRef와 fingerprint를 읽는다', () => {
+    const parsed = parseSchedule(withModels([{ modelRef: 'a.ifc', fingerprint: FINGERPRINT }]));
+    if (!parsed.ok) throw new Error(parsed.error.message);
+
+    expect(parsed.value.models).toEqual([{ modelRef: 'a.ifc', fingerprint: FINGERPRINT }]);
+  });
+
+  it('fingerprint는 생략할 수 있다', () => {
+    // 손으로 만든 일정에는 fingerprint가 없다. 그런 일정은 이름 대조로만 묶인다 (ADR-0008).
+    const parsed = parseSchedule(withModels([{ modelRef: 'a.ifc' }]));
+    if (!parsed.ok) throw new Error(parsed.error.message);
+
+    expect(parsed.value.models[0]?.fingerprint).toBeUndefined();
+  });
+
+  it('models 자체를 생략해도 읽는다', () => {
+    const parsed = parseSchedule({ ...valid, schemaVersion: 3 });
+    if (!parsed.ok) throw new Error(parsed.error.message);
+
+    expect(parsed.value.models).toEqual([]);
+  });
+
+  it('fingerprint가 소문자 hex 64자가 아니면 거부한다', () => {
+    expect(errorCode(withModels([{ modelRef: 'a.ifc', fingerprint: 'ABC' }]))).toBe(
+      'schedule.parse.invalid-fingerprint',
+    );
+    expect(errorCode(withModels([{ modelRef: 'a.ifc', fingerprint: 'A'.repeat(64) }]))).toBe(
+      'schedule.parse.invalid-fingerprint',
+    );
+  });
+
+  it('modelRef가 비면 거부한다', () => {
+    expect(errorCode(withModels([{ modelRef: '  ' }]))).toBe('schedule.parse.invalid-model-ref');
+  });
+
+  it('modelRef가 중복이면 거부한다', () => {
+    // 한 이름에 두 fingerprint가 적히면 어느 파일이 정본인지 알 수 없다.
+    expect(
+      errorCode(
+        withModels([{ modelRef: 'a.ifc' }, { modelRef: 'a.ifc', fingerprint: FINGERPRINT }]),
+      ),
+    ).toBe('schedule.parse.duplicate-model-ref');
+  });
+
+  it('부재가 걸리지 않은 모델도 적을 수 있다', () => {
+    // models는 assignments에서 유도되는 목록이 아니다. fingerprint라는 사실을 담는다.
+    const parsed = parseSchedule(withModels([{ modelRef: '설비.ifc', fingerprint: FINGERPRINT }]));
+    if (!parsed.ok) throw new Error(parsed.error.message);
+
+    expect(parsed.value.models).toHaveLength(1);
   });
 });

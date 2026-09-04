@@ -7,7 +7,8 @@ import { createInMemoryScheduleRepository } from './inMemoryScheduleRepository.j
 const schedule = (scheduleId: string): Schedule => ({
   scheduleId,
   name: '시험',
-  schemaVersion: 2,
+  schemaVersion: 3,
+  models: [],
   tasks: [],
   dependencies: [],
   assignments: [],

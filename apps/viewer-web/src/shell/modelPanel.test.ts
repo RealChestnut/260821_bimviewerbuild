@@ -63,6 +63,7 @@ describe('createModelPanel', () => {
       modelId: 'm1' as ModelId,
       displayName: 'wall.ifc',
       schema: 'IFC4',
+      fingerprint: '0'.repeat(64),
     });
 
     expect(status()).toBe('wall.ifc (IFC4)');
@@ -90,6 +91,7 @@ describe('createModelPanel', () => {
       modelId: 'm1' as ModelId,
       displayName: 'wall.ifc',
       schema: 'IFC4',
+      fingerprint: '0'.repeat(64),
     });
     await context.events.publish('model/unloaded', { modelId: 'm1' as ModelId });
 
@@ -110,6 +112,7 @@ describe('createModelPanel', () => {
       modelId: 'm1' as ModelId,
       displayName: 'wall.ifc',
       schema: 'IFC4',
+      fingerprint: '0'.repeat(64),
     });
     unloadButton().click();
     await vi.waitFor(() => {
@@ -130,6 +133,7 @@ describe('createModelPanel', () => {
       modelId: 'm1' as ModelId,
       displayName: 'wall.ifc',
       schema: 'IFC4',
+      fingerprint: '0'.repeat(64),
     });
 
     expect(status()).toBe('untouched');
@@ -150,6 +154,7 @@ describe('createModelPanel', () => {
       modelId: 'm1' as ModelId,
       displayName: 'wall.ifc',
       schema: 'IFC4',
+      fingerprint: '0'.repeat(64),
     });
     expect(input.disabled).toBe(false);
   });

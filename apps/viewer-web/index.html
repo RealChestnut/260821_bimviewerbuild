@@ -153,6 +153,25 @@
         margin: 0;
       }
 
+      #schedule-panel button {
+        font: inherit;
+        font-size: 0.72rem;
+        line-height: 1.1;
+        padding: 0.1rem 0.35rem;
+        color: inherit;
+        background: none;
+        border: 1px solid rgb(128 128 128 / 40%);
+        border-radius: 3px;
+        cursor: pointer;
+        white-space: nowrap;
+      }
+
+      /* 켜 둔 필터는 눌린 채로 보인다. 목록이 짧아진 이유가 화면에 남아야 한다. */
+      #schedule-panel button[aria-pressed='true'] {
+        background: rgb(79 140 255 / 18%);
+        border-color: rgb(79 140 255 / 60%);
+      }
+
       /*
        * 표와 막대를 한 줄에 둔다. 열 칸은 폭이 고정이고 막대 칸이 남는 자리를 전부 쓴다.
        * 커서는 열 칸 폭만큼 밀어야 하므로 그 합을 변수 하나로 둔다.
@@ -331,6 +350,7 @@
        * 위 줄에 딸린 것으로 보이게 한다.
        */
       #schedule-table li[data-testid='dependency-editor'],
+      #schedule-table li[data-testid='assignment-editor'],
       #schedule-table li[data-testid='task-draft'] {
         display: flex;
         align-items: center;
@@ -342,9 +362,61 @@
 
       #schedule-table li[data-testid='dependency-editor'] select,
       #schedule-table li[data-testid='dependency-editor'] input,
+      #schedule-table li[data-testid='assignment-editor'] select,
       #schedule-table li[data-testid='task-draft'] input {
         width: auto;
         max-width: 9rem;
+      }
+
+      /* 부재 수 칸을 누르면 그 Task의 연결 줄이 열린다. */
+      #schedule-table [data-testid='task-assigned'][data-expandable='true'] {
+        cursor: pointer;
+        text-decoration: underline dotted;
+        text-underline-offset: 2px;
+      }
+
+      #schedule-table [data-testid='assignment-chips'] {
+        display: flex;
+        align-items: center;
+        gap: 0.25rem;
+        min-width: 12rem;
+        overflow: hidden;
+      }
+
+      #schedule-table [data-testid='assignment-chip'] {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.2rem;
+        padding: 0 0.15rem 0 0.35rem;
+        border: 1px solid rgb(128 128 128 / 40%);
+        border-radius: 999px;
+        white-space: nowrap;
+      }
+
+      /* 모델이 열려 있지 않은 연결. 지울 수는 있지만 3D에서 찾을 수는 없다. */
+      #schedule-table [data-testid='assignment-chip'][data-bound='false'] {
+        opacity: 0.55;
+        border-style: dashed;
+      }
+
+      #schedule-table [data-testid='assignment-empty'] {
+        opacity: 0.6;
+      }
+
+      #schedule-table li [data-testid='assignment-remove'],
+      #schedule-table li [data-testid='assignment-show'],
+      #schedule-table li [data-testid='assignment-add'] {
+        flex: none;
+        font: inherit;
+        font-size: 0.72rem;
+        line-height: 1.1;
+        padding: 0.05rem 0.3rem;
+        color: inherit;
+        background: none;
+        border: 1px solid rgb(128 128 128 / 40%);
+        border-radius: 3px;
+        cursor: pointer;
+        white-space: nowrap;
       }
 
       #schedule-table [data-testid='dependency-chips'] {
@@ -366,6 +438,37 @@
 
       #schedule-table [data-testid='dependency-empty'] {
         opacity: 0.6;
+      }
+
+      /* 모델이 바뀌었다는 알림. 사용자가 정본으로 삼을지 고른다 (ADR-0008). */
+      #model-replacements {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0 0.5rem;
+        list-style: none;
+        margin: 0;
+        padding: 0;
+      }
+
+      #model-replacements li {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.3rem;
+        padding: 0.1rem 0;
+        color: rgb(180 90 0);
+      }
+
+      #model-replacements button {
+        font: inherit;
+        font-size: 0.72rem;
+        line-height: 1.1;
+        padding: 0.05rem 0.3rem;
+        color: inherit;
+        background: none;
+        border: 1px solid rgb(180 90 0 / 60%);
+        border-radius: 3px;
+        cursor: pointer;
+        white-space: nowrap;
       }
 
       #schedule-warnings {
@@ -656,6 +759,11 @@
       <div id="schedule-dock">
         <section id="schedule-panel" data-testid="schedule-panel" hidden>
           <h2 data-testid="schedule-name">일정 없음</h2>
+          <button type="button" data-testid="filter-unassigned" aria-pressed="false">
+            미연결 Task만
+          </button>
+          <button type="button" data-testid="select-unassigned">미연결 부재 고르기</button>
+          <ul id="model-replacements" data-testid="model-replacements"></ul>
           <ul id="schedule-warnings" data-testid="schedule-warnings"></ul>
         </section>
         <section id="schedule-table" data-testid="schedule-table" hidden>

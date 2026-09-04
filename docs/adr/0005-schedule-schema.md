@@ -56,6 +56,8 @@ Phase 4(Mock 4D Simulation)는 "고정 JSON 일정 fixture"로 시작하므로 �
 
 ### modelRef 바인딩
 
+> **대체됨 (ADR-0008).** 이 절의 파일명 대조는 잠정이었고 `docs/adr/0008-model-ref-fingerprint-binding.md`가 fingerprint 우선 규칙으로 대체했다. 아래는 v1 시절의 기록이다.
+
 `modelRef`는 파일명이고, 적재된 모델의 `displayName`과 일치할 때 `ModelId`로 묶인다. 열려 있지 않은 모델의 할당은 시뮬레이션에서 조용히 제외되며, 그 모델이 나중에 열리면 그 시점에 묶여 현재 시각의 상태가 적용된다.
 
 이는 **잠정 수단이다.** 같은 파일명을 가진 서로 다른 모델을 구분하지 못하고, 파일명이 바뀌면 연결이 끊어진다. Phase 6(모델 교체 및 GlobalId 재매칭)에서 fingerprint 기반으로 강화한다.

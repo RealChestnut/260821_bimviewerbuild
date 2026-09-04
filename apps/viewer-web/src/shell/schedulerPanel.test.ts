@@ -2,7 +2,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { ScheduleCsvBundle, ScheduleCsvFile } from '@bim4d/domain';
-import type { TaskId } from '@bim4d/contracts';
+import type { GlobalId, TaskId } from '@bim4d/contracts';
 
 import { createTestContext } from '../kernel/testing/testContext.js';
 import type { TestContext } from '../kernel/testing/testContext.js';
@@ -15,6 +15,8 @@ const markup = `
   <input type="file" data-testid="schedule-file" multiple />
   <aside data-testid="schedule-panel" hidden>
     <p data-testid="schedule-name"></p>
+    <button type="button" data-testid="select-unassigned"></button>
+    <ul data-testid="model-replacements"></ul>
     <ul data-testid="schedule-warnings"></ul>
   </aside>
   <button type="button" data-testid="schedule-export-json"></button>
@@ -40,6 +42,8 @@ const startPanel = async (context: TestContext) => {
     panelSelector: '[data-testid="schedule-panel"]',
     nameSelector: '[data-testid="schedule-name"]',
     warningListSelector: '[data-testid="schedule-warnings"]',
+    replacementListSelector: '[data-testid="model-replacements"]',
+    selectUnassignedSelector: '[data-testid="select-unassigned"]',
     statusSelector: '[data-testid="schedule-status"]',
     exportJsonSelector: '[data-testid="schedule-export-json"]',
     exportCsvSelector: '[data-testid="schedule-export-csv"]',
@@ -73,6 +77,7 @@ const publishSchedule = (
     finish: Date.UTC(2026, 2, 13),
     tasks,
     dependencies: [],
+    assignments: [],
     warnings,
   });
 
@@ -353,11 +358,160 @@ describe('createSchedulerPanel', () => {
       panelSelector: '[data-testid="schedule-panel"]',
       nameSelector: '[data-testid="schedule-name"]',
       warningListSelector: '[data-testid="schedule-warnings"]',
+      replacementListSelector: '[data-testid="model-replacements"]',
+      selectUnassignedSelector: '[data-testid="select-unassigned"]',
       statusSelector: '[data-testid="schedule-status"]',
       exportJsonSelector: '[data-testid="schedule-export-json"]',
       exportCsvSelector: '[data-testid="schedule-export-csv"]',
     });
 
     await expect(panel.initialize(context)).rejects.toThrow(/schedule-file/u);
+  });
+});
+
+const all = (testId: string): HTMLElement[] => [
+  ...document.querySelectorAll<HTMLElement>(`[data-testid="${testId}"]`),
+];
+
+describe('createSchedulerPanel — 모델 교체', () => {
+  beforeEach(() => {
+    document.body.innerHTML = markup;
+  });
+
+  const announce = async (context: TestContext, replacedRefs: readonly string[]): Promise<void> => {
+    await context.events.publish('scheduler/model-binding-changed', {
+      boundCount: replacedRefs.length,
+      replacedRefs,
+    });
+  };
+
+  /** 교체 명령을 가로채 사라진 부재를 정한다. */
+  const captureAdopt = (
+    context: TestContext,
+    missing: readonly string[] = [],
+  ): { modelRef: string }[] => {
+    const seen: { modelRef: string }[] = [];
+    context.commands.register('scheduler/adopt-model', (input) => {
+      seen.push({ modelRef: input.modelRef });
+      return Promise.resolve({ missing: missing as readonly GlobalId[] });
+    });
+    return seen;
+  };
+
+  it('파일 내용이 달라진 모델을 알린다', async () => {
+    const context = createTestContext();
+    await startPanel(context);
+
+    await announce(context, ['a.ifc']);
+
+    expect(all('model-replaced')).toHaveLength(1);
+    expect(element('model-replaced').dataset['modelRef']).toBe('a.ifc');
+  });
+
+  it('교체가 없으면 알림을 걷는다', async () => {
+    const context = createTestContext();
+    await startPanel(context);
+    await announce(context, ['a.ifc']);
+
+    await announce(context, []);
+
+    expect(all('model-replaced')).toHaveLength(0);
+  });
+
+  it('승인하면 그 이름으로 교체 명령을 보낸다', async () => {
+    const context = createTestContext();
+    const adopted = captureAdopt(context);
+    await startPanel(context);
+    await announce(context, ['a.ifc']);
+
+    element('model-adopt').click();
+    await flush();
+
+    expect(adopted).toEqual([{ modelRef: 'a.ifc' }]);
+  });
+
+  it('새 모델에 없는 부재 수를 알린다', async () => {
+    const context = createTestContext();
+    captureAdopt(context, ['0BnKdW4tq7SfUcM3vHxZgR', '1MjTgR8dp5NkXbC2wFyQsA']);
+    await startPanel(context);
+    await announce(context, ['a.ifc']);
+
+    element('model-adopt').click();
+    await flush();
+
+    // 연결은 지우지 않는다. 무엇을 잃을지 알려 주고 결정은 사용자가 한다 (ADR-0008).
+    expect(element('schedule-status').textContent).toContain('2개');
+  });
+
+  it('사라진 부재가 없으면 없다고 알린다', async () => {
+    const context = createTestContext();
+    captureAdopt(context);
+    await startPanel(context);
+    await announce(context, ['a.ifc']);
+
+    element('model-adopt').click();
+    await flush();
+
+    expect(element('schedule-status').textContent).toContain('사라진 부재는 없다');
+  });
+
+  it('교체가 실패하면 이유를 적는다', async () => {
+    const context = createTestContext();
+    await startPanel(context);
+    await announce(context, ['a.ifc']);
+
+    element('model-adopt').click();
+    await flush();
+
+    // 명령이 등록되지 않은 상태다. 조용히 넘어가지 않는다.
+    expect(element('schedule-status').textContent).toContain('모델 교체 실패');
+  });
+});
+
+describe('createSchedulerPanel — 미연결 부재', () => {
+  beforeEach(() => {
+    document.body.innerHTML = markup;
+  });
+
+  const captureFind = (context: TestContext, count: number): number[] => {
+    const calls: number[] = [];
+    context.commands.register('scheduler/select-unassigned-products', () => {
+      calls.push(count);
+      return Promise.resolve({ count });
+    });
+    return calls;
+  };
+
+  it('버튼을 누르면 미연결 부재를 고르고 몇 개인지 적는다', async () => {
+    const context = createTestContext();
+    const calls = captureFind(context, 4);
+    await startPanel(context);
+
+    element('select-unassigned').click();
+    await flush();
+
+    expect(calls).toEqual([4]);
+    expect(element('schedule-status').textContent).toContain('4개');
+  });
+
+  it('하나도 없으면 없다고 적는다', async () => {
+    const context = createTestContext();
+    captureFind(context, 0);
+    await startPanel(context);
+
+    element('select-unassigned').click();
+    await flush();
+
+    expect(element('schedule-status').textContent).toContain('미연결 부재가 없다');
+  });
+
+  it('실패하면 이유를 적는다', async () => {
+    const context = createTestContext();
+    await startPanel(context);
+
+    element('select-unassigned').click();
+    await flush();
+
+    expect(element('schedule-status').textContent).toContain('미연결 부재 찾기 실패');
   });
 });

@@ -9,6 +9,7 @@ import type {
   DependencyType,
   Schedule,
   ScheduleAssignment,
+  ScheduleModel,
   ScheduleTask,
   TaskDependency,
   TaskId,
@@ -24,8 +25,11 @@ import type { Parsed } from './productKey.js';
  * 어느 쪽을 읽든 내부 표현은 항상 최신(`INTERNAL_VERSION`)이다. 읽는 쪽이 버전을
  * 분기하지 않게 하려는 것이다 (ADR-0006).
  */
-const SUPPORTED_VERSIONS: readonly number[] = [1, 2];
-const INTERNAL_VERSION = 2;
+const SUPPORTED_VERSIONS: readonly number[] = [1, 2, 3];
+const INTERNAL_VERSION = 3;
+
+/** SHA-256을 소문자 hex로 적은 값. 64자다 (ADR-0008). */
+const FINGERPRINT_PATTERN = /^[0-9a-f]{64}$/u;
 
 /** ADR-0002가 확정한 네 값. 다섯 번째 값을 임의로 늘리지 않는다. */
 const OPERATIONS: readonly TaskOperation[] = ['CONSTRUCT', 'DEMOLISH', 'TEMPORARY', 'MODIFY'];
@@ -131,6 +135,38 @@ const parseTask = (raw: unknown, index: number): Parsed<ScheduleTask> => {
       ...(finish === undefined ? {} : { finish }),
     },
   };
+};
+
+/**
+ * 일정이 아는 모델 한 줄.
+ *
+ * fingerprint는 생략할 수 있다. 손으로 만든 일정에는 없고, 그런 일정은 이름 대조로만
+ * 묶인다 (ADR-0008).
+ */
+const parseModel = (raw: unknown, index: number): Parsed<ScheduleModel> => {
+  const where = `models[${String(index)}]`;
+  if (!isRecord(raw)) {
+    return fail('schedule.parse.invalid-models', `${where}가 객체가 아니다.`);
+  }
+
+  const modelRef = raw['modelRef'];
+  if (typeof modelRef !== 'string' || modelRef.trim().length === 0) {
+    return fail('schedule.parse.invalid-model-ref', `${where}.modelRef가 비어 있다.`);
+  }
+
+  const fingerprint = raw['fingerprint'];
+  if (fingerprint === undefined || fingerprint === null || fingerprint === '') {
+    return { ok: true, value: { modelRef } };
+  }
+
+  if (typeof fingerprint !== 'string' || !FINGERPRINT_PATTERN.test(fingerprint)) {
+    return fail(
+      'schedule.parse.invalid-fingerprint',
+      `${where}.fingerprint는 소문자 hex 64자여야 한다.`,
+    );
+  }
+
+  return { ok: true, value: { modelRef, fingerprint } };
 };
 
 const parseAssignment = (
@@ -368,12 +404,37 @@ export const parseSchedule = (raw: unknown): Parsed<Schedule> => {
     }
   }
 
+  const rawModels = raw['models'];
+  const models: ScheduleModel[] = [];
+  if (rawModels !== undefined && rawModels !== null) {
+    if (!Array.isArray(rawModels)) {
+      return fail('schedule.parse.invalid-models', 'models가 배열이 아니다.');
+    }
+
+    const seenRefs = new Set<string>();
+    for (const [index, rawModel] of rawModels.entries()) {
+      const parsed = parseModel(rawModel, index);
+      if (!parsed.ok) return parsed;
+
+      // 한 이름에 두 fingerprint가 적히면 어느 파일이 정본인지 알 수 없다.
+      if (seenRefs.has(parsed.value.modelRef)) {
+        return fail(
+          'schedule.parse.duplicate-model-ref',
+          `modelRef가 중복이다: ${parsed.value.modelRef}`,
+        );
+      }
+      seenRefs.add(parsed.value.modelRef);
+      models.push(parsed.value);
+    }
+  }
+
   const rawAssignments = raw['assignments'];
   if (!Array.isArray(rawAssignments)) {
     return fail('schedule.parse.invalid-assignments', 'assignments가 배열이 아니다.');
   }
 
   const assignments: ScheduleAssignment[] = [];
+  const seenAssignments = new Set<string>();
   for (const [index, rawAssignment] of rawAssignments.entries()) {
     const parsed = parseAssignment(rawAssignment, index, taskIds);
     if (!parsed.ok) return parsed;
@@ -384,6 +445,22 @@ export const parseSchedule = (raw: unknown): Parsed<Schedule> => {
         `요약 Task에는 부재를 걸 수 없다: ${parsed.value.taskId}`,
       );
     }
+
+    /*
+     * 한 Task와 한 부재의 연결은 하나다. 같은 줄이 둘이면 부재 수가 부풀고 시뮬레이션이
+     * 같은 상태를 두 번 센다. 부재의 영구 키는 모델까지 포함하므로 modelRef도 키에 넣는다
+     * (AGENTS.md 2.2절). 다른 Task가 같은 부재를 다루는 것은 정상이며(시공한 뒤 철거),
+     * 그 조합이 말이 되는지는 validateSchedule이 경고로 알린다.
+     */
+    const key = `${parsed.value.taskId} ${parsed.value.modelRef} ${parsed.value.productGlobalId}`;
+    if (seenAssignments.has(key)) {
+      return fail(
+        'schedule.parse.duplicate-assignment',
+        `같은 Task에 같은 부재가 두 번 걸렸다: ${parsed.value.taskId} / ${parsed.value.productGlobalId}`,
+      );
+    }
+    seenAssignments.add(key);
+
     assignments.push(parsed.value);
   }
 
@@ -393,6 +470,7 @@ export const parseSchedule = (raw: unknown): Parsed<Schedule> => {
       scheduleId,
       name,
       schemaVersion: INTERNAL_VERSION,
+      models,
       tasks,
       dependencies,
       assignments,
@@ -409,6 +487,10 @@ export interface ScheduleRecord {
   readonly scheduleId: string;
   readonly name: string;
   readonly schemaVersion: number;
+  readonly models: readonly {
+    readonly modelRef: string;
+    readonly fingerprint?: string;
+  }[];
   readonly tasks: readonly {
     readonly taskId: string;
     readonly name: string;
@@ -440,6 +522,7 @@ export const toScheduleRecord = (schedule: Schedule): ScheduleRecord => ({
   scheduleId: schedule.scheduleId,
   name: schedule.name,
   schemaVersion: schedule.schemaVersion,
+  models: schedule.models,
   tasks: schedule.tasks.map((task) => ({
     taskId: task.taskId,
     name: task.name,
