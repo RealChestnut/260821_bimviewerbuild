@@ -52,6 +52,10 @@ PyInstaller로 워커를 실행 파일 하나로 묶지 않는다. 임베더블 
 - 빌드가 복사와 압축 해제뿐이라 재현된다. hidden import를 손으로 잡을 일이 없다.
 - 폐쇄망에서도 wheel과 임베더블 zip 두 파일만 미리 받아 두면 만들 수 있다.
 
+동봉하는 CPython은 **3.13.15**(win-x64 임베더블, 11,009,825 바이트)로 고정한다. 크기와
+sha256을 확인한 뒤에만 푼다. 만들어진 `python/` 트리는 152 MB이며 그중 80 MB가
+ifcopenshell, 45 MB가 numpy다. `ifc-worker/`는 88 KB다.
+
 ### sys.path는 `python313._pth`가 정한다
 
 임베더블 배포판은 `python313._pth`가 있으면 `PYTHONPATH`와 사용자 site를 무시한다. 그 성질을 그대로 쓴다. 파일 내용은 이렇다.
@@ -132,6 +136,7 @@ import site
 - [ ] `AGENTS.md` 1.4절 해소 표에 설치본 배치 행 추가
 - [ ] 배치 해석을 `Bim4d.Desktop.Core`로 옮기고 세 경우(설치본·개발·둘 다 아님)를 xunit으로 덮는다
 - [ ] `python/` 트리를 만드는 절차를 스크립트로 두고 CI에서 돌린다
-- [ ] 게시 산출물의 실제 크기를 재어 이 문서에 적는다
+- [ ] 게시 산출물 전체(셸 포함)의 실제 크기를 재어 이 문서에 적는다
+- [ ] `ifcopenshell`의 이행 의존(numpy·shapely 등)까지 고정할지 정한다. 지금 `requirements.txt`는 `ifcopenshell`만 고정하므로 같은 커밋에서 만든 설치본이 항상 같지는 않다
 - [ ] 설치 프로그램(Setup EXE 또는 MSI) 선택은 별도 ADR로 남긴다
 - [ ] 제거 시 `%APPDATA%\Bim4dViewer`(설정·최근 목록·로그)를 어떻게 할지는 설치 프로그램 ADR에서 정한다

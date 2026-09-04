@@ -82,6 +82,11 @@ jobs:
       - name: Worker client tests
         run: pnpm test:worker
 
+      # 설치본이 들고 다닐 런타임을 실제로 만들고 띄워 본다 (ADR-0011).
+      # 임베더블 Python은 시스템 Python을 쓰지 않으므로 여기서만 드러나는 실패가 있다.
+      - name: Build and smoke test the shipped runtime
+        run: pnpm worker:runtime
+
   desktop:
     name: desktop shell (dotnet)
     runs-on: windows-latest

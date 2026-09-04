@@ -17,6 +17,9 @@ __pycache__/
 .venv/
 venv/
 
+# 게시 산출물 (ADR-0011의 런타임 트리 등)
+apps/desktop/artifacts/
+
 # Test / build output
 playwright-report/
 test-results/
