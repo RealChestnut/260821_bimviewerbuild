@@ -26,10 +26,16 @@ public partial class MainWindow : Window
     private readonly IShellLog _log;
     private readonly IIfcWorker _worker;
 
+    private readonly StartupOptions _startup;
+
     private bool _webReady;
 
     public MainWindow()
+        : this(new StartupOptions()) { }
+
+    public MainWindow(StartupOptions startup)
     {
+        _startup = startup;
         InitializeComponent();
 
         _paths.EnsureCreated();
@@ -73,9 +79,23 @@ public partial class MainWindow : Window
             core.WebMessageReceived += OnWebMessage;
 
             RefreshRecentMenu();
-            _log.Write("info", "셸을 시작했다", new Dictionary<string, object?> { ["assets"] = ViewerAssets.Locate() });
+            _log.Write(
+                "info",
+                "셸을 시작했다",
+                new Dictionary<string, object?>
+                {
+                    ["assets"] = ViewerAssets.Locate(),
+                    ["openPath"] = _startup.OpenPath,
+                }
+            );
 
             core.Navigate("https://app.local/index.html");
+
+            // 자동 시험이 쓰는 길. 사람이 쓰는 창은 이 값을 주지 않는다.
+            if (_startup.ExitAfter is { } delay)
+            {
+                _ = Task.Delay(delay).ContinueWith(_ => Dispatcher.Invoke(Close));
+            }
         }
         catch (Exception cause)
         {
@@ -91,6 +111,15 @@ public partial class MainWindow : Window
         _log.Write("info", "셸을 끝냈다");
     }
 
+    /// <summary>
+    /// 자산과 모델이 다른 호스트에 있으므로 브라우저가 교차 출처로 본다.
+    /// </summary>
+    /// <remarks>
+    /// 이 머리글이 없으면 웹의 <c>fetch</c>가 "Failed to fetch"로 막힌다. 여는 쪽을
+    /// 자산 호스트 하나로 좁힌다.
+    /// </remarks>
+    private const string AllowOrigin = "Access-Control-Allow-Origin: https://app.local";
+
     /// <summary>허용 목록에 있는 파일만 스트림으로 내준다.</summary>
     private void OnModelRequested(object? sender, CoreWebView2WebResourceRequestedEventArgs args)
     {
@@ -100,7 +129,12 @@ public partial class MainWindow : Window
         if (path is null)
         {
             // 목록에 없는 id는 없는 것이다. 왜 없는지 알려 주지 않는다.
-            args.Response = core.Environment.CreateWebResourceResponse(null, 404, "Not Found", "");
+            args.Response = core.Environment.CreateWebResourceResponse(
+                null,
+                404,
+                "Not Found",
+                AllowOrigin
+            );
             return;
         }
 
@@ -110,7 +144,7 @@ public partial class MainWindow : Window
             stream,
             200,
             "OK",
-            "Content-Type: application/octet-stream"
+            $"Content-Type: application/octet-stream\r\n{AllowOrigin}"
         );
     }
 
@@ -128,6 +162,11 @@ public partial class MainWindow : Window
             case "web/ready":
                 _webReady = true;
                 SetStatus("뷰어 준비됨");
+                // 뜨기를 기다렸다가 명령줄로 받은 파일을 연다.
+                if (_startup.OpenPath is { } startupPath)
+                {
+                    _ = OpenModelAsync(startupPath);
+                }
                 break;
 
             case "web/log":

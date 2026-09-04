@@ -1,8 +1,8 @@
-﻿<Application x:Class="Bim4d.Desktop.App"
+<Application x:Class="Bim4d.Desktop.App"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:local="clr-namespace:Bim4d.Desktop"
-             StartupUri="MainWindow.xaml">
+             Startup="OnStartup">
     <Application.Resources>
          
     </Application.Resources>

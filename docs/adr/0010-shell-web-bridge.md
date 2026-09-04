@@ -23,7 +23,7 @@ Phase 8의 셸은 WPF 창 안에서 WebView2로 TypeScript Viewer를 띄운다. 
 
 | 무엇 | 어떻게 | 왜 |
 | --- | --- | --- |
-| 빌드한 웹 자산 (`apps/viewer-web/dist`) | `SetVirtualHostNameToFolder("app.local", dist, DenyCors)` | 폴더 전체가 그대로 자산이다. 서버도 포트도 없다 |
+| 빌드한 웹 자산 (`apps/viewer-web/dist`) | `SetVirtualHostNameToFolderMapping("app.local", dist, Allow)` | 폴더 전체가 그대로 자산이다. 서버도 포트도 없다 |
 | 사용자가 고른 IFC | `AddWebResourceRequestedFilter("https://model.local/*")` + 스트리밍 | 고른 파일 하나만 열어 준다. 수백 MB도 메모리에 올리지 않는다 |
 
 시작 주소는 `https://app.local/index.html`이다.
@@ -43,6 +43,8 @@ Phase 8의 셸은 WPF 창 안에서 WebView2로 TypeScript Viewer를 띄운다. 
 
 **파일은 읽기 전용으로 연다** (`FileShare.Read`). 넘기는 길이 원본을 건드리지 않는다.
 
+**응답에 `Access-Control-Allow-Origin: https://app.local`을 붙인다.** 자산과 모델이 다른 호스트에 있으므로 브라우저가 교차 출처로 본다. 이 머리글이 없으면 웹의 `fetch`가 `Failed to fetch`로 막힌다. 첫 실행에서 실제로 그렇게 막혔다. 여는 쪽은 자산 호스트 하나로 좁힌다.
+
 ### 셸과 웹이 주고받는 말
 
 `window.chrome.webview`의 `postMessage`를 쓴다. 한 방향으로 JSON 하나다.
@@ -54,6 +56,8 @@ Phase 8의 셸은 WPF 창 안에서 WebView2로 TypeScript Viewer를 띄운다. 
 | 웹 → 셸 | `web/ready` | 웹이 떴다. 셸은 이때까지 기다렸다가 첫 모델을 보낸다 |
 | 웹 → 셸 | `web/log` | `{ level, message }` — 웹의 기록을 셸 로그에 함께 남긴다 |
 | 웹 → 셸 | `web/error` | `{ message, code? }` — 오류 리포트로 올린다 |
+
+셸은 `--open <경로>`로 뜨자마자 파일 하나를 열 수 있다. 사람이 대화상자를 누르지 않고도 두 프로세스를 잇는 길 전체를 시험하기 위한 것이며, Phase 9의 파일 연결이 붙을 자리이기도 하다. `--exit-after <초>`는 그 시험이 창을 스스로 닫게 한다.
 
 **웹은 셸이 붙어 있지 않아도 돈다.** `window.chrome.webview`가 없으면 다리 Component는 아무것도 하지 않는다. 브라우저에서 개발하고 시험하는 길(`pnpm dev`, Playwright)을 막지 않기 위해서다.
 

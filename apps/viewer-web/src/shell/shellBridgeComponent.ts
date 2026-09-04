@@ -61,9 +61,7 @@ const parseMessage = (data: unknown): Record<string, unknown> | null => {
 
 const textOf = (value: unknown): string | null => (typeof value === 'string' ? value : null);
 
-export const createShellBridgeComponent = (
-  options: ShellBridgeOptions = {},
-): AppComponent => {
+export const createShellBridgeComponent = (options: ShellBridgeOptions = {}): AppComponent => {
   const readBytes = options.readBytes ?? defaultReadBytes;
 
   let context: AppContext | null = null;
@@ -132,10 +130,7 @@ export const createShellBridgeComponent = (
 
     initialize: (appContext: AppContext) => {
       context = appContext;
-      host =
-        options.host ??
-        (globalThis as unknown as WebViewWindow).chrome?.webview ??
-        null;
+      host = options.host ?? (globalThis as unknown as WebViewWindow).chrome?.webview ?? null;
       return Promise.resolve();
     },
 
