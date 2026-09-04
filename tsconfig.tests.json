@@ -11,6 +11,7 @@
     "paths": {
       "@bim4d/contracts": ["./packages/contracts/src/index.ts"],
       "@bim4d/domain": ["./packages/domain/src/index.ts"],
+      "@bim4d/ifc-worker-client": ["./packages/ifc-worker-client/src/index.ts"],
       "@bim4d/test-fixtures": ["./packages/test-fixtures/src/index.ts"]
     }
   },

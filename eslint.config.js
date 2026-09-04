@@ -27,6 +27,7 @@ export default tseslint.config(
           './tsconfig.tests.json',
           './packages/contracts/tsconfig.json',
           './packages/domain/tsconfig.json',
+          './packages/ifc-worker-client/tsconfig.json',
           './packages/test-fixtures/tsconfig.json',
           './apps/viewer-web/tsconfig.json',
         ],

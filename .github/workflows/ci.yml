@@ -46,6 +46,42 @@ jobs:
       - name: Build
         run: pnpm build
 
+  worker:
+    name: ifc worker (python)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
+      - name: Install worker dependencies
+        run: pip install -r services/ifc-worker/requirements-dev.txt
+
+      - name: Worker unit tests
+        run: python -m pytest
+        working-directory: services/ifc-worker
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.34.5
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build workspace packages
+        run: pnpm --filter "./packages/**" -r build
+
+      # 실제 Python 워커를 자식 프로세스로 띄워 규약과 수명을 함께 본다.
+      - name: Worker client tests
+        run: pnpm test:worker
+
   e2e:
     name: browser test
     runs-on: windows-latest

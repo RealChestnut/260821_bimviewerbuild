@@ -8,6 +8,9 @@
       "path": "./packages/domain"
     },
     {
+      "path": "./packages/ifc-worker-client"
+    },
+    {
       "path": "./packages/test-fixtures"
     },
     {

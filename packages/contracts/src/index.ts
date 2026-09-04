@@ -3,6 +3,12 @@ export type { AppError, AppErrorKind, TraceId } from './errors.js';
 export type { IfcSchemaVersion, ModelRecord, ModelRepositoryPort } from './model.js';
 export type { ModelRefBindingPort } from './modelBinding.js';
 export type {
+  IfcMetadata,
+  IfcScheduleExportInput,
+  IfcScheduleExportResult,
+  IfcWorkerPort,
+} from './ifcWorker.js';
+export type {
   DependencyType,
   ElementDisplayState,
   Schedule,
