@@ -7,7 +7,7 @@
 - IFC 기술 기준서: [docs/IFC_통합_정리_2026-08-20.md](docs/IFC_통합_정리_2026-08-20.md)
 - 결정 기록: [docs/adr/](docs/adr/)
 
-현재 단계는 **Phase 8 — C# Desktop Shell**이다. Phase 0~7이 `main`에 들어가 있다.
+현재 단계는 **Phase 9 — 배포**다. Phase 0~8이 `main`에 들어가 있다.
 
 ## 요구 환경
 
