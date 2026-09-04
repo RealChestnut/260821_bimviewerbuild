@@ -76,6 +76,8 @@ apps/viewer-web/**              모델 로딩, Selection, Property Panel, 4D Sim
 | `ElementDisplayState`의 화면 표현 (ADR-0002가 Phase 4로 미룸) | `HIDDEN` 미렌더링, `IN_PROGRESS` 반투명 주황, `PRESENT` 원래 표현 | `docs/adr/0005-schedule-schema.md` |
 | 일정 스키마의 WBS와 선후행 (기준서 12·13절, 마스터 계획 4.3절) | `schemaVersion` 2. WBS는 `parentTaskId`, 선후행은 `IfcRelSequence` 대응 4종 + `lagDays`. 저장·검증만 하고 날짜를 자동 계산하지 않는다 | `docs/adr/0006-schedule-schema-v2.md` |
 | 일정 CSV 교환 형식 (마스터 계획 9절 Phase 5 `JSON/CSV 가져오기·내보내기`) | `schedule.csv` + `tasks.csv` + `assignments.csv` + 선택 `dependencies.csv`·`models.csv`. 열 순서는 무관하고 모르는 열은 거부한다. 의미 검증은 `parseSchedule`이 맡아 해석 지점을 하나로 둔다 | `docs/adr/0007-schedule-csv-exchange.md` · `docs/adr/0008-model-ref-fingerprint-binding.md` |
+| Worker IPC 방식 (마스터 계획 16절 Follow-up `초기 HTTP/WebSocket`) | 자식 프로세스 stdio에 줄 단위 JSON. 포트·토큰 없음. 큰 파일은 경로로 오간다. timeout은 부모가 재고, 죽으면 다음 요청에서 다시 띄우며, 이어서 세 번 죽으면 멈춘다 | `docs/adr/0009-ifc-worker-ipc.md` |
+| IFC Export 매핑 (ADR-0002가 잠정으로 둠) | 왕복 테스트로 확정. `CONSTRUCT`→`CONSTRUCTION`, `DEMOLISH`→`DEMOLITION`+`IfcRelAssignsToProcess`, `MODIFY`→`RENOVATION`, `TEMPORARY`→`USERDEFINED`+`ObjectType`. 우리가 쓴 파일은 네 값이 모두 복원된다 | `docs/adr/0002-4d-operation-vocabulary.md` · `docs/adr/0009-ifc-worker-ipc.md` |
 | `modelRef` 바인딩 (ADR-0005가 파일명 대조를 잠정으로 둠) | `schemaVersion` 3. 일정에 `models` 표를 두어 `modelRef`별 fingerprint를 적는다. 묶는 순서는 fingerprint 일치 → 이름 일치 → 미바인딩. 교체는 경고로 알리고 자동으로 갱신하거나 지우지 않는다 | `docs/adr/0008-model-ref-fingerprint-binding.md` |
 
 **아직 미결정** — 해당 영역을 구현할 때 임의로 정하지 말고 결정을 먼저 요청한다.
@@ -85,7 +87,6 @@ apps/viewer-web/**              모델 로딩, Selection, Property Panel, 4D Sim
 - 성능 목표 수치 — 삼각형 수, 파일 크기 상한, 목표 FPS, 최대 Element 수 (20절에 정량 기준이 없다)
 - Split / Group 전처리의 책임 주체와 규칙
 - 검증 체크리스트 20절 각 항목의 자동/수동 구분과 실패 시 reject / warn 게이트
-- ADR-0002의 IFC Export 매핑은 잠정값이다. fixture 왕복 테스트 전까지 확정으로 취급하지 않는다
 
 또한 기준서 16.4절의 Codemill fallback Entity(`IfcEquipmentElement`)와 16.3절 iConstruct 문서 불일치는 기준서 자체가 미해결로 표시한 항목이다. 이 값들을 코드 상수로 굳히지 않는다.
 

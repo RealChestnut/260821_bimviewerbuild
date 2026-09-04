@@ -75,9 +75,9 @@ Task의 계획 시작을 `start`, 계획 완료를 `finish`라 할 때, Assignme
 
 **분리 채택 근거.** `TaskOperation`은 사용자 의도이자 저장 데이터이고, `ElementDisplayState`는 그로부터 계산되는 렌더 결과다. 분리하면 표시 방식을 바꿔도(예: 철거된 객체를 반투명 고스트로 표시) 저장 데이터를 마이그레이션할 필요가 없다. 파생 규칙이 `t`에 대한 전역 함수이므로 임의 시점 점프가 O(할당 수)로 계산되고, 순수 함수여서 단위 테스트가 쉽다. 마스터 계획 10절 TDD 전략과 맞는다.
 
-## IFC Export 매핑 (잠정)
+## IFC Export 매핑 (확정, 2026-09-03)
 
-마스터 계획 6.3절 Export 시 사용하는 매핑이다. **잠정값이며 fixture 왕복 테스트로 검증하기 전에는 확정으로 취급하지 않는다** (`AGENTS.md` 1.4절).
+마스터 계획 6.3절 Export 시 사용하는 매핑이다. Phase 7에서 `three-elements-ifc4.ifc`를 원본으로 네 operation을 모두 내보내고 다시 읽는 왕복 테스트를 통과했다 (`services/ifc-worker/tests/test_schedule_io.py`).
 
 | TaskOperation | `IfcTask.PredefinedType` | 관계 |
 |---|---|---|
@@ -86,7 +86,11 @@ Task의 계획 시작을 `start`, 계획 완료를 `finish`라 할 때, Assignme
 | `MODIFY` | `RENOVATION` | `IfcRelAssignsToProduct` |
 | `TEMPORARY` | `USERDEFINED` + `ObjectType` | `IfcRelAssignsToProduct` + 자체 Pset |
 
-`TEMPORARY`는 IFC에 대응 개념이 없다. `USERDEFINED`와 자체 PropertySet으로 내보내되, 접두어는 `Pset_`을 쓰지 않는다(`AGENTS.md` 2.4절). Import 시 이 정보가 없는 외부 IFC에서는 `TEMPORARY`를 복원할 수 없고, 해당 Element는 `CONSTRUCT`로 읽힌다. 이는 알려진 손실이다.
+`TEMPORARY`는 IFC에 대응 개념이 없다. `USERDEFINED`와 `IfcTask.ObjectType = 'TEMPORARY'`로 내보낸다.
+
+**자체 PropertySet은 쓰지 않는다.** `ObjectType`만으로 왕복이 되며, 같은 사실을 두 곳에 적으면 둘이 어긋날 때 어느 쪽이 정본인지 알 수 없다. 접두어 규칙(`AGENTS.md` 2.4절)을 신경 쓸 일도 없어진다.
+
+우리가 쓴 파일은 네 값이 모두 복원된다. `ObjectType`이 없는 외부 IFC에서는 `TEMPORARY`를 복원할 수 없고 해당 Task는 `CONSTRUCT`로 읽힌다. 이는 알려진 손실이며 Import 코드에 그대로 적혀 있다.
 
 ## Consequences
 
@@ -100,5 +104,5 @@ Task의 계획 시작을 `start`, 계획 완료를 `finish`라 할 때, Assignme
 
 - `packages/contracts/`에 `TaskOperation`, `ElementDisplayState` 타입과 파생 함수의 계약을 정의한다.
 - 파생 규칙 표 12칸 + 경계 규칙 4개를 Phase 4 착수 시 단위 테스트로 먼저 작성한다.
-- IFC Export 매핑은 Phase 7에서 fixture 왕복 테스트로 검증하고, 결과에 따라 본 ADR을 갱신하거나 후속 ADR로 대체한다.
+- ~~IFC Export 매핑은 Phase 7에서 fixture 왕복 테스트로 검증한다.~~ 2026-09-03에 검증하고 위 절을 확정으로 갱신했다. 자체 Pset은 쓰지 않기로 했다.
 - `IN_PROGRESS` / `HIDDEN`의 시각 표현(색상, 투명도, 철거 객체 고스트 표시 여부)은 Phase 4에서 별도로 정한다.
