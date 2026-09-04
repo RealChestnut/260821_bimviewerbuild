@@ -24,6 +24,28 @@ dotnet run --project apps/desktop/src/Bim4d.Desktop -- --open C:/models/a.ifc
 
 `--exit-after <초>`는 창을 스스로 닫는다. 사람이 누르지 않고 셸과 웹을 잇는 길 전체를 시험할 때 쓴다.
 
+`--self-check`는 뜨자마자 Worker까지 닿는지 보고 결과를 기록에 남긴다. 설치본이 온전한지 사람이
+메뉴를 눌러 확인하지 않아도 된다.
+
+```bash
+Bim4d.Desktop.exe --self-check --exit-after 30
+```
+
+## 무엇을 어디서 찾나
+
+배치의 정본은 [`docs/adr/0011-install-layout.md`](../../docs/adr/0011-install-layout.md)다. 고르는
+기준은 실행 파일 옆 `web` 폴더 하나이며, 판단은 `Bim4d.Desktop.Core`의 `InstallLayout`에 있다.
+
+| 배치   | 언제                                       | web                           | ifc-worker                   | python                     |
+| ------ | ------------------------------------------ | ----------------------------- | ---------------------------- | -------------------------- |
+| 설치본 | 실행 파일 옆에 `web/`이 있다               | `<base>/web`                  | `<base>/ifc-worker`          | `<base>/python/python.exe` |
+| 개발   | 위로 올라가 `pnpm-workspace.yaml`을 찾았다 | `<repo>/apps/viewer-web/dist` | `<repo>/services/ifc-worker` | PATH의 `python`            |
+
+어느 쪽도 아니면 뜨지 않고, 무엇을 어디서 찾았는지 말한다. 배치를 골랐지만 그 안에 빠진 자리가
+있으면 뜨되 기록에 남긴다 — 뜨지 않으면 사용자가 고칠 길이 없다.
+
+설정 파일의 `pythonCommand`가 비어 있으면 배치가 고른다. 사람이 적은 값은 그대로 이긴다.
+
 ## 구조
 
 ```text
@@ -31,6 +53,7 @@ src/
  ├─ Bim4d.Desktop.Core/   창 없이 시험할 수 있는 것 전부
  │   ├─ StdioIfcWorker    Worker를 띄우고 수명을 관리한다 (ADR-0009의 C# 구현)
  │   ├─ ModelBridge       웹에 열어 줄 파일의 허용 목록
+ │   ├─ InstallLayout     web · ifc-worker · python이 어디 있는지 (ADR-0011)
  │   ├─ ShellState        설정 · 최근 프로젝트 · 저장 자리
  │   └─ ShellLog          줄 하나가 JSON 하나인 기록, 오류 리포트
  └─ Bim4d.Desktop/        WPF 창. 붙이는 일만 한다

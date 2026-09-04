@@ -44,9 +44,16 @@ public sealed class AppPaths
 /// <summary>셸 설정. 사람이 손으로 고칠 수 있는 값만 담는다.</summary>
 public sealed record ShellSettings
 {
-    /// <summary>Worker를 띄울 때 쓰는 실행 파일.</summary>
+    /// <summary>
+    /// Worker를 띄울 때 쓰는 실행 파일.
+    /// </summary>
+    /// <remarks>
+    /// 비어 있으면 배치가 고른다 — 설치본은 동봉한 Python, 개발은 PATH의 것이다 (ADR-0011).
+    /// 기본값이 <c>python</c>이던 시절에는 Python이 깔리지 않은 PC에서 설치본이 워커 없이
+    /// 떴다. 사람이 값을 적으면 그 값이 이긴다.
+    /// </remarks>
     [JsonPropertyName("pythonCommand")]
-    public string PythonCommand { get; init; } = "python";
+    public string PythonCommand { get; init; } = "";
 
     /// <summary>Worker 요청 하나의 마감(초).</summary>
     [JsonPropertyName("workerTimeoutSeconds")]
