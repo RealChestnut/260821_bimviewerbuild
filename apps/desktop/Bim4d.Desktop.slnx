@@ -1,0 +1,9 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/Bim4d.Desktop.Core/Bim4d.Desktop.Core.csproj" />
+    <Project Path="src/Bim4d.Desktop/Bim4d.Desktop.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Bim4d.Desktop.Core.Tests/Bim4d.Desktop.Core.Tests.csproj" />
+  </Folder>
+</Solution>

@@ -14,6 +14,7 @@ import { createSectionPanel } from './shell/sectionPanel.js';
 import { createViewpointPanel } from './shell/viewpointPanel.js';
 import { createScheduleTablePanel } from './shell/scheduleTablePanel.js';
 import { createSchedulerPanel } from './shell/schedulerPanel.js';
+import { createShellBridgeComponent } from './shell/shellBridgeComponent.js';
 import { createSimulationPanel } from './shell/simulationPanel.js';
 import { createSpatialPanel } from './shell/spatialPanel.js';
 import { createVisibilityPanel } from './shell/visibilityPanel.js';
@@ -124,6 +125,8 @@ const bootstrap = async (): Promise<void> => {
     }),
   );
   kernel.register(createSelectionPanel({ selector: '[data-testid="selection-globalid"]' }));
+  // 데스크톱 셸이 붙어 있을 때만 산다. 브라우저에서는 없는 것과 같다 (ADR-0010).
+  kernel.register(createShellBridgeComponent());
   kernel.register(
     createSpatialPanel({
       selector: '[data-testid="spatial-tree"]',
