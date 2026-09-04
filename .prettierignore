@@ -8,6 +8,10 @@ packages/test-fixtures/ifc
 
 # Python 도구가 만드는 자리
 **/.pytest_cache
+apps/desktop/artifacts
+
+# 개인 설정. 저장소에 올라가지 않는다
+.claude/settings.local.json
 
 # 기존 문서는 형식을 그대로 둔다. Prettier가 표를 다시 정렬하면 무관한 변경이 섞인다.
 docs/
