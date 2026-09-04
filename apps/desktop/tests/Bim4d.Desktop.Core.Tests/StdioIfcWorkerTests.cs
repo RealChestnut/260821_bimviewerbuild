@@ -170,8 +170,10 @@ public sealed class StdioIfcWorkerTests
     [Fact]
     public async Task stdout에_JSON이_아닌_줄이_섞이면_놓는다()
     {
+        // 가짜 워커는 stdout 인코딩을 맞추지 않는다. 한글을 쓰면 인코딩에서 먼저 죽어
+        // 크래시로 보인다. 여기서 보려는 것은 "JSON이 아닌 줄"이므로 ASCII로 적는다.
         await using var worker = FakeWorker(
-            "import sys; print('사람이 읽는 줄', flush=True); sys.stdin.read()"
+            "import sys; print('not json', flush=True); sys.stdin.read()"
         );
 
         Assert.Equal("worker.protocol.broken", await CodeOf(() => worker.PingAsync()));
