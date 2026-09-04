@@ -111,6 +111,27 @@ jobs:
       - name: Test
         run: dotnet test apps/desktop/tests/Bim4d.Desktop.Core.Tests --nologo --no-build
 
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.34.5
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build viewer assets
+        run: pnpm build
+
+      # 설치본 폴더 하나를 실제로 만들고 창을 띄워 워커까지 닿는지 본다 (ADR-0011).
+      # 자동으로 띄운 창은 대화상자를 내지 않으므로 멈추지 않는다.
+      - name: Publish and self-check
+        run: pnpm shell:publish
+        timeout-minutes: 15
+
   e2e:
     name: browser test
     runs-on: windows-latest

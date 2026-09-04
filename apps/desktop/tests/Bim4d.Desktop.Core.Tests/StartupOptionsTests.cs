@@ -67,6 +67,24 @@ public sealed class StartupOptionsTests
     }
 
     [Fact]
+    public void 사람이_띄운_창은_절차가_아니다()
+    {
+        Assert.False(StartupOptions.Parse([]).Automated);
+        Assert.False(StartupOptions.Parse(["--open", "C:/a.ifc"]).Automated);
+    }
+
+    [Theory]
+    [InlineData("--self-check")]
+    [InlineData("--exit-after")]
+    public void 자동_시험의_표시는_대화상자를_끈다(string flag)
+    {
+        // 대화상자는 아무도 누르지 않아 그대로 멈춘다. CI에서는 몇 시간짜리 멈춤이 된다.
+        var arguments = flag == "--exit-after" ? new[] { flag, "5" } : [flag];
+
+        Assert.True(StartupOptions.Parse(arguments).Automated);
+    }
+
+    [Fact]
     public void 자체_점검은_값을_먹지_않는다()
     {
         // --self-check 뒤에 오는 것은 이 옵션의 값이 아니라 열 파일이다.

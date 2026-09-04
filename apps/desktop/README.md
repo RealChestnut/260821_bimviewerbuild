@@ -31,6 +31,30 @@ dotnet run --project apps/desktop/src/Bim4d.Desktop -- --open C:/models/a.ifc
 Bim4d.Desktop.exe --self-check --exit-after 30
 ```
 
+## 설치본 만들기
+
+```bash
+pnpm build            # 뷰어 자산을 먼저 만든다
+pnpm shell:publish    # 설치본 폴더 하나를 만든다
+```
+
+`apps/desktop/artifacts/publish`에 폴더 하나가 생긴다. 셋을 모은 것이다.
+
+| 무엇 | 어디서                                                    | 크기   |
+| ---- | --------------------------------------------------------- | ------ |
+| 셸   | `dotnet publish -r win-x64 --self-contained`              | 134 MB |
+| 웹   | `apps/viewer-web/dist` → `web/`                           | 33 MB  |
+| 워커 | 임베더블 Python과 `ifc_worker` → `python/`, `ifc-worker/` | 151 MB |
+
+.NET도 Python도 깔지 않은 Windows에서 뜬다. 만든 뒤 `--self-check`로 실제로 띄워 워커까지
+닿는지 보며, 통과하지 못하면 게시가 실패한다.
+
+폐쇄망에서는 `--embed-zip`과 `--wheel-dir`을 그대로 넘긴다. 창을 띄울 수 없는 자리에서는
+`--skip-self-check`를 준다.
+
+**설치 프로그램(Setup EXE 또는 MSI)은 여기서 만들지 않는다.** 이것은 폴더 하나이며, 싸는
+일은 별도 ADR과 함께 온다.
+
 ## 무엇을 어디서 찾나
 
 배치의 정본은 [`docs/adr/0011-install-layout.md`](../../docs/adr/0011-install-layout.md)다. 고르는

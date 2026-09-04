@@ -129,6 +129,9 @@ public partial class MainWindow : Window
     /// 자산은 창이 뜬 것으로 이미 확인됐다. 남은 것은 워커이며, 설치본에서 가장 먼저
     /// 깨지는 자리가 동봉한 Python이다. 실패해도 창은 닫지 않는다. 사람이 기록을 보고
     /// 고칠 수 있어야 한다 (ADR-0011).
+    ///
+    /// 실패해도 대화상자를 띄우지 않는다. 이 길은 사람이 아니라 게시 절차가 부르며,
+    /// 대화상자는 아무도 누르지 않아 그대로 멈춘다. 결과는 <c>selfCheck</c> 필드로 남긴다.
     /// </remarks>
     private async Task SelfCheckAsync()
     {
@@ -140,6 +143,7 @@ public partial class MainWindow : Window
                 "자체 점검을 통과했다",
                 new Dictionary<string, object?>
                 {
+                    ["selfCheck"] = "ok",
                     ["layout"] = _layout.Kind,
                     ["python"] = _layout.PythonCommandOrDefault(_settings.PythonCommand),
                 }
@@ -148,7 +152,18 @@ public partial class MainWindow : Window
         }
         catch (Exception cause)
         {
-            Report(cause);
+            var report = ErrorReport.From(cause, _paths.LogDirectory);
+            _log.Write(
+                "error",
+                "자체 점검이 실패했다",
+                new Dictionary<string, object?>
+                {
+                    ["selfCheck"] = "failed",
+                    ["code"] = report.Code,
+                    ["detail"] = report.Detail,
+                }
+            );
+            SetStatus(report.Detail);
         }
     }
 
@@ -365,6 +380,19 @@ public partial class MainWindow : Window
             new Dictionary<string, object?> { ["code"] = report.Code, ["title"] = report.Title }
         );
         SetStatus(report.Detail);
-        MessageBox.Show(this, report.ToDisplayText(), report.Title, MessageBoxButton.OK, MessageBoxImage.Warning);
+
+        // 절차가 띄운 창에는 대화상자를 내지 않는다. 아무도 누르지 않아 그대로 멈춘다.
+        if (_startup.Automated)
+        {
+            return;
+        }
+
+        MessageBox.Show(
+            this,
+            report.ToDisplayText(),
+            report.Title,
+            MessageBoxButton.OK,
+            MessageBoxImage.Warning
+        );
     }
 }

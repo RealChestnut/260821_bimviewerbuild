@@ -26,6 +26,15 @@ public sealed record StartupOptions
     public bool SelfCheck { get; init; }
 
     /// <summary>
+    /// 사람이 아니라 절차가 띄웠다.
+    /// </summary>
+    /// <remarks>
+    /// 이때는 대화상자를 띄우지 않는다. 아무도 누르지 않아 그대로 멈추고, 게시나 CI에서는
+    /// 그것이 몇 시간짜리 멈춤이 된다. 실패는 기록으로 남긴다.
+    /// </remarks>
+    public bool Automated => SelfCheck || ExitAfter is not null;
+
+    /// <summary>
     /// 명령줄을 읽는다.
     /// </summary>
     /// <remarks>
