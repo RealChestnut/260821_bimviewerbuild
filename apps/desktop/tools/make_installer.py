@@ -26,6 +26,8 @@ sys.path.insert(0, str(REPOSITORY_ROOT / "services" / "ifc-worker" / "tools"))
 
 from build_runtime import use_utf8  # noqa: E402
 
+import signing  # noqa: E402
+
 #: 셸과 설치본이 같은 버전을 말하게 하는 한 자리 (ADR-0012).
 VERSION_FILE = REPOSITORY_ROOT / "apps" / "desktop" / "Directory.Build.props"
 
@@ -182,7 +184,11 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="WebView2 bootstrapper를 담지 않는다. 폐쇄망용 산출물이 쓰는 길이다",
     )
-    parser.add_argument("--sign-tool", default=None, help="만든 뒤 부를 서명 명령. {file}이 경로다")
+    parser.add_argument(
+        "--sign-tool",
+        default=None,
+        help="만든 설치 프로그램을 서명할 명령. {file}이 경로다",
+    )
     arguments = parser.parse_args(argv)
 
     bootstrapper: Path | None = None
@@ -201,7 +207,8 @@ def main(argv: list[str] | None = None) -> int:
     print(f"만들었다: {made}  ({size:.0f} MB)")
 
     if arguments.sign_tool is not None:
-        subprocess.run(arguments.sign_tool.format(file=str(made)), shell=True, check=True)
+        signing.sign(arguments.sign_tool, [made])
+        signing.verify([made])
         print(f"서명했다: {made}")
 
     return 0

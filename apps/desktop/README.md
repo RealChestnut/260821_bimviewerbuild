@@ -73,7 +73,30 @@ Inno Setup이 필요하다. `winget install JRSoftware.InnoSetup`으로 깔거�
 
 버전은 `apps/desktop/Directory.Build.props`의 `<Version>` 한 곳에서 온다.
 
-서명은 아직 하지 않는다. `--sign-tool "signtool sign ... {file}"`을 주면 만든 뒤 그것을 부른다.
+## 코드 서명
+
+인증서는 아직 없다. 절차만 뚫려 있다.
+
+**순서가 중요하다.** 싸고 나면 안을 못 고친다.
+
+```bash
+pnpm shell:publish -- --sign-tool "signtool sign /fd SHA256 /tr http://timestamp.digicert.com /td SHA256 /f cert.pfx {file}"
+pnpm shell:installer -- --sign-tool "signtool sign /fd SHA256 /tr http://timestamp.digicert.com /td SHA256 /f cert.pfx {file}"
+```
+
+1. 게시 → 우리가 만든 이진 파일 서명 (`Bim4d.Desktop.exe`, `Bim4d.Desktop.dll`, `Bim4d.Desktop.Core.dll`)
+2. 싸기 → 설치 프로그램 서명
+
+**우리가 만든 것만 서명한다.** .NET 런타임, CPython, ifcopenshell, WebView2는 각자 만든 곳이
+이미 서명했다. 그 위에 덧씌우면 원래 서명을 지우고 출처를 흐린다.
+
+서명한 뒤 `signtool verify /pa`로 실제로 붙었는지 확인한다. 서명 명령이 조용히 실패하는 일이
+있다.
+
+시각 도장(`/tr`)을 빠뜨리지 않는다. 없으면 인증서가 만료될 때 이미 배포한 설치본의 서명도
+함께 죽는다.
+
+인증서 암호를 명령줄에 적으면 프로세스 목록에 보인다. 인증서 저장소나 HSM을 쓰는 편이 낫다.
 
 ## 무엇을 어디서 찾나
 

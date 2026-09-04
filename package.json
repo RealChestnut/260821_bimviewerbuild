@@ -18,7 +18,7 @@
     "test:watch": "vitest",
     "test:e2e": "playwright test",
     "test:worker": "vitest run --config vitest.worker.config.ts",
-    "test:python": "cd services/ifc-worker && python -m pytest",
+    "test:python": "cd services/ifc-worker && python -m pytest && cd ../../apps/desktop/tools && python -m pytest",
     "worker:runtime": "python services/ifc-worker/tools/build_runtime.py",
     "shell": "dotnet run --project apps/desktop/src/Bim4d.Desktop",
     "shell:test": "dotnet test apps/desktop/tests/Bim4d.Desktop.Core.Tests --nologo",
