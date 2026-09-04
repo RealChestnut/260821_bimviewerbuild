@@ -7,6 +7,8 @@ export default tseslint.config(
     ignores: [
       '**/dist/**',
       '**/dist-types/**',
+      // 게시 산출물. 빌드한 자산을 그대로 복사한 것이라 다시 볼 것이 없다 (ADR-0011)
+      'apps/desktop/artifacts/**',
       // 빌드 시 node_modules에서 복사하는 vendor 자산 (ADR-0004)
       'apps/viewer-web/public/vendor/**',
       '**/node_modules/**',
