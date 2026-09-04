@@ -110,8 +110,8 @@ HKCU\SOFTWARE\Microsoft\EdgeUpdate\Clients\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5
 
 ## 후속 작업
 
-- [ ] Inno Setup 스크립트를 두고 `pnpm shell:installer`로 만든다
-- [ ] CI에 Inno Setup이 있는지 확인하고, 없으면 설치 단계를 더한다
-- [ ] 설치 → 실행 → 덮어쓰기 설치 → 제거를 실제로 해 보고 결과를 worklog에 적는다
-- [ ] 코드 서명 자리를 스크립트에 뚫어 둔다 (`SignTool`). 인증서는 사용자 몫이다
+- [x] Inno Setup 스크립트를 두고 `pnpm shell:installer`로 만든다
+- [x] CI에 Inno Setup이 있는지 확인하고, 없으면 설치 단계를 더한다 — 이미지에 6.7.1이 있다
+- [x] 설치 → 실행 → 덮어쓰기 설치 → 제거를 실제로 해 보고 결과를 worklog에 적는다
+- [x] 코드 서명 자리를 스크립트에 뚫어 둔다 (`SignTool`). 인증서는 사용자 몫이다
 - [ ] 폐쇄망용 Fixed Version 산출물의 만들기 절차 (ADR-0011)

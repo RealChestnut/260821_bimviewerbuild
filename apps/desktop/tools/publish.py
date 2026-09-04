@@ -35,6 +35,8 @@ from build_runtime import build as build_runtime  # noqa: E402
 from build_runtime import layout as runtime_layout  # noqa: E402
 from build_runtime import use_utf8  # noqa: E402
 
+import signing  # noqa: E402
+
 #: 게시 대상. 마스터 계획 9절이 정한 Windows x64다.
 RUNTIME_IDENTIFIER = "win-x64"
 
@@ -201,6 +203,11 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="띄워 보는 단계를 건너뛴다. 창을 띄울 수 없는 자리에서 쓴다",
     )
+    parser.add_argument(
+        "--sign-tool",
+        default=None,
+        help="우리가 만든 이진 파일을 서명할 명령. {file}이 경로다. 싸기 전에 부른다",
+    )
     arguments = parser.parse_args(argv)
 
     out = publish(
@@ -209,6 +216,13 @@ def main(argv: list[str] | None = None) -> int:
         wheel_dir=arguments.wheel_dir,
         configuration=arguments.configuration,
     )
+
+    # 서명은 싸기 전에 한다. 싸고 나면 안을 못 고친다.
+    if arguments.sign_tool is not None:
+        targets = signing.files_to_sign(out)
+        signing.sign(arguments.sign_tool, targets)
+        signing.verify(targets)
+        print(f"서명했다: {len(targets)}개")
 
     print(f"만들었다: {out}  ({size_of(out) / (1024 * 1024):.0f} MB)")
 
