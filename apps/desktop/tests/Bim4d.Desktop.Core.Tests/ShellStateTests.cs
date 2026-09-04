@@ -96,7 +96,9 @@ public sealed class JsonStoreTests : IDisposable
     {
         var settings = JsonStore.Read(Path.Combine(_root, "none.json"), new ShellSettings());
 
-        Assert.Equal("python", settings.PythonCommand);
+        // 비어 있는 것이 기본이며 "배치가 고른다"는 뜻이다 (ADR-0011).
+        Assert.Equal("", settings.PythonCommand);
+        Assert.Equal(120, settings.WorkerTimeoutSeconds);
     }
 
     [Fact]

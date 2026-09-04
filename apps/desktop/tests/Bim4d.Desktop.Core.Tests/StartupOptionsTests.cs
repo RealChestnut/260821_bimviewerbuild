@@ -53,4 +53,26 @@ public sealed class StartupOptionsTests
 
         Assert.Equal("C:/a.ifc", options.OpenPath);
     }
+
+    [Fact]
+    public void 자체_점검은_기본으로_하지_않는다()
+    {
+        Assert.False(StartupOptions.Parse([]).SelfCheck);
+    }
+
+    [Fact]
+    public void 자체_점검을_켠다()
+    {
+        Assert.True(StartupOptions.Parse(["--self-check"]).SelfCheck);
+    }
+
+    [Fact]
+    public void 자체_점검은_값을_먹지_않는다()
+    {
+        // --self-check 뒤에 오는 것은 이 옵션의 값이 아니라 열 파일이다.
+        var options = StartupOptions.Parse(["--self-check", "C:/a.ifc"]);
+
+        Assert.True(options.SelfCheck);
+        Assert.Equal("C:/a.ifc", options.OpenPath);
+    }
 }

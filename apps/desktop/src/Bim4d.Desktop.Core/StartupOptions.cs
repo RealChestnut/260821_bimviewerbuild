@@ -16,6 +16,16 @@ public sealed record StartupOptions
     public TimeSpan? ExitAfter { get; init; }
 
     /// <summary>
+    /// 뜨자마자 워커까지 닿는지 보고 결과를 기록에 남긴다.
+    /// </summary>
+    /// <remarks>
+    /// 설치본이 온전한지는 창을 열어 메뉴를 눌러 봐야 알 수 있었다. 설치 뒤 확인을 사람 손에
+    /// 맡기지 않기 위한 길이다 (ADR-0011). 동봉한 Python이 실제로 뜨는지가 설치본에서 가장
+    /// 먼저 깨지는 자리다.
+    /// </remarks>
+    public bool SelfCheck { get; init; }
+
+    /// <summary>
     /// 명령줄을 읽는다.
     /// </summary>
     /// <remarks>
@@ -26,6 +36,7 @@ public sealed record StartupOptions
     {
         string? openPath = null;
         TimeSpan? exitAfter = null;
+        var selfCheck = false;
 
         for (var index = 0; index < arguments.Count; index += 1)
         {
@@ -44,6 +55,10 @@ public sealed record StartupOptions
                     index += 1;
                     break;
 
+                case "--self-check":
+                    selfCheck = true;
+                    break;
+
                 default:
                     // 옵션이 아니면 열 파일로 본다. 파일 연결과 끌어다 놓기가 그렇게 준다.
                     if (!current.StartsWith('-'))
@@ -54,6 +69,11 @@ public sealed record StartupOptions
             }
         }
 
-        return new StartupOptions { OpenPath = openPath, ExitAfter = exitAfter };
+        return new StartupOptions
+        {
+            OpenPath = openPath,
+            ExitAfter = exitAfter,
+            SelfCheck = selfCheck,
+        };
     }
 }

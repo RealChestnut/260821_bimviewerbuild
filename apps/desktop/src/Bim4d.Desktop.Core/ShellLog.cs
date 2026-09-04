@@ -68,9 +68,28 @@ public sealed class FileShellLog : IShellLog
 public sealed record ErrorReport(string Title, string Detail, string? Code, string LogFile)
 {
     public static ErrorReport From(Exception cause, string logFile) =>
-        cause is WorkerException worker
-            ? new ErrorReport("IFC Worker가 실패했다", worker.Message, worker.Code, logFile)
-            : new ErrorReport(cause.GetType().Name, cause.Message, null, logFile);
+        cause switch
+        {
+            WorkerException worker => new ErrorReport(
+                "IFC Worker가 실패했다",
+                worker.Message,
+                worker.Code,
+                logFile
+            ),
+            InstallLayoutException layout => new ErrorReport(
+                "설치가 온전하지 않다",
+                layout.Message,
+                layout.Code,
+                logFile
+            ),
+            ICodedError coded => new ErrorReport(
+                cause.GetType().Name,
+                cause.Message,
+                coded.Code,
+                logFile
+            ),
+            _ => new ErrorReport(cause.GetType().Name, cause.Message, null, logFile),
+        };
 
     public string ToDisplayText() =>
         string.Join(

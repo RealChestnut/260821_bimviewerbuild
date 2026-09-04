@@ -20,6 +20,7 @@ namespace Bim4d.Desktop;
 public partial class MainWindow : Window
 {
     private readonly AppPaths _paths = AppPaths.Default();
+    private readonly InstallLayout _layout = InstallLayout.Default();
     private readonly ModelBridge _bridge = new();
     private readonly ShellSettings _settings;
     private readonly RecentProjects _recent;
@@ -45,9 +46,9 @@ public partial class MainWindow : Window
         _worker = new StdioIfcWorker(
             new StdioIfcWorkerOptions
             {
-                Command = _settings.PythonCommand,
+                Command = _layout.PythonCommandOrDefault(_settings.PythonCommand),
                 Arguments = ["-m", "ifc_worker"],
-                WorkingDirectory = ViewerAssets.WorkerDirectory(),
+                WorkingDirectory = _layout.WorkerDirectory,
                 Timeout = TimeSpan.FromSeconds(_settings.WorkerTimeoutSeconds),
             }
         );
@@ -66,7 +67,7 @@ public partial class MainWindow : Window
             // 빌드한 자산 폴더를 통째로 매핑한다. 서버도 포트도 없다.
             core.SetVirtualHostNameToFolderMapping(
                 "app.local",
-                ViewerAssets.Locate(),
+                _layout.WebRoot,
                 CoreWebView2HostResourceAccessKind.Allow
             );
 
@@ -84,18 +85,66 @@ public partial class MainWindow : Window
                 "셸을 시작했다",
                 new Dictionary<string, object?>
                 {
-                    ["assets"] = ViewerAssets.Locate(),
+                    ["layout"] = _layout.Kind,
+                    ["assets"] = _layout.WebRoot,
+                    ["worker"] = _layout.WorkerDirectory,
+                    ["python"] = _layout.PythonCommandOrDefault(_settings.PythonCommand),
                     ["openPath"] = _startup.OpenPath,
                 }
             );
 
+            // 배치를 고르는 것과 다 갖춰졌는지는 다른 질문이다. 없는 것이 있어도 뜨되 남긴다.
+            foreach (var missing in _layout.MissingPaths)
+            {
+                _log.Write(
+                    "warn",
+                    "있어야 할 자리가 없다",
+                    new Dictionary<string, object?> { ["path"] = missing }
+                );
+            }
+
             core.Navigate("https://app.local/index.html");
+
+            if (_startup.SelfCheck)
+            {
+                await SelfCheckAsync();
+            }
 
             // 자동 시험이 쓰는 길. 사람이 쓰는 창은 이 값을 주지 않는다.
             if (_startup.ExitAfter is { } delay)
             {
                 _ = Task.Delay(delay).ContinueWith(_ => Dispatcher.Invoke(Close));
             }
+        }
+        catch (Exception cause)
+        {
+            Report(cause);
+        }
+    }
+
+    /// <summary>
+    /// 설치가 온전한지 사람 손 없이 본다.
+    /// </summary>
+    /// <remarks>
+    /// 자산은 창이 뜬 것으로 이미 확인됐다. 남은 것은 워커이며, 설치본에서 가장 먼저
+    /// 깨지는 자리가 동봉한 Python이다. 실패해도 창은 닫지 않는다. 사람이 기록을 보고
+    /// 고칠 수 있어야 한다 (ADR-0011).
+    /// </remarks>
+    private async Task SelfCheckAsync()
+    {
+        try
+        {
+            await _worker.PingAsync();
+            _log.Write(
+                "info",
+                "자체 점검을 통과했다",
+                new Dictionary<string, object?>
+                {
+                    ["layout"] = _layout.Kind,
+                    ["python"] = _layout.PythonCommandOrDefault(_settings.PythonCommand),
+                }
+            );
+            SetStatus("자체 점검을 통과했다");
         }
         catch (Exception cause)
         {
@@ -317,57 +366,5 @@ public partial class MainWindow : Window
         );
         SetStatus(report.Detail);
         MessageBox.Show(this, report.ToDisplayText(), report.Title, MessageBoxButton.OK, MessageBoxImage.Warning);
-    }
-}
-
-/// <summary>웹 자산과 워커가 어디 있는지 찾는다.</summary>
-internal static class ViewerAssets
-{
-    /// <summary>
-    /// 빌드한 뷰어 자산 폴더.
-    /// </summary>
-    /// <remarks>
-    /// 설치본에서는 실행 파일 옆 <c>web</c>에 있고, 개발 중에는 저장소의
-    /// <c>apps/viewer-web/dist</c>다. 설치 배치는 Phase 9에서 정한다.
-    /// </remarks>
-    public static string Locate()
-    {
-        var beside = Path.Combine(AppContext.BaseDirectory, "web");
-        if (Directory.Exists(beside))
-        {
-            return beside;
-        }
-
-        var repo = FindRepoRoot();
-        return repo is null
-            ? beside
-            : Path.Combine(repo, "apps", "viewer-web", "dist");
-    }
-
-    public static string WorkerDirectory()
-    {
-        var beside = Path.Combine(AppContext.BaseDirectory, "ifc-worker");
-        if (Directory.Exists(beside))
-        {
-            return beside;
-        }
-
-        var repo = FindRepoRoot();
-        return repo is null ? beside : Path.Combine(repo, "services", "ifc-worker");
-    }
-
-    private static string? FindRepoRoot()
-    {
-        var current = new DirectoryInfo(AppContext.BaseDirectory);
-        while (current is not null)
-        {
-            if (File.Exists(Path.Combine(current.FullName, "pnpm-workspace.yaml")))
-            {
-                return current.FullName;
-            }
-            current = current.Parent;
-        }
-
-        return null;
     }
 }

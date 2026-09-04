@@ -134,8 +134,8 @@ import site
 ## 후속 작업
 
 - [ ] `AGENTS.md` 1.4절 해소 표에 설치본 배치 행 추가
-- [ ] 배치 해석을 `Bim4d.Desktop.Core`로 옮기고 세 경우(설치본·개발·둘 다 아님)를 xunit으로 덮는다
-- [ ] `python/` 트리를 만드는 절차를 스크립트로 두고 CI에서 돌린다
+- [x] 배치 해석을 `Bim4d.Desktop.Core`로 옮기고 세 경우(설치본·개발·둘 다 아님)를 xunit으로 덮는다
+- [x] `python/` 트리를 만드는 절차를 스크립트로 두고 CI에서 돌린다
 - [ ] 게시 산출물 전체(셸 포함)의 실제 크기를 재어 이 문서에 적는다
 - [ ] `ifcopenshell`의 이행 의존(numpy·shapely 등)까지 고정할지 정한다. 지금 `requirements.txt`는 `ifcopenshell`만 고정하므로 같은 커밋에서 만든 설치본이 항상 같지는 않다
 - [ ] 설치 프로그램(Setup EXE 또는 MSI) 선택은 별도 ADR로 남긴다

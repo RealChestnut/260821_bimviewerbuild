@@ -2,6 +2,16 @@ using System.Text.Json.Serialization;
 
 namespace Bim4d.Desktop.Core;
 
+/// <summary>사람이 아니라 기계가 읽는 코드를 가진 실패.</summary>
+/// <remarks>
+/// 오류 보고가 코드를 함께 보이려면 어떤 실패가 코드를 가졌는지 알아야 한다. 실패 종류가
+/// 늘 때마다 <see cref="ErrorReport.From"/>에 분기를 더하지 않기 위해 짝을 이것 하나로 둔다.
+/// </remarks>
+public interface ICodedError
+{
+    string Code { get; }
+}
+
 /// <summary>
 /// 기계가 분기할 수 있는 코드를 가진 실패.
 /// </summary>
@@ -9,7 +19,7 @@ namespace Bim4d.Desktop.Core;
 /// 워커가 낸 코드를 그대로 옮긴다. 코드는 <c>worker.</c>로 시작하는 안정된 문자열이다
 /// (ADR-0009).
 /// </remarks>
-public sealed class WorkerException : Exception
+public sealed class WorkerException : Exception, ICodedError
 {
     public WorkerException(string code, string message)
         : base(message)

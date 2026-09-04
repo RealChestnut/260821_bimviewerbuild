@@ -15,7 +15,42 @@ public partial class App : Application
     private void OnStartup(object sender, StartupEventArgs args)
     {
         var options = StartupOptions.Parse(args.Args);
-        MainWindow = new MainWindow(options);
-        MainWindow.Show();
+        try
+        {
+            MainWindow = new MainWindow(options);
+            MainWindow.Show();
+        }
+        catch (Exception cause)
+        {
+            FailToStart(cause);
+        }
+    }
+
+    /// <summary>
+    /// 창을 만들지 못했다.
+    /// </summary>
+    /// <remarks>
+    /// 창 안에서 보고할 수 없으므로 여기서 보고한다. 설치가 온전하지 않으면 자산을 찾는
+    /// 단계에서 여기로 온다 (ADR-0011). 코드와 기록 자리를 함께 보인다.
+    /// </remarks>
+    private void FailToStart(Exception cause)
+    {
+        var paths = AppPaths.Default();
+        paths.EnsureCreated();
+
+        var report = ErrorReport.From(cause, paths.LogDirectory);
+        new FileShellLog(paths.LogDirectory).Write(
+            "error",
+            report.Detail,
+            new Dictionary<string, object?> { ["code"] = report.Code, ["title"] = report.Title }
+        );
+
+        MessageBox.Show(
+            report.ToDisplayText(),
+            report.Title,
+            MessageBoxButton.OK,
+            MessageBoxImage.Error
+        );
+        Shutdown(1);
     }
 }
