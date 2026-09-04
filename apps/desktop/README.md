@@ -52,8 +52,28 @@ pnpm shell:publish    # 설치본 폴더 하나를 만든다
 폐쇄망에서는 `--embed-zip`과 `--wheel-dir`을 그대로 넘긴다. 창을 띄울 수 없는 자리에서는
 `--skip-self-check`를 준다.
 
-**설치 프로그램(Setup EXE 또는 MSI)은 여기서 만들지 않는다.** 이것은 폴더 하나이며, 싸는
-일은 별도 ADR과 함께 온다.
+## 설치 프로그램 만들기
+
+```bash
+pnpm shell:installer   # 설치본 폴더를 Inno Setup으로 싼다
+```
+
+`apps/desktop/artifacts/installer/Bim4dViewer-Setup-<버전>.exe`가 나온다. 318 MB 폴더가 81 MB
+파일 하나가 된다. 정본은 [`docs/adr/0012-installer.md`](../../docs/adr/0012-installer.md)다.
+
+Inno Setup이 필요하다. `winget install JRSoftware.InnoSetup`으로 깔거나 `--iscc`로 자리를 준다.
+
+| 하는 일          | 어떻게                                                            |
+| ---------------- | ----------------------------------------------------------------- |
+| 무인 설치        | `Bim4dViewer-Setup-0.1.0.exe /VERYSILENT /NORESTART`              |
+| 관리자 없이 설치 | `/CURRENTUSER`를 더한다                                           |
+| 덮어쓰기         | 같은 AppId라 제자리에서 된다. 실행 중인 셸은 닫게 한다            |
+| 제거             | 설치 폴더와 시작 메뉴는 사라지고 `%APPDATA%\Bim4dViewer`는 남는다 |
+| WebView2         | 없을 때만 동봉한 bootstrapper를 조용히 실행한다                   |
+
+버전은 `apps/desktop/Directory.Build.props`의 `<Version>` 한 곳에서 온다.
+
+서명은 아직 하지 않는다. `--sign-tool "signtool sign ... {file}"`을 주면 만든 뒤 그것을 부른다.
 
 ## 무엇을 어디서 찾나
 
