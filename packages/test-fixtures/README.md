@@ -80,6 +80,20 @@
 
 지울 수 없다. v1 → v2 승격 경로를 테스트로 고정하는 것이 이 파일의 유일한 역할이다 (ADR-0006). 읽으면 `parentTaskId` 없음 · `dependencies` 빈 배열의 v2가 되어야 한다.
 
+### csv/ — 일정 CSV 묶음
+
+`schedule.csv`, `tasks.csv`, `dependencies.csv`, `assignments.csv` 네 파일. 파일 구성과 열 이름의 정본은 `docs/adr/0007-schedule-csv-exchange.md`다.
+
+| 항목      | 내용                                                                                     |
+| --------- | ---------------------------------------------------------------------------------------- |
+| 담은 일정 | `mock-three-elements.json`과 같은 일정. 두 경로가 같은 `Schedule`을 내는지 대조한다      |
+| 열 순서   | `tasks.csv`만 일부러 섞어 두었다. 열은 이름으로 찾으며 순서에 기대지 않는다              |
+| 개행      | 저장소는 LF로 보관한다. 내보내기는 CRLF로 쓰지만 읽기는 둘 다 받는다                     |
+| 빈 칸     | 요약 Task `W1`·`W2`와 시간 미정 Task `T006`의 날짜 칸이 비어 있다. `0`으로 채우지 않는다 |
+| 왕복      | 읽어서 다시 내보낸 뒤 또 읽으면 같은 `Schedule`이어야 한다                               |
+
+값의 이스케이프와 오류 코드는 파일 fixture가 아니라 `packages/domain/src/scheduleCsv.test.ts`가 덮는다. fixture는 정상 묶음 하나만 둔다. 깨진 CSV를 파일로 늘리면 무엇을 시험하는지 흐려진다.
+
 ## 아직 확인하지 못한 것
 
 두 fixture 모두 직접 작성한 파일이라, 실제 Exporter(Revit, Navisworks, Tekla 등)가 만드는 구조적 특징은 담고 있지 않다. 다음은 실모델을 파이프라인에 넣을 때 별도로 확인한다.

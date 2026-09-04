@@ -1,4 +1,14 @@
-import { effectiveTaskTimes, flattenTasks, parseSchedule, validateSchedule } from '@bim4d/domain';
+import {
+  applyScheduleEdits,
+  effectiveTaskTimes,
+  flattenTasks,
+  parseSchedule,
+  parseScheduleCsv,
+  serializeScheduleCsv,
+  serializeScheduleJson,
+  validateSchedule,
+} from '@bim4d/domain';
+import type { Parsed, ScheduleCsvBundle, ScheduleCsvFile, ScheduleEdit } from '@bim4d/domain';
 import type {
   AppComponent,
   AppContext,
@@ -8,7 +18,14 @@ import type {
 } from '@bim4d/contracts';
 
 import './schedulerEvents.js';
-import type { ScheduleTaskRow, ScheduleWarningRow } from './schedulerEvents.js';
+import type {
+  ScheduleExportFormat,
+  ScheduleTaskRow,
+  ScheduleWarningRow,
+} from './schedulerEvents.js';
+
+/** JSON 내보내기의 파일 이름. CSV 네 파일과 마찬가지로 고정한다. */
+const JSON_FILE_NAME = 'schedule.json';
 
 export interface SchedulerComponentOptions {
   readonly repository: ScheduleRepositoryPort;
@@ -47,6 +64,7 @@ export const createSchedulerComponent = (options: SchedulerComponentOptions): Ap
         name: row.task.name,
         depth: row.depth,
         isSummary: row.isSummary,
+        ...(row.task.parentTaskId === undefined ? {} : { parentTaskId: row.task.parentTaskId }),
         ...(time === undefined ? {} : { start: time.start, finish: time.finish }),
         assignedCount: assignedCounts.get(row.task.taskId) ?? 0,
       };
@@ -76,16 +94,22 @@ export const createSchedulerComponent = (options: SchedulerComponentOptions): Ap
       ...(start === undefined ? {} : { start }),
       ...(finish === undefined ? {} : { finish }),
       tasks: toRows(schedule),
+      dependencies: schedule.dependencies,
       warnings: toWarnings(schedule),
     });
   };
 
-  const loadSchedule = async (
-    source: unknown,
+  /**
+   * 읽기 결과를 보관소와 화면에 반영한다.
+   *
+   * JSON과 CSV는 들어오는 모양만 다르고 그 뒤는 같다. 실패 처리도 같은 자리에 둔다.
+   * 오류 코드가 `schedule.parse.*`인지 `schedule.csv.*`인지만 다르게 나온다 (ADR-0007).
+   */
+  const commit = async (
+    parsed: Parsed<Schedule>,
   ): Promise<{ readonly scheduleId: string; readonly taskCount: number }> => {
     const app = requireContext();
 
-    const parsed = parseSchedule(source);
     if (!parsed.ok) {
       // 실패하면 앞서 실린 일정을 그대로 둔다. 읽지 못한 파일 때문에 쓰던 것을 잃지 않는다.
       await app.events.publish('scheduler/load-failed', {
@@ -101,6 +125,68 @@ export const createSchedulerComponent = (options: SchedulerComponentOptions): Ap
     return { scheduleId: parsed.value.scheduleId, taskCount: parsed.value.tasks.length };
   };
 
+  const loadSchedule = (
+    source: unknown,
+  ): Promise<{ readonly scheduleId: string; readonly taskCount: number }> =>
+    commit(parseSchedule(source));
+
+  const loadScheduleCsv = (
+    bundle: ScheduleCsvBundle,
+  ): Promise<{ readonly scheduleId: string; readonly taskCount: number }> =>
+    commit(parseScheduleCsv(bundle));
+
+  /**
+   * 열려 있는 일정을 고친다.
+   *
+   * 편집 결과도 `parseSchedule`을 다시 거치므로 파일로 들어온 일정과 같은 규칙을 받는다.
+   * 실패하면 앞서 있던 일정을 그대로 둔다. 절반만 반영된 일정을 남기지 않는다.
+   */
+  const editSchedule = async (
+    edits: readonly ScheduleEdit[],
+  ): Promise<{ readonly taskCount: number }> => {
+    const app = requireContext();
+
+    const schedule = await repository.get();
+    if (schedule === null) {
+      throw new Error('열려 있는 일정이 없다.');
+    }
+
+    const applied = applyScheduleEdits(schedule, edits);
+    if (!applied.ok) {
+      await app.events.publish('scheduler/edit-failed', {
+        reason: applied.error.message,
+        code: applied.error.code,
+      });
+      throw new Error(applied.error.message);
+    }
+
+    await repository.save(applied.value);
+    await publishSchedule(applied.value);
+
+    return { taskCount: applied.value.tasks.length };
+  };
+
+  /**
+   * 지금 열려 있는 일정을 파일로 쓴다.
+   *
+   * 읽어 들인 파일이 v1이었어도 v2로 나간다. 내부 표현이 v2 하나이기 때문이다 (ADR-0006).
+   */
+  const exportSchedule = async (
+    format: ScheduleExportFormat,
+  ): Promise<{ readonly files: readonly ScheduleCsvFile[] }> => {
+    const schedule = await repository.get();
+    if (schedule === null) {
+      throw new Error('열려 있는 일정이 없다.');
+    }
+
+    return {
+      files:
+        format === 'csv'
+          ? serializeScheduleCsv(schedule)
+          : [{ fileName: JSON_FILE_NAME, content: serializeScheduleJson(schedule) }],
+    };
+  };
+
   return {
     id: 'scheduler',
 
@@ -114,6 +200,9 @@ export const createSchedulerComponent = (options: SchedulerComponentOptions): Ap
       if (registered) return Promise.resolve();
 
       app.commands.register('scheduler/load-schedule', ({ source }) => loadSchedule(source));
+      app.commands.register('scheduler/load-schedule-csv', ({ bundle }) => loadScheduleCsv(bundle));
+      app.commands.register('scheduler/export-schedule', ({ format }) => exportSchedule(format));
+      app.commands.register('scheduler/edit-schedule', ({ edits }) => editSchedule(edits));
       registered = true;
       return Promise.resolve();
     },

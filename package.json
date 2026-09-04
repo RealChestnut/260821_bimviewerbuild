@@ -9,6 +9,8 @@
   },
   "scripts": {
     "build": "pnpm --filter \"./packages/**\" --filter ./apps/viewer-web -r build",
+    "dev": "pnpm --filter @bim4d/viewer-web dev",
+    "dev:packages": "tsc --build --watch --preserveWatchOutput",
     "typecheck": "tsc --build --force && tsc -p tsconfig.tests.json",
     "lint": "eslint .",
     "format:check": "prettier --check .",

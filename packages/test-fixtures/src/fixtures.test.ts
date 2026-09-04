@@ -4,15 +4,23 @@ import { fileURLToPath } from 'node:url';
 
 import { describe, expect, it } from 'vitest';
 
-import { parseSchedule, validateSchedule } from '@bim4d/domain';
+import {
+  parseSchedule,
+  parseScheduleCsv,
+  serializeScheduleCsv,
+  validateSchedule,
+  type ScheduleCsvBundle,
+} from '@bim4d/domain';
 
 import {
   ifcFixtures,
   legacyV1ThreeElementsSchedule,
   minimalWallIfc4,
   mockThreeElementsSchedule,
+  scheduleCsvFixtures,
   scheduleFixtures,
   threeElementsIfc4,
+  type ScheduleCsvFixture,
 } from './index.js';
 
 const readFixture = (path: string): string => readFileSync(path, 'utf8');
@@ -107,6 +115,7 @@ describe('IFC fixtures', () => {
 });
 
 const scheduleDirectory = fileURLToPath(new URL('../schedule/', import.meta.url));
+const scheduleCsvDirectory = fileURLToPath(new URL('../schedule/csv/', import.meta.url));
 
 describe('일정 fixtures', () => {
   it('디렉터리에 있는 모든 일정 JSON이 fixture 목록에 등록돼 있다', () => {
@@ -181,5 +190,85 @@ describe('일정 fixtures — 스키마 v2', () => {
     expect(validateSchedule(parsed.value).map((warning) => warning.code)).toEqual([
       'schedule.warn.task-without-time',
     ]);
+  });
+});
+
+describe('일정 CSV fixtures', () => {
+  const readBundle = (fixture: ScheduleCsvFixture): ScheduleCsvBundle => ({
+    schedule: readFixture(fixture.paths.schedule),
+    tasks: readFixture(fixture.paths.tasks),
+    dependencies: readFixture(fixture.paths.dependencies),
+    assignments: readFixture(fixture.paths.assignments),
+  });
+
+  it('등록된 CSV 묶음이 모두 스키마 검증을 통과한다', () => {
+    for (const fixture of scheduleCsvFixtures) {
+      const parsed = parseScheduleCsv(readBundle(fixture));
+      if (!parsed.ok) throw new Error(`${fixture.id}: ${parsed.error.message}`);
+
+      expect(parsed.value.assignments.length).toBeGreaterThan(0);
+    }
+  });
+
+  it('CSV 묶음과 짝인 JSON이 같은 일정을 낸다', () => {
+    // 해석 지점이 하나임을 fixture 단계에서 고정한다 (ADR-0007).
+    for (const fixture of scheduleCsvFixtures) {
+      const fromCsv = parseScheduleCsv(readBundle(fixture));
+      if (!fromCsv.ok) throw new Error(`${fixture.id}: ${fromCsv.error.message}`);
+
+      const fromJson = parseSchedule(JSON.parse(readFixture(fixture.equivalentJson.path)));
+      if (!fromJson.ok) throw new Error(fromJson.error.message);
+
+      expect(fromCsv.value).toEqual(fromJson.value);
+    }
+  });
+
+  it('CSV 묶음을 다시 내보내면 같은 일정으로 돌아온다', () => {
+    for (const fixture of scheduleCsvFixtures) {
+      const original = parseScheduleCsv(readBundle(fixture));
+      if (!original.ok) throw new Error(`${fixture.id}: ${original.error.message}`);
+
+      const files = serializeScheduleCsv(original.value);
+      const contentOf = (name: string): string =>
+        files.find((file) => file.fileName === name)?.content ?? '';
+
+      const reread = parseScheduleCsv({
+        schedule: contentOf('schedule.csv'),
+        tasks: contentOf('tasks.csv'),
+        dependencies: contentOf('dependencies.csv'),
+        assignments: contentOf('assignments.csv'),
+      });
+      if (!reread.ok) throw new Error(reread.error.message);
+
+      expect(reread.value).toEqual(original.value);
+    }
+  });
+
+  it('CSV 묶음이 가리키는 GlobalId가 대상 IFC에 실제로 있다', () => {
+    for (const fixture of scheduleCsvFixtures) {
+      const model = ifcFixtures.find(
+        (ifc) => basename(ifc.path) === fixture.equivalentJson.modelRef,
+      );
+      if (model === undefined) throw new Error(`${fixture.id}의 modelRef가 IFC fixture에 없다.`);
+
+      const available = new Set(globalIdsOf(readFixture(model.path)));
+      const parsed = parseScheduleCsv(readBundle(fixture));
+      if (!parsed.ok) throw new Error(parsed.error.message);
+
+      for (const assignment of parsed.value.assignments) {
+        expect(available).toContain(assignment.productGlobalId);
+      }
+    }
+  });
+
+  it('디렉터리에 있는 모든 CSV가 어느 묶음에든 등록돼 있다', () => {
+    const tracked = readdirSync(scheduleCsvDirectory).filter((name) => name.endsWith('.csv'));
+    const registered = new Set(
+      scheduleCsvFixtures.flatMap((fixture) =>
+        Object.values(fixture.paths).map((path) => basename(path)),
+      ),
+    );
+
+    expect([...tracked].sort()).toEqual([...registered].sort());
   });
 });

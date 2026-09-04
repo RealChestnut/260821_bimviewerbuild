@@ -10,6 +10,7 @@ import { createSelectionPanel } from './shell/selectionPanel.js';
 import { createPropertyPanel } from './shell/propertyPanel.js';
 import { createSectionPanel } from './shell/sectionPanel.js';
 import { createViewpointPanel } from './shell/viewpointPanel.js';
+import { createScheduleTablePanel } from './shell/scheduleTablePanel.js';
 import { createSchedulerPanel } from './shell/schedulerPanel.js';
 import { createSimulationPanel } from './shell/simulationPanel.js';
 import { createSpatialPanel } from './shell/spatialPanel.js';
@@ -78,9 +79,20 @@ const bootstrap = async (): Promise<void> => {
       fileInputSelector: '[data-testid="schedule-file"]',
       panelSelector: '[data-testid="schedule-panel"]',
       nameSelector: '[data-testid="schedule-name"]',
-      taskListSelector: '[data-testid="task-list"]',
       warningListSelector: '[data-testid="schedule-warnings"]',
       statusSelector: '[data-testid="schedule-status"]',
+      exportJsonSelector: '[data-testid="schedule-export-json"]',
+      exportCsvSelector: '[data-testid="schedule-export-csv"]',
+    }),
+  );
+  kernel.register(
+    createScheduleTablePanel({
+      panelSelector: '[data-testid="schedule-table"]',
+      axisSelector: '[data-testid="gantt-axis"]',
+      rowListSelector: '[data-testid="task-rows"]',
+      cursorSelector: '[data-testid="gantt-cursor"]',
+      statusSelector: '[data-testid="gantt-status"]',
+      addButtonSelector: '[data-testid="task-add"]',
     }),
   );
   kernel.register(

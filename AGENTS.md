@@ -75,6 +75,7 @@ apps/viewer-web/**              모델 로딩, Selection, Property Panel, 4D Sim
 | Schedule / Task–Element Mapping 필드 스키마 (기준서 19.2절에 ID만 있음) | `schemaVersion` 1 스키마 확정. 날짜는 UTC `YYYY-MM-DD`, 연결은 `modelRef + productGlobalId + operation` | `docs/adr/0005-schedule-schema.md` |
 | `ElementDisplayState`의 화면 표현 (ADR-0002가 Phase 4로 미룸) | `HIDDEN` 미렌더링, `IN_PROGRESS` 반투명 주황, `PRESENT` 원래 표현 | `docs/adr/0005-schedule-schema.md` |
 | 일정 스키마의 WBS와 선후행 (기준서 12·13절, 마스터 계획 4.3절) | `schemaVersion` 2. WBS는 `parentTaskId`, 선후행은 `IfcRelSequence` 대응 4종 + `lagDays`. 저장·검증만 하고 날짜를 자동 계산하지 않는다 | `docs/adr/0006-schedule-schema-v2.md` |
+| 일정 CSV 교환 형식 (마스터 계획 9절 Phase 5 `JSON/CSV 가져오기·내보내기`) | `schedule.csv` + `tasks.csv` + `assignments.csv` + 선택 `dependencies.csv` 네 파일. 열 순서는 무관하고 모르는 열은 거부한다. 의미 검증은 `parseSchedule`이 맡아 해석 지점을 하나로 둔다 | `docs/adr/0007-schedule-csv-exchange.md` |
 
 **아직 미결정** — 해당 영역을 구현할 때 임의로 정하지 말고 결정을 먼저 요청한다.
 
@@ -181,6 +182,8 @@ Schema 판별 → Entity/Attribute 추출 → Geometry/Placement 추출
 - 결정 사항은 `docs/adr/`에 ADR로 남긴다.
 - 마스터 계획은 2026-08-21에 승인됐다. 계획 자체를 바꾸는 변경은 먼저 확인을 받는다.
 - 검증 게이트는 `pnpm verify`(typecheck → lint → test → build)와 `pnpm test:e2e`다. 완료를 주장하기 전에 실행 결과를 제시한다.
+- 화면 배치를 바꾸면 `tests/e2e/scheduleLayout.spec.ts`류의 배치 계약 테스트로 덮는다. 나머지 테스트는 testid의 존재와 개수와 글자만 보므로 칸이 눌려 읽을 수 없는 화면이 되어도 전부 통과한다 (마스터 계획 10.2절 Visual 계층).
+- screenshot 기준선은 의도한 변경일 때만 `pnpm exec playwright test <파일> --update-snapshots`로 갱신하고, 갱신한 이유를 커밋 메시지에 적는다. 3D 캔버스는 GPU에 따라 픽셀이 달라지므로 찍지 않는다.
 
 ## 5. 문서 갱신
 

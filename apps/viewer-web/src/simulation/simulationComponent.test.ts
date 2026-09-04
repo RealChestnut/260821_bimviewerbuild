@@ -129,6 +129,7 @@ const loadSchedule = async (
     scheduleId: parsed.value.scheduleId,
     name: parsed.value.name,
     tasks: [],
+    dependencies: [],
     warnings: [],
   });
 };
