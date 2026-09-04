@@ -81,6 +81,7 @@ apps/viewer-web/**              모델 로딩, Selection, Property Panel, 4D Sim
 | Worker IPC 방식 (마스터 계획 16절 Follow-up `초기 HTTP/WebSocket`) | 자식 프로세스 stdio에 줄 단위 JSON. 포트·토큰 없음. 큰 파일은 경로로 오간다. timeout은 부모가 재고, 죽으면 다음 요청에서 다시 띄우며, 이어서 세 번 죽으면 멈춘다 | `docs/adr/0009-ifc-worker-ipc.md` |
 | IFC Export 매핑 (ADR-0002가 잠정으로 둠) | 왕복 테스트로 확정. `CONSTRUCT`→`CONSTRUCTION`, `DEMOLISH`→`DEMOLITION`+`IfcRelAssignsToProcess`, `MODIFY`→`RENOVATION`, `TEMPORARY`→`USERDEFINED`+`ObjectType`. 우리가 쓴 파일은 네 값이 모두 복원된다 | `docs/adr/0002-4d-operation-vocabulary.md` · `docs/adr/0009-ifc-worker-ipc.md` |
 | `modelRef` 바인딩 (ADR-0005가 파일명 대조를 잠정으로 둠) | `schemaVersion` 3. 일정에 `models` 표를 두어 `modelRef`별 fingerprint를 적는다. 묶는 순서는 fingerprint 일치 → 이름 일치 → 미바인딩. 교체는 경고로 알리고 자동으로 갱신하거나 지우지 않는다 | `docs/adr/0008-model-ref-fingerprint-binding.md` |
+| 설치본 배치와 런타임 동봉 (마스터 계획 9절 Phase 9 `Web assets 포함`, `Python/IfcOpenShell runtime 포함`) | 실행 파일 옆 `web/` · `ifc-worker/` · `python/`. Python은 임베더블 CPython 3.13에 wheel을 풀고 `python313._pth`가 sys.path를 정한다. WebView2는 Evergreen이 기본이고 Fixed Version은 별도 산출물 | `docs/adr/0011-install-layout.md` |
 
 **아직 미결정** — 해당 영역을 구현할 때 임의로 정하지 말고 결정을 먼저 요청한다.
 
