@@ -279,7 +279,23 @@ def smoke(tree: Layout, *, ifc_path: Path | None = None, timeout: float = 120.0)
     return ready
 
 
+def use_utf8() -> None:
+    """이 스크립트의 출력을 UTF-8로 맞춘다.
+
+    Windows에서 파이프로 연결하면 Python이 지역 코드 페이지(CI는 cp1252, 이 저장소의
+    개발 PC는 cp949)를 쓴다. 그대로 두면 한글이 든 줄에서 ``UnicodeEncodeError``가 나고,
+    만들기를 다 끝낸 뒤 결과를 알리다 죽는다. 워커의 ``loop.main``이 같은 이유로 같은
+    일을 한다.
+    """
+    for stream in (sys.stdout, sys.stderr):
+        reconfigure = getattr(stream, "reconfigure", None)
+        if reconfigure is not None:
+            reconfigure(encoding="utf-8")
+
+
 def main(argv: list[str] | None = None) -> int:
+    use_utf8()
+
     here = Path(__file__).resolve()
     service_root = here.parents[1]
     repo_root = here.parents[3]

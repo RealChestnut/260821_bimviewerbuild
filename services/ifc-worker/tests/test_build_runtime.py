@@ -19,6 +19,7 @@ from tools.build_runtime import (
     missing_paths,
     pip_args,
     pth_lines,
+    use_utf8,
 )
 
 
@@ -135,3 +136,34 @@ class TestMissingPaths:
         tree.pth_file.unlink()
 
         assert tree.pth_file in missing_paths(tree)
+
+
+class TestUseUtf8:
+    """Windows에서 지역 코드 페이지로 한글을 내보내다 죽는 것을 막는다.
+
+    CI(cp1252)에서 실제로 그렇게 죽었다. 트리를 다 만든 뒤 결과를 알리는 줄에서였다.
+    """
+
+    def test_출력을_UTF_8로_맞춘다(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        class Stream:
+            def __init__(self) -> None:
+                self.encoding: str | None = None
+
+            def reconfigure(self, *, encoding: str) -> None:
+                self.encoding = encoding
+
+        out, err = Stream(), Stream()
+        monkeypatch.setattr("tools.build_runtime.sys.stdout", out)
+        monkeypatch.setattr("tools.build_runtime.sys.stderr", err)
+
+        use_utf8()
+
+        assert out.encoding == "utf-8"
+        assert err.encoding == "utf-8"
+
+    def test_reconfigure가_없는_스트림도_견딘다(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        # 리다이렉트된 스트림에는 reconfigure가 없을 수 있다. 그것 때문에 멈추지 않는다.
+        monkeypatch.setattr("tools.build_runtime.sys.stdout", object())
+        monkeypatch.setattr("tools.build_runtime.sys.stderr", object())
+
+        use_utf8()
