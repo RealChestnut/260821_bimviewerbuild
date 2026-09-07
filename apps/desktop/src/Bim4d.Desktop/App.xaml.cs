@@ -1,3 +1,5 @@
+using System.Diagnostics;
+using System.Runtime.InteropServices;
 using System.Windows;
 using Bim4d.Desktop.Core;
 
@@ -12,8 +14,26 @@ namespace Bim4d.Desktop;
 /// </remarks>
 public partial class App : Application
 {
+    private SingleInstance? _instance;
+
+    /// <summary>
+    /// 앱을 띄운다.
+    /// </summary>
+    /// <remarks>
+    /// 이미 떠 있으면 그 창을 앞으로 가져오고 조용히 끝낸다. WebView2가 사용자 데이터
+    /// 폴더를 잠그므로 두 번째 인스턴스는 <c>0x800700AA</c>로 죽는다. 아이콘을 두 번 누르는
+    /// 일은 흔하며 그것을 오류로 만들지 않는다.
+    /// </remarks>
     private void OnStartup(object sender, StartupEventArgs args)
     {
+        _instance = SingleInstance.Acquire();
+        if (!_instance.IsOwner)
+        {
+            ActivateRunningWindow();
+            Shutdown();
+            return;
+        }
+
         var options = StartupOptions.Parse(args.Args);
         try
         {
@@ -23,6 +43,39 @@ public partial class App : Application
         catch (Exception cause)
         {
             FailToStart(cause);
+        }
+    }
+
+    private void OnExit(object sender, ExitEventArgs args)
+    {
+        _instance?.Dispose();
+        _instance = null;
+    }
+
+    /// <summary>
+    /// 이미 떠 있는 창을 앞으로 가져온다.
+    /// </summary>
+    /// <remarks>
+    /// 창을 못 찾아도 그냥 끝낸다. 두 번째 창을 띄우지 않는 것이 목적이고, 앞으로
+    /// 가져오는 것은 그다음이다.
+    /// </remarks>
+    private static void ActivateRunningWindow()
+    {
+        var current = Process.GetCurrentProcess();
+
+        foreach (var other in Process.GetProcessesByName(current.ProcessName))
+        {
+            using (other)
+            {
+                if (other.Id == current.Id || other.MainWindowHandle == IntPtr.Zero)
+                {
+                    continue;
+                }
+
+                NativeMethods.ShowWindow(other.MainWindowHandle, NativeMethods.RestoreWindow);
+                NativeMethods.SetForegroundWindow(other.MainWindowHandle);
+                return;
+            }
         }
     }
 
@@ -53,4 +106,19 @@ public partial class App : Application
         );
         Shutdown(1);
     }
+}
+
+/// <summary>이미 떠 있는 창을 앞으로 가져올 때만 쓰는 Win32 호출.</summary>
+internal static class NativeMethods
+{
+    /// <summary>최소화돼 있으면 되살린다.</summary>
+    public const int RestoreWindow = 9;
+
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static extern bool SetForegroundWindow(IntPtr window);
+
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static extern bool ShowWindow(IntPtr window, int command);
 }

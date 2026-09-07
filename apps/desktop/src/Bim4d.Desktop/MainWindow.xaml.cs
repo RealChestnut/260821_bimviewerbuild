@@ -69,7 +69,12 @@ public partial class MainWindow : Window
     {
         try
         {
-            await Viewer.EnsureCoreWebView2Async();
+            // WebView2의 기본 자리는 실행 파일 옆이다. Program Files에 깐 설치본을 일반
+            // 계정으로 쓰면 거기 쓰지 못해 뷰어가 아예 뜨지 않는다. 사용자 자리로 옮긴다.
+            var environment = await CoreWebView2Environment.CreateAsync(
+                userDataFolder: AppPaths.WebViewDirectory
+            );
+            await Viewer.EnsureCoreWebView2Async(environment);
             var core = Viewer.CoreWebView2;
 
             // 브라우저 단축키를 끈다. 켜 두면 WebView2가 Ctrl+S를 "페이지 저장"으로 먼저

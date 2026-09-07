@@ -81,9 +81,14 @@ Root: HKA; Subkey: "Software\Classes\Bim4dViewer.Project\DefaultIcon"; ValueType
 Root: HKA; Subkey: "Software\Classes\Bim4dViewer.Project\shell\open\command"; ValueType: string; ValueName: ""; ValueData: """{app}\{#ShellExe}"" ""%1"""
 
 [UninstallDelete]
-; WebView2가 실행 중에 만드는 캐시다. 설치 프로그램이 담은 것이 아니라 Inno가 모른다.
-; 브라우저 캐시는 사용자 데이터가 아니므로 지운다 — 남겨도 되찾을 것이 없다 (ADR-0012).
+; WebView2 캐시는 사용자 데이터가 아니므로 지운다 — 남겨도 되찾을 것이 없다 (ADR-0012).
+;
+; 지금 자리는 사용자 폴더다. 실행 파일 옆에 두면 Program Files에 깐 설치본을 일반 계정으로
+; 쓸 때 쓰지 못해 뷰어가 아예 뜨지 않는다. 옛 자리도 함께 지운다 — 앞 버전을 쓰던 사람의
+; 설치 폴더에 남아 있다.
+Type: filesandordirs; Name: "{localappdata}\Bim4dViewer\WebView2"
 Type: filesandordirs; Name: "{app}\Bim4d.Desktop.exe.WebView2"
+Type: dirifempty; Name: "{localappdata}\Bim4dViewer"
 Type: dirifempty; Name: "{app}"
 
 [Icons]
