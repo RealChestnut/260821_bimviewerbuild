@@ -304,6 +304,7 @@ export const createSchedulerPanel = (options: SchedulerPanelOptions): AppCompone
         warningList = requireElement(options.warningListSelector);
         replacementList = requireElement(options.replacementListSelector);
         unboundList = requireElement(options.unboundListSelector);
+        unboundList.hidden = true;
         selectUnassignedButton = requireElement(options.selectUnassignedSelector);
         statusText = requireElement(options.statusSelector);
         exportJsonButton = requireElement(options.exportJsonSelector);
@@ -339,7 +340,11 @@ export const createSchedulerPanel = (options: SchedulerPanelOptions): AppCompone
         }),
         context.events.subscribe('scheduler/model-binding-changed', ({ payload }) => {
           replacementList?.replaceChildren(...payload.replacedRefs.map(createReplacementRow));
-          unboundList?.replaceChildren(...payload.unboundRefs.map(createUnboundRow));
+          if (unboundList !== null) {
+            unboundList.replaceChildren(...payload.unboundRefs.map(createUnboundRow));
+            // 비어 있으면 자리를 차지하지 않는다. 끊긴 것이 없는 날이 대부분이다.
+            unboundList.hidden = payload.unboundRefs.length === 0;
+          }
         }),
         context.events.subscribe('scheduler/load-failed', ({ payload }) => {
           // 앞서 실린 일정은 그대로 둔다. 읽지 못한 파일 때문에 쓰던 것을 지우지 않는다.

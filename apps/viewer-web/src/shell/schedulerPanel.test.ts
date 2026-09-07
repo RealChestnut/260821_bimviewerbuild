@@ -417,6 +417,26 @@ describe('createSchedulerPanel — 묶이지 않은 모델 (ADR-0013)', () => {
     expect(all('unbound-model')).toHaveLength(2);
   });
 
+  it('끊긴 것이 없으면 자리를 차지하지 않는다', async () => {
+    const context = createTestContext();
+    await startPanel(context);
+
+    await announceUnbound(context, []);
+
+    const list = document.querySelector<HTMLElement>('[data-testid="unbound-models"]');
+    expect(list?.hidden).toBe(true);
+  });
+
+  it('끊긴 것이 있으면 보인다', async () => {
+    const context = createTestContext();
+    await startPanel(context);
+
+    await announceUnbound(context, [{ modelRef: '설비.ifc', assignmentCount: 1 }]);
+
+    const list = document.querySelector<HTMLElement>('[data-testid="unbound-models"]');
+    expect(list?.hidden).toBe(false);
+  });
+
   it('다시 묶이면 사라진다', async () => {
     const context = createTestContext();
     await startPanel(context);

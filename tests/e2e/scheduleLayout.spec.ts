@@ -129,6 +129,22 @@ test.describe('일정 독 배치', () => {
    * 드라이버에 따라 픽셀이 달라지므로 찍지 않는다. 일정 독만 찍는다. 위 단언들이 잡지
    * 못하는 종류의 어긋남(글자 잘림, 겹침, 색)을 여기서 잡는다.
    */
+  /*
+   * 모델을 열지 않은 채 일정만 올리면 모든 modelRef가 묶이지 않는다. 그 사실이 화면에
+   * 보여야 사용자가 연결을 다시 만들어 중복을 내지 않는다 (ADR-0013).
+   */
+  test('묶이지 않은 모델을 배지와 함께 보인다', async ({ page }) => {
+    await openSchedule(page);
+
+    const rows = page.getByTestId('unbound-model');
+    await expect(rows).toHaveCount(1);
+    await expect(rows.first()).toContainText('연결');
+
+    const box = await boxOf(rows.first());
+    // 글자가 눌려 읽을 수 없는 칸이 되지 않는다.
+    expect(box.height).toBeGreaterThan(12);
+  });
+
   test('일정 독의 모습이 기준과 같다', async ({ page }) => {
     await openSchedule(page);
 

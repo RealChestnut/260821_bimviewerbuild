@@ -453,6 +453,14 @@
         padding: 0;
       }
 
+      /*
+        id 선택자가 브라우저 기본 [hidden] { display: none }을 이긴다. 명시하지 않으면
+        비어 있어도 자리를 차지한다.
+      */
+      #unbound-models[hidden] {
+        display: none;
+      }
+
       #unbound-models li {
         display: inline-flex;
         align-items: center;
@@ -794,7 +802,7 @@
           </button>
           <button type="button" data-testid="select-unassigned">미연결 부재 고르기</button>
           <ul id="model-replacements" data-testid="model-replacements"></ul>
-          <ul id="unbound-models" data-testid="unbound-models"></ul>
+          <ul id="unbound-models" data-testid="unbound-models" hidden></ul>
           <ul id="schedule-warnings" data-testid="schedule-warnings"></ul>
         </section>
         <section id="schedule-table" data-testid="schedule-table" hidden>
