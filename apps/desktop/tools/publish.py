@@ -95,6 +95,9 @@ def missing_after_publish(out: Path) -> list[Path]:
         out / "web" / "index.html",
         tree.python_exe,
         tree.worker_package / "__main__.py",
+        # 프로젝트 파일은 SQLite다 (ADR-0013). 네이티브 라이브러리가 빠지면 설치본에서만
+        # 드러난다 — 개발 PC에서는 멀쩡하다가 사용자 PC에서 저장이 죽는다.
+        out / "e_sqlite3.dll",
     ]
     return [path for path in required if not path.exists()]
 
