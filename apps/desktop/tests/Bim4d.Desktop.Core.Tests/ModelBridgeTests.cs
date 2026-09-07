@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.Json.Nodes;
 
 namespace Bim4d.Desktop.Core.Tests;
 
@@ -145,7 +146,8 @@ public sealed class ShellMessagesTests
         var message = ShellMessages.ProjectOpened(
             """{"scheduleId":"s1","tasks":[]}""",
             """{"camera":{"position":[1,2,3]}}""",
-            ["설비.ifc"]
+            ["설비.ifc"],
+            ["구조.ifc"]
         );
 
         using var parsed = JsonDocument.Parse(message);
@@ -156,6 +158,8 @@ public sealed class ShellMessagesTests
         Assert.Equal("s1", root.GetProperty("schedule").GetProperty("scheduleId").GetString());
         Assert.Equal(JsonValueKind.Object, root.GetProperty("viewerState").ValueKind);
         Assert.Equal("설비.ifc", root.GetProperty("unbound")[0].GetString());
+        // 웹은 이 이름들이 다 올라온 뒤에 화면 상태를 되살린다 (ADR-0013).
+        Assert.Equal("구조.ifc", root.GetProperty("models")[0].GetString());
     }
 
     [Fact]
@@ -176,6 +180,30 @@ public sealed class ShellMessagesTests
         using var parsed = JsonDocument.Parse(ShellMessages.ProjectOpened("{ 깨졌다", null, []));
 
         Assert.Equal(JsonValueKind.Null, parsed.RootElement.GetProperty("schedule").ValueKind);
+    }
+
+    [Fact]
+    public void 값으로_온_것은_그대로_적는다()
+    {
+        var node = JsonNode.Parse("""{"scheduleId":"s1"}""");
+
+        Assert.Equal("""{"scheduleId":"s1"}""", ShellMessages.RawJson(node));
+    }
+
+    [Fact]
+    public void 문자열로_온_것은_안에_든_것을_적는다()
+    {
+        // 그대로 ToJsonString하면 JSON이 JSON 안에 한 번 더 감싸인다. 실제로 그렇게 저장된
+        // 파일이 나왔다 (ADR-0013).
+        var node = JsonValue.Create("""{"scheduleId":"s1"}""");
+
+        Assert.Equal("""{"scheduleId":"s1"}""", ShellMessages.RawJson(node));
+    }
+
+    [Fact]
+    public void 없으면_빈_문자열이다()
+    {
+        Assert.Equal(string.Empty, ShellMessages.RawJson(null));
     }
 
     [Fact]

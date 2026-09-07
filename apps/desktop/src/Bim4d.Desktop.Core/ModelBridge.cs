@@ -107,25 +107,33 @@ public static class ShellMessages
 
     /// <summary>연 프로젝트를 웹에 올린다. 모델은 <c>shell/model-opened</c>로 따로 간다.</summary>
     /// <param name="unbound">찾지 못한 모델의 <c>modelRef</c>들. 웹이 표시에 쓴다.</param>
+    /// <param name="models">
+    /// 곧 올라올 모델의 이름들. 웹은 이것이 다 올라온 뒤에 화면 상태를 되살린다 — 먼저
+    /// 되살리면 아직 없는 부재를 숨기라는 말이 된다 (ADR-0013).
+    /// </param>
     public static string ProjectOpened(
         string? scheduleJson,
         string? viewerStateJson,
-        IReadOnlyList<string> unbound
-    )
-    {
-        var unboundArray = new JsonArray();
-        foreach (var modelRef in unbound)
-        {
-            unboundArray.Add(modelRef);
-        }
-
-        return new JsonObject
+        IReadOnlyList<string> unbound,
+        IReadOnlyList<string>? models = null
+    ) =>
+        new JsonObject
         {
             ["kind"] = "shell/project-opened",
             ["schedule"] = ParseOrNull(scheduleJson),
             ["viewerState"] = ParseOrNull(viewerStateJson),
-            ["unbound"] = unboundArray,
+            ["unbound"] = ToArray(unbound),
+            ["models"] = ToArray(models ?? []),
         }.ToJsonString();
+
+    private static JsonArray ToArray(IReadOnlyList<string> values)
+    {
+        var array = new JsonArray();
+        foreach (var value in values)
+        {
+            array.Add(value);
+        }
+        return array;
     }
 
     /// <summary>프로젝트를 닫았다. 웹은 비운 상태로 돌아간다.</summary>
@@ -155,6 +163,22 @@ public static class ShellMessages
             return null;
         }
     }
+
+    /// <summary>
+    /// 웹이 보낸 값을 저장할 JSON 문자열로 만든다.
+    /// </summary>
+    /// <remarks>
+    /// 값으로 오면 그대로 적고, 문자열로 오면 그 안에 든 것을 적는다. 문자열을 그대로
+    /// <c>ToJsonString</c>하면 JSON이 JSON 안에 한 번 더 감싸여 저장된다. 실제로 그렇게
+    /// 저장된 파일이 나왔다 (ADR-0013).
+    /// </remarks>
+    public static string RawJson(JsonNode? node) =>
+        node switch
+        {
+            null => string.Empty,
+            JsonValue value when value.TryGetValue<string>(out var text) => text,
+            _ => node.ToJsonString(),
+        };
 
     /// <summary>웹이 보낸 줄을 읽는다. 모르는 모양이면 <c>null</c>이다.</summary>
     public static (string Kind, JsonObject Payload)? Parse(string json)

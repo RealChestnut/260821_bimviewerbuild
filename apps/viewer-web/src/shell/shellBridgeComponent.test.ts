@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 
-import type { ModelId } from '@bim4d/contracts';
+import type { ModelId, TaskId } from '@bim4d/contracts';
 
 import { createTestContext } from '../kernel/testing/testContext.js';
 import type { TestContext } from '../kernel/testing/testContext.js';
@@ -285,8 +285,48 @@ describe('createShellBridgeComponent — 프로젝트 (ADR-0013)', () => {
     expect(shell.sent.at(-1)).toMatchObject({
       kind: 'web/state',
       requestId: 'a1',
-      schedule: '{"scheduleId":"s1"}',
+      schedule: { scheduleId: 's1' },
     });
+  });
+
+  it('일정을 문자열이 아니라 값으로 답한다', async () => {
+    // 문자열로 보내면 셸이 그것을 다시 JSON으로 감싸 이중으로 적힌다. 실제로 그렇게 저장된
+    // 파일이 나왔다.
+    const context = createTestContext();
+    captureStateSources(context, { schedule: '{"scheduleId":"s1","tasks":[]}' });
+    const shell = createFakeHost();
+    await startBridge(context, shell.host);
+
+    shell.send({ kind: 'shell/state-requested', requestId: 'a1' });
+    await flush();
+
+    const answer = shell.sent.at(-1);
+    expect(typeof answer?.['schedule']).toBe('object');
+    expect(answer?.['schedule']).toMatchObject({ scheduleId: 's1' });
+  });
+
+  it('Task 수를 함께 답한다', async () => {
+    // 셸이 최근 목록에 보이려고 쓴다. 셸이 일정을 열어 보지 않게 여기서 센다.
+    const context = createTestContext();
+    captureStateSources(context, { schedule: '{"scheduleId":"s1"}' });
+    const shell = createFakeHost();
+    await startBridge(context, shell.host);
+
+    await context.events.publish('scheduler/schedule-changed', {
+      scheduleId: 's1',
+      name: '시험',
+      tasks: [
+        { taskId: 'T1' as TaskId, name: '벽', depth: 0, isSummary: false, assignedCount: 0 },
+        { taskId: 'T2' as TaskId, name: '슬래브', depth: 0, isSummary: false, assignedCount: 0 },
+      ],
+      dependencies: [],
+      assignments: [],
+      warnings: [],
+    });
+    shell.send({ kind: 'shell/state-requested', requestId: 'a1' });
+    await flush();
+
+    expect(shell.sent.at(-1)).toMatchObject({ taskCount: 2 });
   });
 
   it('물음의 requestId를 그대로 실어 답한다', async () => {
@@ -357,6 +397,78 @@ describe('createShellBridgeComponent — 프로젝트 (ADR-0013)', () => {
     await flush();
 
     expect(loaded).toHaveLength(1);
+    expect(applied).toHaveLength(1);
+  });
+
+  it('기다리는 모델이 다 올라온 뒤에 화면을 되살린다', async () => {
+    // 먼저 되살리면 아직 없는 부재를 숨기라는 말이 되어 아무 일도 일어나지 않는다.
+    const context = createTestContext();
+    const applied: unknown[] = [];
+    context.commands.register('scheduler/load-schedule', () =>
+      Promise.resolve({ scheduleId: 's1', taskCount: 0 }),
+    );
+    context.commands.register('viewer/apply-viewpoint', ({ viewpoint }) => {
+      applied.push(viewpoint);
+      return Promise.resolve({ restored: true });
+    });
+    const shell = createFakeHost();
+    await startBridge(context, shell.host);
+
+    shell.send({
+      kind: 'shell/project-opened',
+      schedule: { scheduleId: 's1' },
+      viewerState: { id: 'v1', camera: { position: [1, 2, 3], target: [0, 0, 0] } },
+      models: ['a.ifc', 'b.ifc'],
+    });
+    await flush();
+    expect(applied).toEqual([]);
+
+    await context.events.publish('model/loaded', {
+      modelId: 'm1' as ModelId,
+      displayName: 'a.ifc',
+      schema: 'IFC4',
+      fingerprint: '1',
+    });
+    await flush();
+    expect(applied).toEqual([]);
+
+    await context.events.publish('model/loaded', {
+      modelId: 'm2' as ModelId,
+      displayName: 'b.ifc',
+      schema: 'IFC4',
+      fingerprint: '2',
+    });
+    await flush();
+
+    expect(applied).toHaveLength(1);
+  });
+
+  it('오지 않을 모델을 영영 기다리지 않는다', async () => {
+    const context = createTestContext();
+    const applied: unknown[] = [];
+    context.commands.register('scheduler/load-schedule', () =>
+      Promise.resolve({ scheduleId: 's1', taskCount: 0 }),
+    );
+    context.commands.register('viewer/apply-viewpoint', ({ viewpoint }) => {
+      applied.push(viewpoint);
+      return Promise.resolve({ restored: true });
+    });
+    const shell = createFakeHost();
+    await startBridge(context, shell.host);
+
+    shell.send({
+      kind: 'shell/project-opened',
+      viewerState: { id: 'v1', camera: { position: [1, 2, 3], target: [0, 0, 0] } },
+      models: ['깨진.ifc'],
+    });
+    await flush();
+
+    await context.events.publish('model/load-failed', {
+      displayName: '깨진.ifc',
+      reason: '읽지 못했다',
+    });
+    await flush();
+
     expect(applied).toHaveLength(1);
   });
 

@@ -67,6 +67,29 @@ public sealed class StartupOptionsTests
     }
 
     [Fact]
+    public void 프로젝트를_뜨자마자_연다()
+    {
+        var options = StartupOptions.Parse(["--open-project", "C:/a.bim4d"]);
+
+        Assert.Equal("C:/a.bim4d", options.OpenProjectPath);
+        Assert.Null(options.OpenPath);
+    }
+
+    [Fact]
+    public void 확장자로_프로젝트와_모델을_가른다()
+    {
+        // 파일 연결과 끌어다 놓기는 옵션 없이 경로만 준다.
+        Assert.Equal("C:/a.bim4d", StartupOptions.Parse(["C:/a.bim4d"]).OpenProjectPath);
+        Assert.Equal("C:/a.ifc", StartupOptions.Parse(["C:/a.ifc"]).OpenPath);
+    }
+
+    [Fact]
+    public void 대소문자를_가리지_않는다()
+    {
+        Assert.Equal("C:/A.BIM4D", StartupOptions.Parse(["C:/A.BIM4D"]).OpenProjectPath);
+    }
+
+    [Fact]
     public void 사람이_띄운_창은_절차가_아니다()
     {
         Assert.False(StartupOptions.Parse([]).Automated);

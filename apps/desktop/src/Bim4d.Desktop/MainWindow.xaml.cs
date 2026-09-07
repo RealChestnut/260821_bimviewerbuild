@@ -3,6 +3,7 @@ using System.IO;
 using System.Text.Json.Nodes;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Input;
 using Bim4d.Desktop.Core;
 using Microsoft.Web.WebView2.Core;
 using Microsoft.Win32;
@@ -28,8 +29,13 @@ public partial class MainWindow : Window
     private readonly IIfcWorker _worker;
 
     private readonly StartupOptions _startup;
+    private readonly ProjectSession _session = new();
 
     private bool _webReady;
+    /// <summary>저장 대화상자에서 받은 자리. 웹의 답이 오면 여기에 쓴다.</summary>
+    private string? _pendingSavePath;
+
+
 
     public MainWindow()
         : this(new StartupOptions()) { }
@@ -54,7 +60,9 @@ public partial class MainWindow : Window
         );
 
         Loaded += OnLoaded;
+        Closing += OnClosing;
         Closed += OnClosed;
+        UpdateTitle();
     }
 
     private async void OnLoaded(object sender, RoutedEventArgs args)
@@ -63,6 +71,11 @@ public partial class MainWindow : Window
         {
             await Viewer.EnsureCoreWebView2Async();
             var core = Viewer.CoreWebView2;
+
+            // 브라우저 단축키를 끈다. 켜 두면 WebView2가 Ctrl+S를 "페이지 저장"으로 먼저
+            // 먹어 셸의 프로젝트 저장이 오지 않는다. 여기는 브라우저가 아니라 앱이다.
+            core.Settings.AreBrowserAcceleratorKeysEnabled = false;
+            core.Settings.AreDefaultContextMenusEnabled = false;
 
             // 빌드한 자산 폴더를 통째로 매핑한다. 서버도 포트도 없다.
             core.SetVirtualHostNameToFolderMapping(
@@ -138,6 +151,7 @@ public partial class MainWindow : Window
         try
         {
             await _worker.PingAsync();
+            CheckProjectStore();
             _log.Write(
                 "info",
                 "자체 점검을 통과했다",
@@ -227,9 +241,21 @@ public partial class MainWindow : Window
                 _webReady = true;
                 SetStatus("뷰어 준비됨");
                 // 뜨기를 기다렸다가 명령줄로 받은 파일을 연다.
+                if (_startup.OpenProjectPath is { } startupProject)
+                {
+                    OpenProjectAt(startupProject);
+                }
                 if (_startup.OpenPath is { } startupPath)
                 {
                     _ = OpenModelAsync(startupPath);
+                }
+                break;
+
+            case "web/state":
+                // 기다리던 답만 받는다. 저장이 겹치면 오래된 답으로 새 파일을 쓰지 않는다.
+                if (_session.IsAwaited(payload["requestId"]?.GetValue<string>()))
+                {
+                    WriteProject(payload);
                 }
                 break;
 
@@ -284,8 +310,10 @@ public partial class MainWindow : Window
                 ShellMessages.ModelOpened(id, Path.GetFileName(path))
             );
 
-            _recent.Add(path, DateTimeOffset.Now);
-            RefreshRecentMenu();
+            // 최근 목록이 가리키는 것은 프로젝트다. 모델은 프로젝트가 안다 (ADR-0013).
+            _session.AddModel(path, ModelPaths.Fingerprint(path));
+            UpdateTitle();
+
             SetStatus($"열었다: {Path.GetFileName(path)}");
             _log.Write("info", "모델을 넘겼다", new Dictionary<string, object?> { ["path"] = path });
         }
@@ -345,7 +373,7 @@ public partial class MainWindow : Window
         foreach (var entry in entries)
         {
             var item = new MenuItem { Header = entry.Path };
-            item.Click += async (_, _) => await OpenModelAsync(entry.Path);
+            item.Click += (_, _) => OpenProjectAt(entry.Path);
             RecentMenuItem.Items.Add(item);
         }
     }
@@ -369,6 +397,344 @@ public partial class MainWindow : Window
     private void OnExit(object sender, RoutedEventArgs args) => Close();
 
     private void SetStatus(string text) => StatusText.Text = text;
+
+    /// <summary>
+    /// 프로젝트를 쓰고 다시 읽을 수 있는지 본다.
+    /// </summary>
+    /// <remarks>
+    /// 설치본에서 SQLite 네이티브가 실제로 올라오는지는 이렇게만 알 수 있다. 파일이 있는
+    /// 것과 로드되는 것은 다른 일이다.
+    ///
+    /// 사용자 파일을 건드리지 않는다. 임시 폴더에 쓰고 읽은 뒤 지운다.
+    /// </remarks>
+    private static void CheckProjectStore()
+    {
+        var probe = Path.Combine(
+            Path.GetTempPath(),
+            $"bim4d-selfcheck-{Guid.NewGuid():n}{ProjectStore.Extension}"
+        );
+
+        try
+        {
+            ProjectStore.Write(
+                probe,
+                new ProjectDocument
+                {
+                    Name = "자체 점검",
+                    ScheduleJson = string.Empty,
+                    ViewerStateJson = string.Empty,
+                    Models = [],
+                }
+            );
+
+            if (ProjectStore.Read(probe).Name != "자체 점검")
+            {
+                throw new ProjectStoreException(
+                    "project.roundtrip",
+                    "프로젝트를 쓰고 다시 읽었으나 내용이 달랐다."
+                );
+            }
+        }
+        finally
+        {
+            File.Delete(probe);
+        }
+    }
+
+    // ── 프로젝트 (ADR-0013) ─────────────────────────────────────────────────────
+
+    // 단축키(Ctrl+N/O/S)가 부르는 자리. 메뉴와 같은 일을 한다.
+    private void OnNewProjectCommand(object sender, ExecutedRoutedEventArgs args) => NewProject();
+
+    private void OnOpenProjectCommand(object sender, ExecutedRoutedEventArgs args) => OpenProject();
+
+    private void OnSaveProjectCommand(object sender, ExecutedRoutedEventArgs args) =>
+        SaveProject(saveAs: false);
+
+    private void OnNewProject(object sender, RoutedEventArgs args) => NewProject();
+
+    private void OnOpenProject(object sender, RoutedEventArgs args) => OpenProject();
+
+    private void OnSaveProject(object sender, RoutedEventArgs args) => SaveProject(saveAs: false);
+
+    private void OnSaveProjectAs(object sender, RoutedEventArgs args) => SaveProject(saveAs: true);
+
+    /// <summary>새 프로젝트. 열린 모델과 일정을 비운다.</summary>
+    private void NewProject()
+    {
+        if (!ConfirmDiscard())
+        {
+            return;
+        }
+
+        _session.Reset();
+        _bridge.Clear();
+        if (_webReady)
+        {
+            Viewer.CoreWebView2.PostWebMessageAsString(ShellMessages.ProjectClosed());
+        }
+
+        UpdateTitle();
+        SetStatus("새 프로젝트");
+    }
+
+    private void OpenProject()
+    {
+        if (!ConfirmDiscard())
+        {
+            return;
+        }
+
+        var dialog = new OpenFileDialog
+        {
+            Title = "프로젝트 열기",
+            Filter = $"BIM 4D 프로젝트 (*{ProjectStore.Extension})|*{ProjectStore.Extension}",
+            CheckFileExists = true,
+        };
+
+        if (dialog.ShowDialog(this) == true)
+        {
+            OpenProjectAt(dialog.FileName);
+        }
+    }
+
+    /// <summary>
+    /// 프로젝트를 연다.
+    /// </summary>
+    /// <remarks>
+    /// 모델을 먼저 보내고 프로젝트를 나중에 보낸다. 웹은 기다릴 모델 목록을 받아 두었다가
+    /// 다 올라온 뒤에 화면 상태를 되살린다 (ADR-0013).
+    /// </remarks>
+    private void OpenProjectAt(string path)
+    {
+        try
+        {
+            if (!_webReady)
+            {
+                SetStatus("뷰어가 아직 준비되지 않았다");
+                return;
+            }
+
+            var document = ProjectStore.Read(path);
+
+            var found = new List<ProjectModel>();
+            var unbound = new List<string>();
+            foreach (var model in document.Models)
+            {
+                var located = ModelPaths.Resolve(model, path).Path ?? AskWhereModelWent(model);
+
+                if (located is null)
+                {
+                    // 찾지 못해도 연결은 지우지 않는다 (ADR-0008).
+                    unbound.Add(model.ModelRef);
+                    continue;
+                }
+
+                found.Add(model with { AbsolutePath = located });
+            }
+
+            _bridge.Clear();
+            foreach (var model in found)
+            {
+                var (id, _) = _bridge.Publish(model.AbsolutePath);
+                Viewer.CoreWebView2.PostWebMessageAsString(
+                    ShellMessages.ModelOpened(id, model.ModelRef)
+                );
+            }
+
+            Viewer.CoreWebView2.PostWebMessageAsString(
+                ShellMessages.ProjectOpened(
+                    document.ScheduleJson,
+                    document.ViewerStateJson,
+                    unbound,
+                    [.. found.Select(model => model.ModelRef)]
+                )
+            );
+
+            _session.Opened(path, found, unbound);
+            _recent.Add(path, DateTimeOffset.Now);
+            RefreshRecentMenu();
+            UpdateTitle();
+
+            SetStatus(
+                unbound.Count == 0
+                    ? $"열었다: {Path.GetFileName(path)}"
+                    : $"열었다: {Path.GetFileName(path)} — 모델 {unbound.Count}개를 찾지 못했다"
+            );
+            _log.Write(
+                "info",
+                "프로젝트를 열었다",
+                new Dictionary<string, object?>
+                {
+                    ["path"] = path,
+                    ["models"] = found.Count,
+                    ["unbound"] = unbound.Count,
+                }
+            );
+        }
+        catch (Exception cause)
+        {
+            Report(cause);
+        }
+    }
+
+    /// <summary>
+    /// 찾지 못한 모델을 사용자가 다시 지목한다.
+    /// </summary>
+    /// <remarks>
+    /// 건너뛸 수 있다. 지목한 파일의 fingerprint가 프로젝트에 적힌 것과 다르면 알리고,
+    /// 그래도 쓸지는 사용자가 정한다 — 모델을 갱신했으면 당연히 다르다 (ADR-0013).
+    /// </remarks>
+    private string? AskWhereModelWent(ProjectModel model)
+    {
+        // 절차가 띄운 창에는 대화상자를 내지 않는다. 아무도 누르지 않아 그대로 멈춘다.
+        if (_startup.Automated)
+        {
+            return null;
+        }
+
+        var dialog = new OpenFileDialog
+        {
+            Title = $"'{model.ModelRef}'을(를) 찾지 못했다",
+            Filter = "IFC (*.ifc)|*.ifc|모든 파일 (*.*)|*.*",
+            FileName = model.ModelRef,
+            CheckFileExists = true,
+        };
+
+        if (dialog.ShowDialog(this) != true)
+        {
+            return null;
+        }
+
+        if (model.Fingerprint is { } expected)
+        {
+            var actual = ModelPaths.Fingerprint(dialog.FileName);
+            if (
+                !string.Equals(actual, expected, StringComparison.OrdinalIgnoreCase)
+                && MessageBox.Show(
+                    this,
+                    $"고른 파일은 프로젝트에 적힌 '{model.ModelRef}'과 내용이 다르다. 그래도 쓸까?",
+                    "다른 파일이다",
+                    MessageBoxButton.YesNo,
+                    MessageBoxImage.Question
+                ) != MessageBoxResult.Yes
+            )
+            {
+                return null;
+            }
+        }
+
+        return dialog.FileName;
+    }
+
+    /// <summary>
+    /// 저장을 시작한다.
+    /// </summary>
+    /// <remarks>
+    /// 일정과 화면 상태는 웹에 있다. 물어 두고 답이 오면 그때 파일을 쓴다 (ADR-0013).
+    /// </remarks>
+    private void SaveProject(bool saveAs)
+    {
+        if (!_webReady)
+        {
+            SetStatus("뷰어가 아직 준비되지 않았다");
+            return;
+        }
+
+        var path = saveAs || _session.Path is null ? AskWhereToSave() : _session.Path;
+        if (path is null)
+        {
+            return;
+        }
+
+        _pendingSavePath = path;
+        Viewer.CoreWebView2.PostWebMessageAsString(
+            ShellMessages.StateRequested(_session.BeginSave())
+        );
+        SetStatus("저장하는 중…");
+    }
+
+    private string? AskWhereToSave()
+    {
+        var dialog = new SaveFileDialog
+        {
+            Title = "프로젝트 저장",
+            Filter = $"BIM 4D 프로젝트 (*{ProjectStore.Extension})|*{ProjectStore.Extension}",
+            DefaultExt = ProjectStore.Extension,
+            AddExtension = true,
+            FileName = _session.Path is null
+                ? "프로젝트" + ProjectStore.Extension
+                : Path.GetFileName(_session.Path),
+        };
+
+        return dialog.ShowDialog(this) == true ? dialog.FileName : null;
+    }
+
+    /// <summary>웹이 보내온 상태로 파일을 쓴다.</summary>
+    private void WriteProject(JsonObject payload)
+    {
+        try
+        {
+            if (_pendingSavePath is not { } path)
+            {
+                return;
+            }
+
+            var document = new ProjectDocument
+            {
+                Name = Path.GetFileNameWithoutExtension(path),
+                ScheduleJson = ShellMessages.RawJson(payload["schedule"]),
+                ViewerStateJson = ShellMessages.RawJson(payload["viewerState"]),
+                Models = _session.Models,
+                TaskCount = payload["taskCount"]?.GetValue<int>() ?? 0,
+            };
+
+            ProjectStore.Write(path, document);
+
+            _pendingSavePath = null;
+            _session.Saved(path);
+            _recent.Add(path, DateTimeOffset.Now);
+            RefreshRecentMenu();
+            UpdateTitle();
+
+            SetStatus($"저장했다: {Path.GetFileName(path)}");
+            _log.Write(
+                "info",
+                "프로젝트를 저장했다",
+                new Dictionary<string, object?>
+                {
+                    ["path"] = path,
+                    ["models"] = _session.Models.Count,
+                }
+            );
+        }
+        catch (Exception cause)
+        {
+            Report(cause);
+        }
+    }
+
+    /// <summary>저장하지 않은 변경이 있으면 묻는다. 계속해도 되면 <c>true</c>다.</summary>
+    private bool ConfirmDiscard()
+    {
+        if (!_session.IsDirty || _startup.Automated)
+        {
+            return true;
+        }
+
+        return MessageBox.Show(
+                this,
+                "저장하지 않은 변경이 있다. 버리고 계속할까?",
+                "저장하지 않은 변경",
+                MessageBoxButton.OKCancel,
+                MessageBoxImage.Warning
+            ) == MessageBoxResult.OK;
+    }
+
+    private void UpdateTitle() => Title = _session.WindowTitle;
+
+    private void OnClosing(object? sender, System.ComponentModel.CancelEventArgs args) =>
+        args.Cancel = !ConfirmDiscard();
 
     /// <summary>실패를 사람이 할 수 있는 말로 바꿔 보여 주고 기록한다.</summary>
     private void Report(Exception cause)
