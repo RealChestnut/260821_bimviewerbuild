@@ -185,7 +185,9 @@ export const createShellBridgeComponent = (options: ShellBridgeOptions = {}): Ap
 
     const expected = message['models'];
     awaitedModels = new Set(
-      Array.isArray(expected) ? expected.filter((name): name is string => typeof name === 'string') : [],
+      Array.isArray(expected)
+        ? expected.filter((name): name is string => typeof name === 'string')
+        : [],
     );
     pendingViewpoint = viewpointOf(message['viewerState']);
 
