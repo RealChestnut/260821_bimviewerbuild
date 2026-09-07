@@ -71,12 +71,14 @@ interface Viewpoint {
 
 ### 스키마
 
+**셸이 스스로 들여다봐야 하는 것만 열로 편다.** 나머지는 JSON 덩어리로 둔다.
+
 ```sql
 CREATE TABLE meta (
   key   TEXT PRIMARY KEY,
   value TEXT NOT NULL
 );
--- schemaVersion, appVersion, savedAt, projectName
+-- schemaVersion, appVersion, savedAt, projectName, taskCount(표시용 요약)
 
 CREATE TABLE models (
   model_ref     TEXT PRIMARY KEY,   -- 일정의 modelRef. 연결의 키다 (ADR-0008)
@@ -86,42 +88,30 @@ CREATE TABLE models (
   schema        TEXT                -- IFC2X3 / IFC4 …
 );
 
-CREATE TABLE tasks (
-  task_id        TEXT PRIMARY KEY,
-  name           TEXT NOT NULL,
-  parent_task_id TEXT REFERENCES tasks(task_id),
-  start_ms       INTEGER,           -- epoch milliseconds. 정해지지 않았으면 NULL (ADR-0005)
-  finish_ms      INTEGER,
-  operation      TEXT NOT NULL
-);
-
-CREATE TABLE dependencies (
-  predecessor_id TEXT NOT NULL REFERENCES tasks(task_id),
-  successor_id   TEXT NOT NULL REFERENCES tasks(task_id),
-  type           TEXT NOT NULL,     -- ADR-0006의 4종
-  lag_days       INTEGER NOT NULL,
-  PRIMARY KEY (predecessor_id, successor_id)
-);
-
-CREATE TABLE assignments (
-  task_id           TEXT NOT NULL REFERENCES tasks(task_id),
-  model_ref         TEXT NOT NULL,  -- models에 없어도 된다 (ADR-0008)
-  product_global_id TEXT NOT NULL,
-  operation         TEXT NOT NULL,
-  PRIMARY KEY (task_id, model_ref, product_global_id)
-);
-
-CREATE TABLE viewer_state (
-  id   INTEGER PRIMARY KEY CHECK (id = 1),
-  json TEXT NOT NULL                -- Viewpoint 하나
+CREATE TABLE documents (
+  name TEXT PRIMARY KEY,            -- 'schedule' | 'viewerState'
+  json TEXT NOT NULL
 );
 ```
 
-시간이 정해지지 않은 Task는 `NULL`이다. 0으로 대체하지 않는다 — ADR-0002의 경계 규칙이 "모르는 것을 아는 값으로 바꾸지 않는다"로 정한 자리다.
+### 왜 일정을 표로 펴지 않나
 
-`viewer_state`만 JSON 덩어리다. 질의할 일이 없고, 화면 기능이 늘 때마다 열을 더하는 것보다 통째로 두는 편이 낫다. 나머지는 열로 편다 — Task와 연결은 세고 걸러야 한다.
+이 저장소는 **일정을 해석하는 지점을 하나로 두기로** 이미 여러 번 정했다.
 
-**`assignments`가 `models`를 참조하지 않는다.** ADR-0008이 정한 대로 `model_ref`는 논리 이름이며, 표에 없는 이름도 연결에 쓰일 수 있다.
+```csharp
+// Bim4d.Desktop.Core/IfcWorker.cs
+/// 해석 지점을 하나로 두기 위해 검증은 웹 쪽 parseSchedule이 한다. 셸은 옮기기만 한다.
+```
+
+`AGENTS.md` 1.4절도 ADR-0007에 대해 "의미 검증은 `parseSchedule`이 맡아 해석 지점을 하나로 둔다"고 적었다. 워커가 IFC에서 읽어 온 일정도 셸을 그냥 통과해 웹으로 간다.
+
+`tasks` · `dependencies` · `assignments`를 열로 펴면 **C#이 일정 스키마를 알아야 한다.** 그러면 파서가 둘이 된다 — TypeScript의 `parseSchedule`(v1→v2→v3 승격까지 맡는다)과 C#의 `ProjectStore`. 스키마가 v4로 갈 때 양쪽을 고쳐야 하고, 한쪽만 고치면 조용히 어긋난다.
+
+**셸이 진짜로 질의해야 하는 것은 `models`뿐이다.** 절대 경로로 찾고, 없으면 상대 경로로 찾고, fingerprint를 견주는 일이 전부 셸 몫이다. Task와 연결은 셸이 한 번도 들여다보지 않는다 — 웹에 통째로 넘길 뿐이다.
+
+포기하는 것: 프로젝트 파일을 SQL로 열어 "Task 몇 개"를 세지 못한다. 최근 목록에 개수를 보이는 것 같은 용도는 `meta`에 요약 숫자를 적어 채운다. 요약은 사실의 사본이며 정본은 언제나 `documents`의 일정이다.
+
+트랜잭션이 주는 것은 그대로 남는다 — 쓰다 죽어도 반만 쓰인 파일이 남지 않는다. 그것이 SQLite를 고른 이유였고, 표를 몇 개 두느냐와는 무관하다.
 
 ### 스키마 버전과 마이그레이션
 
@@ -200,6 +190,7 @@ Task는 그대로 보인다. 미바인딩 연결은 흐리게 그리고 배지�
 | `apps/viewer-web/src/shell/shellBridgeComponent.ts` | `shell/state-requested`, `web/state`, `shell/project-opened`, `shell/project-closed` |
 | ADR-0010의 다리 계약 | 한 방향 통보에 물음–대답이 더해진다 |
 | `packages/contracts` | `ViewerState`(= Viewpoint)가 계약으로 올라간다 |
+| 일정 해석 지점 | 하나로 남는다. C#은 일정 JSON을 열지 않고 옮기기만 한다 (ADR-0007, ADR-0009) |
 | ADR-0008의 바인딩 규칙 | 바뀌지 않는다. 파일을 여는 단계가 앞에 붙을 뿐이다 |
 
 ## 후속 작업

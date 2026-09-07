@@ -41,6 +41,8 @@ class TestMissingAfterPublish:
         (tmp_path / "python" / "python.exe").write_bytes(b"")
         (tmp_path / "ifc-worker" / "ifc_worker").mkdir(parents=True)
         (tmp_path / "ifc-worker" / "ifc_worker" / "__main__.py").write_text("", encoding="utf-8")
+        # 프로젝트 파일이 SQLite다 (ADR-0013). 네이티브 라이브러리가 함께 실려야 한다.
+        (tmp_path / "e_sqlite3.dll").write_bytes(b"")
         return tmp_path
 
     def test_다_있으면_비어_있다(self, published: Path) -> None:
@@ -61,6 +63,12 @@ class TestMissingAfterPublish:
         (published / "Bim4d.Desktop.exe").unlink()
 
         assert published / "Bim4d.Desktop.exe" in missing_after_publish(published)
+
+    def test_SQLite_네이티브가_없으면_말한다(self, published: Path) -> None:
+        # 빠지면 개발 PC에서는 멀쩡하다가 사용자 PC에서 저장이 죽는다 (ADR-0013).
+        (published / "e_sqlite3.dll").unlink()
+
+        assert published / "e_sqlite3.dll" in missing_after_publish(published)
 
 
 class TestVersion:
