@@ -9,6 +9,8 @@ from pathlib import Path
 import pytest
 
 from make_installer import iscc_args, installer_path, read_version
+from make_zip import build as build_zip
+from make_zip import render_readme, zip_name
 from publish import RUNTIME_IDENTIFIER, copy_web, dotnet_publish_args, missing_after_publish
 
 
@@ -160,3 +162,53 @@ class TestCopyWeb:
         # 오프라인 vendor 자산이 빠지면 뷰어가 뜨지 않는다 (ADR-0004).
         assert (out / "web" / "vendor" / "web-ifc" / "web-ifc.wasm").exists()
         assert (out / "web" / "index.html").exists()
+
+
+class TestZip:
+    """설치 프로그램 없이 건네는 길 (ADR-0012의 대안)."""
+
+    def published(self, tmp_path: Path) -> Path:
+        source = tmp_path / "publish"
+        (source / "web").mkdir(parents=True)
+        (source / "Bim4d.Desktop.exe").write_bytes(b"MZ")
+        (source / "web" / "index.html").write_text("", encoding="utf-8")
+        return source
+
+    def test_이름에_버전이_들어간다(self) -> None:
+        assert zip_name("0.1.0") == "Bim4dViewer-0.1.0.zip"
+
+    def test_폴더_하나로_감싼다(self, tmp_path: Path) -> None:
+        # 받는 사람이 다운로드 폴더에 그대로 풀어도 파일이 흩어지지 않는다.
+        import zipfile
+
+        archive = build_zip(self.published(tmp_path), tmp_path / "out", "0.1.0")
+
+        with zipfile.ZipFile(archive) as bundle:
+            names = bundle.namelist()
+
+        assert all(name.startswith("Bim4dViewer-0.1.0/") for name in names)
+        assert "Bim4dViewer-0.1.0/Bim4d.Desktop.exe" in names
+        assert "Bim4dViewer-0.1.0/web/index.html" in names
+
+    def test_안내문을_함께_넣는다(self, tmp_path: Path) -> None:
+        # 설치 프로그램이 해 주던 것 넷이 빠지므로 안내문이 그것을 대신한다.
+        import zipfile
+
+        archive = build_zip(self.published(tmp_path), tmp_path / "out", "0.1.0")
+
+        with zipfile.ZipFile(archive) as bundle:
+            readme = bundle.read("Bim4dViewer-0.1.0/먼저 읽어 주세요.txt").decode("utf-8")
+
+        assert "WebView2" in readme
+        assert "Bim4d.Desktop.exe" in readme
+
+    def test_설치본_폴더가_아니면_멈춘다(self, tmp_path: Path) -> None:
+        with pytest.raises(SystemExit):
+            build_zip(tmp_path / "빈곳", tmp_path / "out", "0.1.0")
+
+    def test_안내문이_지우는_법을_말한다(self) -> None:
+        # 제거 프로그램이 없다. 무엇이 어디 남는지 사람이 알아야 지운다.
+        readme = render_readme("0.1.0")
+
+        assert "APPDATA" in readme
+        assert "LOCALAPPDATA" in readme
