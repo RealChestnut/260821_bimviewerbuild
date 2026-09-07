@@ -68,6 +68,18 @@ Source: "{#SourceDir}\*"; DestDir: "{app}"; Flags: recursesubdirs createallsubdi
 Source: "{#Bootstrapper}"; DestDir: "{tmp}"; Flags: deleteafterinstall
 #endif
 
+[Registry]
+; 우리 고유 확장자만 가져간다. `.ifc`는 여러 프로그램이 함께 쓰므로 건드리지 않는다
+; (ADR-0012). HKA는 관리자 설치면 HKLM, 사용자 설치면 HKCU에 쓴다.
+;
+; 확장자 키는 `uninsdeletekeyifempty`로 지운다. 값만 지우면 빈 껍데기가 남고, 키까지 늘
+; 지우면 다른 프로그램이 거기 넣어 둔 값을 함께 지운다. 첫 제거 시험에서 껍데기가 남는
+; 것을 보고 고쳤다.
+Root: HKA; Subkey: "Software\Classes\.bim4d"; ValueType: string; ValueName: ""; ValueData: "Bim4dViewer.Project"; Flags: uninsdeletevalue uninsdeletekeyifempty
+Root: HKA; Subkey: "Software\Classes\Bim4dViewer.Project"; ValueType: string; ValueName: ""; ValueData: "BIM 4D 프로젝트"; Flags: uninsdeletekey
+Root: HKA; Subkey: "Software\Classes\Bim4dViewer.Project\DefaultIcon"; ValueType: string; ValueName: ""; ValueData: "{app}\{#ShellExe},0"
+Root: HKA; Subkey: "Software\Classes\Bim4dViewer.Project\shell\open\command"; ValueType: string; ValueName: ""; ValueData: """{app}\{#ShellExe}"" ""%1"""
+
 [UninstallDelete]
 ; WebView2가 실행 중에 만드는 캐시다. 설치 프로그램이 담은 것이 아니라 Inno가 모른다.
 ; 브라우저 캐시는 사용자 데이터가 아니므로 지운다 — 남겨도 되찾을 것이 없다 (ADR-0012).

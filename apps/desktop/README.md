@@ -63,13 +63,14 @@ pnpm shell:installer   # 설치본 폴더를 Inno Setup으로 싼다
 
 Inno Setup이 필요하다. `winget install JRSoftware.InnoSetup`으로 깔거나 `--iscc`로 자리를 준다.
 
-| 하는 일          | 어떻게                                                            |
-| ---------------- | ----------------------------------------------------------------- |
-| 무인 설치        | `Bim4dViewer-Setup-0.1.0.exe /VERYSILENT /NORESTART`              |
-| 관리자 없이 설치 | `/CURRENTUSER`를 더한다                                           |
-| 덮어쓰기         | 같은 AppId라 제자리에서 된다. 실행 중인 셸은 닫게 한다            |
-| 제거             | 설치 폴더와 시작 메뉴는 사라지고 `%APPDATA%\Bim4dViewer`는 남는다 |
-| WebView2         | 없을 때만 동봉한 bootstrapper를 조용히 실행한다                   |
+| 하는 일          | 어떻게                                                                    |
+| ---------------- | ------------------------------------------------------------------------- |
+| 무인 설치        | `Bim4dViewer-Setup-0.1.0.exe /VERYSILENT /NORESTART`                      |
+| 관리자 없이 설치 | `/CURRENTUSER`를 더한다                                                   |
+| 덮어쓰기         | 같은 AppId라 제자리에서 된다. 실행 중인 셸은 닫게 한다                    |
+| 제거             | 설치 폴더·시작 메뉴·파일 연결이 사라지고 `%APPDATA%\Bim4dViewer`는 남는다 |
+| WebView2         | 없을 때만 동봉한 bootstrapper를 조용히 실행한다                           |
+| 파일 연결        | `.bim4d`만 가져간다. `.ifc`는 건드리지 않는다                             |
 
 버전은 `apps/desktop/Directory.Build.props`의 `<Version>` 한 곳에서 온다.
 
