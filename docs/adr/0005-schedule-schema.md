@@ -96,6 +96,6 @@ ADR-0002가 Phase 4로 미뤄 둔 항목이다.
 
 - [x] `AGENTS.md` 1.4절 갱신 (미결정 목록에서 해소 표로 이동)
 - [x] `packages/contracts/src/schedule.ts`에 타입 정의
-- [ ] Phase 5에서 WBS·선후행·캘린더 추가와 `schemaVersion` 2 마이그레이션
-- [ ] Phase 6에서 `modelRef` 바인딩을 fingerprint 기반으로 교체
-- [ ] Phase 7에서 IFC Export 왕복 검증 후 ADR-0002의 잠정 매핑 확정
+- [x] Phase 5에서 WBS·선후행 추가와 `schemaVersion` 2 마이그레이션 — ADR-0006. 캘린더는 아직 없다 (ADR-0006 후속)
+- [x] Phase 6에서 `modelRef` 바인딩을 fingerprint 기반으로 교체 — ADR-0008
+- [x] Phase 7에서 IFC Export 왕복 검증 후 ADR-0002의 잠정 매핑 확정 — 네 operation이 모두 복원된다

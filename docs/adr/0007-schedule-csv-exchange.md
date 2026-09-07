@@ -87,4 +87,4 @@ CSV는 **읽어서 v2 JSON과 같은 모양의 객체로 바꾼 뒤 `parseSchedu
 - [x] `AGENTS.md` 1.4절 해소 표에 추가
 - [x] `packages/domain/src/scheduleCsv.ts`와 왕복 테스트
 - [x] `packages/test-fixtures/schedule/csv/`에 묶음 fixture
-- [ ] Phase 6에서 `modelRef` 열 재검토
+- [x] Phase 6에서 `modelRef` 열 재검토 — ADR-0008이 `models.csv`를 선택 파일로 더했다

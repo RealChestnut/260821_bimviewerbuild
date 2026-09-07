@@ -44,6 +44,18 @@ Bim4dViewer/
 
 `web/`과 `ifc-worker/`는 Phase 8이 이미 먼저 보던 이름이다. 그 규칙을 바꾸지 않고 `python/`만 더한다.
 
+### 이행 의존까지 고정한다
+
+`requirements.txt`는 `ifcopenshell`만 고정한다. 그것만으로는 numpy·shapely 같은 이행 의존이 그때의 최신으로 들어와 **같은 커밋에서 만든 설치본이 서로 다르다.**
+
+`services/ifc-worker/requirements.lock.txt`에 전부 적는다. `lock_requirements.py`가 pip에게 "깔지는 말고 무엇을 깔지 알려 달라"고 물어 그 답을 적으며, 버전을 올리고 싶을 때만 다시 돌린다.
+
+### 이행 의존까지 고정한다
+
+`requirements.txt`는 `ifcopenshell`만 고정한다. 그것만으로는 numpy·shapely 같은 이행 의존이 그때의 최신으로 들어와 **같은 커밋에서 만든 설치본이 서로 다르다.** 실제로 몇 시간 사이에 numpy가 2.5.2에서 2.5.3으로 바뀌는 것을 보았다.
+
+`services/ifc-worker/requirements.lock.txt`에 전부 적는다. `lock_requirements.py`가 pip에게 "깔지는 말고 무엇을 깔지 알려 달라"고 물어 그 답을 적으며, 버전을 올리고 싶을 때만 다시 돌린다.
+
 ### Python은 임베더블 배포판을 푼다
 
 PyInstaller로 워커를 실행 파일 하나로 묶지 않는다. 임베더블 CPython을 `python/`에 풀고 그 안에 wheel을 설치한다.
@@ -117,8 +129,11 @@ import site
 - 배치가 이름으로 고정되어 Phase 9의 게시 스크립트와 설치 프로그램이 같은 트리를 만든다
 - 폐쇄망 산출물이 기본 설치본을 키우지 않는다
 
-게시한 설치본 하나는 **318 MB**다. .NET self-contained 셸이 134 MB, `python/`이 151 MB,
-`web/`이 33 MB이며 `web/` 중 20 MB는 소스 맵이다.
+게시한 설치본 하나는 **301 MB**다. .NET self-contained 셸이 135 MB, `python/`이 152 MB,
+`web/`이 14 MB다. 설치 프로그램으로 싸면 80 MB다 (ADR-0012).
+
+**소스 맵은 담지 않는다.** 20 MB를 모든 사용자에게 물리면서 devtools를 여는 사람만 쓴다.
+빌드는 그대로 만들고 `publish.py`가 담을 때 뺀다 — 개발 중에는 그대로 쓸모가 있다.
 
 **포기하는 것**
 
@@ -140,7 +155,7 @@ import site
 - [x] 배치 해석을 `Bim4d.Desktop.Core`로 옮기고 세 경우(설치본·개발·둘 다 아님)를 xunit으로 덮는다
 - [x] `python/` 트리를 만드는 절차를 스크립트로 두고 CI에서 돌린다
 - [x] 게시 산출물 전체(셸 포함)의 실제 크기를 재어 이 문서에 적는다
-- [ ] `ifcopenshell`의 이행 의존(numpy·shapely 등)까지 고정할지 정한다. 지금 `requirements.txt`는 `ifcopenshell`만 고정하므로 같은 커밋에서 만든 설치본이 항상 같지는 않다
+- [x] `ifcopenshell`의 이행 의존(numpy·shapely 등)까지 고정한다 — `requirements.lock.txt`. 실제로 몇 시간 사이에 numpy가 2.5.2에서 2.5.3으로 바뀌는 것을 보았다
 - [x] 설치 프로그램(Setup EXE 또는 MSI) 선택은 별도 ADR로 남긴다 — ADR-0012
-- [ ] 소스 맵(20 MB)을 설치본에 넣을지 정한다. 지금은 `dist`를 그대로 복사하므로 함께 들어간다
+- [x] 소스 맵(20 MB)을 설치본에 넣을지 정한다 — 담지 않는다
 - [x] 제거 시 `%APPDATA%\Bim4dViewer`(설정·최근 목록·로그)를 어떻게 할지는 설치 프로그램 ADR에서 정한다 — ADR-0012가 남기기로 정했다

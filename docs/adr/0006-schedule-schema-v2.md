@@ -122,4 +122,4 @@ ADR-0005이 Phase 4에 필요한 최소 스키마(`schemaVersion: 1`)만 확정�
 - [x] `packages/contracts/src/schedule.ts`에 v2 타입 정의
 - [ ] 자동 일정 계산(CPM) 도입 여부는 별도 결정
 - [ ] 캘린더는 근무일 기반 기간 산정을 도입할 때 별도 결정
-- [ ] Phase 7에서 `IfcRelSequence` 왕복 검증
+- [x] Phase 7에서 `IfcRelSequence` 왕복 검증 — 유형과 지연까지 돌아온다 (`services/ifc-worker/tests/test_schedule_io.py`)
