@@ -76,6 +76,12 @@ public sealed record ErrorReport(string Title, string Detail, string? Code, stri
                 worker.Code,
                 logFile
             ),
+            WebViewMissingException webView => new ErrorReport(
+                "WebView2 런타임이 없다",
+                webView.Message,
+                webView.Code,
+                logFile
+            ),
             InstallLayoutException layout => new ErrorReport(
                 "설치가 온전하지 않다",
                 layout.Message,

@@ -75,6 +75,20 @@ Inno Setup이 필요하다. `winget install JRSoftware.InnoSetup`으로 깔거�
 
 버전은 `apps/desktop/Directory.Build.props`의 `<Version>` 한 곳에서 온다.
 
+## ZIP으로 건네기
+
+설치 프로그램 대신 폴더를 통째로 싼다. 두어 명에게 건널 때 쓴다.
+
+```bash
+pnpm shell:zip     # apps/desktop/artifacts/zip/Bim4dViewer-<버전>.zip
+```
+
+받는 사람은 풀고 `Bim4d.Desktop.exe`를 두 번 누른다. ZIP 안에 안내문이 함께 들어간다 —
+WebView2가 없을 때 무엇을 받는지, 바로가기와 파일 연결을 어떻게 만드는지, 지울 때 무엇이
+어디 남는지.
+
+설치 프로그램(80 MB)보다 크다(116 MB). Inno의 LZMA2가 더 세게 누른다.
+
 ## 코드 서명
 
 인증서는 아직 없다. 절차만 뚫려 있다.

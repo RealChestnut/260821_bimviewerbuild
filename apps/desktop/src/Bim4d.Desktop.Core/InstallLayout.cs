@@ -20,6 +20,21 @@ public sealed class InstallLayoutException : Exception, ICodedError
 }
 
 /// <summary>
+/// WebView2 런타임이 없다.
+/// </summary>
+/// <remarks>
+/// 설치 프로그램은 없을 때 채워 주지만 ZIP으로 받은 사람은 스스로 깔아야 한다. 그때
+/// "알 수 없는 오류"만 띄우면 할 수 있는 일이 없다 (ADR-0012).
+/// </remarks>
+public sealed class WebViewMissingException : Exception, ICodedError
+{
+    public WebViewMissingException(string message, Exception? cause = null)
+        : base(message, cause) { }
+
+    public string Code => "shell.webview2.missing";
+}
+
+/// <summary>
 /// 웹 자산과 워커와 Python이 어디 있는지 (ADR-0011).
 /// </summary>
 /// <remarks>

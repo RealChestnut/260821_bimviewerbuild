@@ -71,10 +71,26 @@ public partial class MainWindow : Window
         {
             // WebView2의 기본 자리는 실행 파일 옆이다. Program Files에 깐 설치본을 일반
             // 계정으로 쓰면 거기 쓰지 못해 뷰어가 아예 뜨지 않는다. 사용자 자리로 옮긴다.
-            var environment = await CoreWebView2Environment.CreateAsync(
-                userDataFolder: AppPaths.WebViewDirectory
-            );
-            await Viewer.EnsureCoreWebView2Async(environment);
+            CoreWebView2Environment environment;
+            try
+            {
+                environment = await CoreWebView2Environment.CreateAsync(
+                    userDataFolder: AppPaths.WebViewDirectory
+                );
+                await Viewer.EnsureCoreWebView2Async(environment);
+            }
+            catch (WebView2RuntimeNotFoundException cause)
+            {
+                // 설치 프로그램은 없을 때 채워 준다. ZIP으로 받은 사람은 스스로 깔아야 하므로
+                // 무엇을 어디서 받는지 말한다 (ADR-0012).
+                throw new WebViewMissingException(
+                    "이 프로그램은 Microsoft Edge WebView2 런타임이 있어야 뜬다. "
+                        + "https://developer.microsoft.com/microsoft-edge/webview2/ 에서 "
+                        + "Evergreen Standalone Installer를 받아 깐 뒤 다시 열어 달라.",
+                    cause
+                );
+            }
+
             var core = Viewer.CoreWebView2;
 
             // 브라우저 단축키를 끈다. 켜 두면 WebView2가 Ctrl+S를 "페이지 저장"으로 먼저
