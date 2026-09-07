@@ -34,6 +34,23 @@ public sealed class AppPaths
 
     public string LogDirectory => Path.Combine(Root, "logs");
 
+    /// <summary>
+    /// WebView2가 자기 데이터를 두는 자리.
+    /// </summary>
+    /// <remarks>
+    /// 기본값은 실행 파일 옆이다. 그러면 <c>Program Files</c>에 깐 설치본을 일반 계정으로
+    /// 쓸 때 그 폴더에 쓰지 못해 뷰어가 아예 뜨지 않는다. 사용자 자리로 옮긴다.
+    ///
+    /// 로그와 설정은 <c>%APPDATA%</c>(로밍)에 두지만 이것은 캐시라 <c>%LOCALAPPDATA%</c>가
+    /// 맞다. 사람 따라 다른 PC로 옮겨 다닐 값이 아니다.
+    /// </remarks>
+    public static string WebViewDirectory =>
+        Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+            "Bim4dViewer",
+            "WebView2"
+        );
+
     public void EnsureCreated()
     {
         Directory.CreateDirectory(Root);
