@@ -440,6 +440,44 @@
         opacity: 0.6;
       }
 
+      /*
+        묶일 모델이 없는 이름. 연결은 그대로 있고 가리킬 부재만 없다.
+        숨기지 않는다 — 보이지 않으면 사용자가 다시 만들어 중복이 생긴다 (ADR-0013).
+      */
+      #unbound-models {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0 0.5rem;
+        list-style: none;
+        margin: 0;
+        padding: 0;
+      }
+
+      /*
+        id 선택자가 브라우저 기본 [hidden] { display: none }을 이긴다. 명시하지 않으면
+        비어 있어도 자리를 차지한다.
+      */
+      #unbound-models[hidden] {
+        display: none;
+      }
+
+      #unbound-models li {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.3rem;
+        padding: 0.1rem 0;
+        color: rgb(120 120 130);
+      }
+
+      #unbound-models li::before {
+        content: '연결 끊김';
+        font-size: 0.68rem;
+        padding: 0.05rem 0.3rem;
+        border: 1px solid currentcolor;
+        border-radius: 3px;
+        opacity: 0.8;
+      }
+
       /* 모델이 바뀌었다는 알림. 사용자가 정본으로 삼을지 고른다 (ADR-0008). */
       #model-replacements {
         display: flex;
@@ -764,6 +802,7 @@
           </button>
           <button type="button" data-testid="select-unassigned">미연결 부재 고르기</button>
           <ul id="model-replacements" data-testid="model-replacements"></ul>
+          <ul id="unbound-models" data-testid="unbound-models" hidden></ul>
           <ul id="schedule-warnings" data-testid="schedule-warnings"></ul>
         </section>
         <section id="schedule-table" data-testid="schedule-table" hidden>

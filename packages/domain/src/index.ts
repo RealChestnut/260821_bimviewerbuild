@@ -22,7 +22,12 @@ export type { FlatTask, TaskTimes } from './scheduleTree.js';
 export { validateSchedule } from './scheduleValidation.js';
 export type { ScheduleWarning } from './scheduleValidation.js';
 export { resolveModelBindings, scheduleModelRefs } from './modelBinding.js';
-export type { ModelBindingResult, OpenModel, ReplacedModel } from './modelBinding.js';
+export type {
+  ModelBindingResult,
+  OpenModel,
+  ReplacedModel,
+  UnboundModelRef,
+} from './modelBinding.js';
 export { bindSchedule, computeDisplayStates, scheduleBounds } from './simulation.js';
 export type {
   ProductDisplayState,

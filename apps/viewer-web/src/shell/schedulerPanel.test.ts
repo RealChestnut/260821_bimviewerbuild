@@ -17,6 +17,7 @@ const markup = `
     <p data-testid="schedule-name"></p>
     <button type="button" data-testid="select-unassigned"></button>
     <ul data-testid="model-replacements"></ul>
+    <ul data-testid="unbound-models"></ul>
     <ul data-testid="schedule-warnings"></ul>
   </aside>
   <button type="button" data-testid="schedule-export-json"></button>
@@ -43,6 +44,7 @@ const startPanel = async (context: TestContext) => {
     nameSelector: '[data-testid="schedule-name"]',
     warningListSelector: '[data-testid="schedule-warnings"]',
     replacementListSelector: '[data-testid="model-replacements"]',
+    unboundListSelector: '[data-testid="unbound-models"]',
     selectUnassignedSelector: '[data-testid="select-unassigned"]',
     statusSelector: '[data-testid="schedule-status"]',
     exportJsonSelector: '[data-testid="schedule-export-json"]',
@@ -359,6 +361,7 @@ describe('createSchedulerPanel', () => {
       nameSelector: '[data-testid="schedule-name"]',
       warningListSelector: '[data-testid="schedule-warnings"]',
       replacementListSelector: '[data-testid="model-replacements"]',
+      unboundListSelector: '[data-testid="unbound-models"]',
       selectUnassignedSelector: '[data-testid="select-unassigned"]',
       statusSelector: '[data-testid="schedule-status"]',
       exportJsonSelector: '[data-testid="schedule-export-json"]',
@@ -373,6 +376,78 @@ const all = (testId: string): HTMLElement[] => [
   ...document.querySelectorAll<HTMLElement>(`[data-testid="${testId}"]`),
 ];
 
+describe('createSchedulerPanel — 묶이지 않은 모델 (ADR-0013)', () => {
+  beforeEach(() => {
+    document.body.innerHTML = markup;
+  });
+
+  const announceUnbound = async (
+    context: TestContext,
+    unboundRefs: readonly { modelRef: string; assignmentCount: number }[],
+  ): Promise<void> => {
+    await context.events.publish('scheduler/model-binding-changed', {
+      boundCount: 0,
+      replacedRefs: [],
+      unboundRefs,
+    });
+  };
+
+  it('묶이지 않은 이름과 걸린 연결 수를 보인다', async () => {
+    const context = createTestContext();
+    await startPanel(context);
+
+    await announceUnbound(context, [{ modelRef: '설비.ifc', assignmentCount: 12 }]);
+
+    const rows = all('unbound-model');
+    expect(rows).toHaveLength(1);
+    expect(rows[0]?.dataset['modelRef']).toBe('설비.ifc');
+    expect(rows[0]?.textContent).toContain('12');
+  });
+
+  it('숨기지 않는다', async () => {
+    // 보이지 않으면 사용자가 연결을 다시 만들어 중복이 생긴다.
+    const context = createTestContext();
+    await startPanel(context);
+
+    await announceUnbound(context, [
+      { modelRef: 'a.ifc', assignmentCount: 1 },
+      { modelRef: 'b.ifc', assignmentCount: 0 },
+    ]);
+
+    expect(all('unbound-model')).toHaveLength(2);
+  });
+
+  it('끊긴 것이 없으면 자리를 차지하지 않는다', async () => {
+    const context = createTestContext();
+    await startPanel(context);
+
+    await announceUnbound(context, []);
+
+    const list = document.querySelector<HTMLElement>('[data-testid="unbound-models"]');
+    expect(list?.hidden).toBe(true);
+  });
+
+  it('끊긴 것이 있으면 보인다', async () => {
+    const context = createTestContext();
+    await startPanel(context);
+
+    await announceUnbound(context, [{ modelRef: '설비.ifc', assignmentCount: 1 }]);
+
+    const list = document.querySelector<HTMLElement>('[data-testid="unbound-models"]');
+    expect(list?.hidden).toBe(false);
+  });
+
+  it('다시 묶이면 사라진다', async () => {
+    const context = createTestContext();
+    await startPanel(context);
+    await announceUnbound(context, [{ modelRef: '설비.ifc', assignmentCount: 3 }]);
+
+    await announceUnbound(context, []);
+
+    expect(all('unbound-model')).toEqual([]);
+  });
+});
+
 describe('createSchedulerPanel — 모델 교체', () => {
   beforeEach(() => {
     document.body.innerHTML = markup;
@@ -382,6 +457,7 @@ describe('createSchedulerPanel — 모델 교체', () => {
     await context.events.publish('scheduler/model-binding-changed', {
       boundCount: replacedRefs.length,
       replacedRefs,
+      unboundRefs: [],
     });
   };
 

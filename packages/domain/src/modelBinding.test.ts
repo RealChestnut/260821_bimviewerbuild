@@ -7,6 +7,7 @@ import type { OpenModel } from './modelBinding.js';
 import { parseSchedule } from './schedule.js';
 
 const WALL = '0BnKdW4tq7SfUcM3vHxZgR';
+const SLAB = '2YsHnV6bk3PgZdL9uCxWtM';
 
 const FP_A: ModelFingerprint = 'a'.repeat(64);
 const FP_B: ModelFingerprint = 'b'.repeat(64);
@@ -127,5 +128,37 @@ describe('resolveModelBindings', () => {
 
     expect(result.bindings.get('a.ifc')).toBe(MODEL_1);
     expect(result.bindings.has('b.ifc')).toBe(false);
+  });
+});
+
+describe('resolveModelBindings — 묶이지 않은 이름 (ADR-0013)', () => {
+  it('묶일 모델이 없으면 걸린 연결 수와 함께 알린다', () => {
+    const schedule = build({
+      models: [{ modelRef: 'a.ifc' }, { modelRef: '설비.ifc' }],
+      assignments: [
+        { taskId: 'T001', modelRef: 'a.ifc', productGlobalId: WALL, operation: 'CONSTRUCT' },
+        { taskId: 'T001', modelRef: '설비.ifc', productGlobalId: WALL, operation: 'CONSTRUCT' },
+        { taskId: 'T001', modelRef: '설비.ifc', productGlobalId: SLAB, operation: 'CONSTRUCT' },
+      ],
+    });
+
+    const result = resolveModelBindings(schedule, [opened(MODEL_1, 'a.ifc', FP_A)]);
+
+    expect(result.unbound).toEqual([{ modelRef: '설비.ifc', assignmentCount: 2 }]);
+  });
+
+  it('전부 묶였으면 비어 있다', () => {
+    const schedule = build({ models: [{ modelRef: 'a.ifc' }] });
+
+    expect(resolveModelBindings(schedule, [opened(MODEL_1, 'a.ifc', FP_A)]).unbound).toEqual([]);
+  });
+
+  it('부재가 하나도 안 걸린 이름도 센다', () => {
+    // models 표에만 있고 연결이 없는 모델이다. 없다는 사실은 알려야 한다.
+    const schedule = build({ models: [{ modelRef: '설비.ifc' }] });
+
+    const result = resolveModelBindings(schedule, [opened(MODEL_1, 'a.ifc', FP_A)]);
+
+    expect(result.unbound).toEqual([{ modelRef: '설비.ifc', assignmentCount: 0 }]);
   });
 });

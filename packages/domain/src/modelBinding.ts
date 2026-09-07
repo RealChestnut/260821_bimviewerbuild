@@ -31,6 +31,19 @@ export interface ModelBindingResult {
   /** `modelRef`에서 열린 모델로. 묶이지 않은 이름은 없다. */
   readonly bindings: ReadonlyMap<string, ModelId>;
   readonly replaced: readonly ReplacedModel[];
+  /**
+   * 묶일 모델이 없는 이름들.
+   *
+   * 파일을 못 찾았거나 아직 열지 않았다. 연결은 그대로 있고 가리킬 부재만 없는 상태이며,
+   * 화면이 그것을 보여야 사용자가 다시 만들어 중복을 내지 않는다 (ADR-0013).
+   */
+  readonly unbound: readonly UnboundModelRef[];
+}
+
+/** 묶이지 않은 이름 하나와 그 이름에 걸린 연결 수. */
+export interface UnboundModelRef {
+  readonly modelRef: string;
+  readonly assignmentCount: number;
 }
 
 /**
@@ -115,5 +128,15 @@ export const resolveModelBindings = (
     }
   }
 
-  return { bindings, replaced };
+  // 3. 남은 이름은 묶일 모델이 없다. 연결을 지우지 않고 몇 개가 걸려 있는지 세어 알린다.
+  const assignmentsByRef = new Map<string, number>();
+  for (const assignment of schedule.assignments) {
+    assignmentsByRef.set(assignment.modelRef, (assignmentsByRef.get(assignment.modelRef) ?? 0) + 1);
+  }
+
+  const unbound: UnboundModelRef[] = refs
+    .filter((modelRef) => !bindings.has(modelRef))
+    .map((modelRef) => ({ modelRef, assignmentCount: assignmentsByRef.get(modelRef) ?? 0 }));
+
+  return { bindings, replaced, unbound };
 };
