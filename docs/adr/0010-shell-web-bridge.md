@@ -57,6 +57,17 @@ Phase 8의 셸은 WPF 창 안에서 WebView2로 TypeScript Viewer를 띄운다. 
 | 웹 → 셸 | `web/log` | `{ level, message }` — 웹의 기록을 셸 로그에 함께 남긴다 |
 | 웹 → 셸 | `web/error` | `{ message, code? }` — 오류 리포트로 올린다 |
 
+프로젝트 저장·불러오기가 여기에 **물음–대답**을 더한다 (ADR-0013). 저장하려면 셸이 웹에게 지금 상태를 물어야 하는데, 위의 통보만으로는 답을 받을 자리가 없다.
+
+| 방향 | kind | 내용 |
+| --- | --- | --- |
+| 셸 → 웹 | `shell/state-requested` | `{ requestId }` |
+| 웹 → 셸 | `web/state` | `{ requestId, schedule, viewerState }` — 없으면 `null` |
+| 셸 → 웹 | `shell/project-opened` | `{ schedule, viewerState, unbound }` |
+| 셸 → 웹 | `shell/project-closed` | `{}` — 웹은 열린 모델을 내리고 일정을 비운다 |
+
+`requestId`가 있어야 답이 어느 물음의 것인지 안다. 저장 중에 사용자가 또 저장을 누를 수 있다. ADR-0009가 워커 IPC에서 요청마다 `id`를 붙인 것과 같은 이유다.
+
 셸은 `--open <경로>`로 뜨자마자 파일 하나를 열 수 있다. 사람이 대화상자를 누르지 않고도 두 프로세스를 잇는 길 전체를 시험하기 위한 것이며, Phase 9의 파일 연결이 붙을 자리이기도 하다. `--exit-after <초>`는 그 시험이 창을 스스로 닫게 한다.
 
 **웹은 셸이 붙어 있지 않아도 돈다.** `window.chrome.webview`가 없으면 다리 Component는 아무것도 하지 않는다. 브라우저에서 개발하고 시험하는 길(`pnpm dev`, Playwright)을 막지 않기 위해서다.
@@ -103,5 +114,5 @@ Phase 8의 셸은 WPF 창 안에서 WebView2로 TypeScript Viewer를 띄운다. 
 ## 후속 작업
 
 - [x] `AGENTS.md` 1.4절 해소 표에 더한다
-- [ ] Phase 9에서 `dist`를 설치 프로그램이 어디에 두는지 정하고 셸의 자산 경로 규칙을 맞춘다
-- [ ] 프로젝트 저장 형식과 SQLite 스키마는 별도 ADR로 정한다 (마스터 계획 16절 Follow-up)
+- [x] Phase 9에서 `dist`를 설치 프로그램이 어디에 두는지 정하고 셸의 자산 경로 규칙을 맞춘다 — ADR-0011
+- [x] 프로젝트 저장 형식과 SQLite 스키마는 별도 ADR로 정한다 (마스터 계획 16절 Follow-up) — ADR-0013

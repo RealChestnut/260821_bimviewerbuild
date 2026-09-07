@@ -188,6 +188,29 @@ export const createSchedulerComponent = (options: SchedulerComponentOptions): Ap
     };
   };
 
+  /**
+   * 열린 일정을 비운다.
+   *
+   * 프로젝트를 닫을 때 쓴다. 비운 사실을 화면에도 알린다 — 표가 옛 일정을 그대로 보이면
+   * 사용자가 무엇을 보고 있는지 알 수 없다 (ADR-0013).
+   */
+  const clearSchedule = async (): Promise<{ readonly cleared: boolean }> => {
+    const app = requireContext();
+    const had = (await repository.get()) !== null;
+
+    await repository.clear();
+    await app.events.publish('scheduler/schedule-changed', {
+      scheduleId: '',
+      name: '',
+      tasks: [],
+      dependencies: [],
+      assignments: [],
+      warnings: [],
+    });
+
+    return { cleared: had };
+  };
+
   return {
     id: 'scheduler',
 
@@ -203,6 +226,7 @@ export const createSchedulerComponent = (options: SchedulerComponentOptions): Ap
       app.commands.register('scheduler/load-schedule', ({ source }) => loadSchedule(source));
       app.commands.register('scheduler/load-schedule-csv', ({ bundle }) => loadScheduleCsv(bundle));
       app.commands.register('scheduler/export-schedule', ({ format }) => exportSchedule(format));
+      app.commands.register('scheduler/clear-schedule', () => clearSchedule());
       app.commands.register('scheduler/edit-schedule', ({ edits }) => editSchedule(edits));
       registered = true;
       return Promise.resolve();

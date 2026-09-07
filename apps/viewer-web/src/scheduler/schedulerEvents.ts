@@ -116,6 +116,16 @@ declare module '@bim4d/contracts' {
       input: { readonly bundle: ScheduleCsvBundle };
       output: { readonly scheduleId: string; readonly taskCount: number };
     };
+    /**
+     * 열린 일정을 비운다. 프로젝트를 닫을 때 쓴다 (ADR-0013).
+     *
+     * 비운 상태도 화면에 알린다. 표가 옛 일정을 그대로 보이고 있으면 사용자가 무엇을
+     * 보고 있는지 알 수 없다.
+     */
+    'scheduler/clear-schedule': {
+      input: Record<string, never>;
+      output: { readonly cleared: boolean };
+    };
     'scheduler/export-schedule': {
       input: { readonly format: ScheduleExportFormat };
       /** 파일 이름까지 정해서 준다. 저장 위치와 방법은 Adapter가 정한다. */

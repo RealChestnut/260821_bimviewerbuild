@@ -50,4 +50,4 @@ Adapter는 해제 경로에서 강제 update를 호출하지 않는다. Scene에
 ## 후속 작업
 
 - [ ] fragments 버전을 올릴 때 해제 직후 `update(true)` 동작을 다시 확인하고, 고쳐졌으면 위 예외를 없앤다
-- [ ] C# Shell 패키징 단계에서 `dist/vendor/`가 설치 산출물에 포함되는지 확인한다 (Phase 9)
+- [x] C# Shell 패키징 단계에서 `dist/vendor/`가 설치 산출물에 포함되는지 확인한다 (Phase 9) — `web/vendor/fragments/worker.mjs`와 `web/vendor/web-ifc/web-ifc.wasm`이 게시본에 들어 있다

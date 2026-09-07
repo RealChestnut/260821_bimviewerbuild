@@ -62,14 +62,18 @@ export const createViewpointComponent = (options: ViewpointComponentOptions): Ap
     });
   };
 
-  const save = async (name?: string): Promise<{ id: string; name: string } | null> => {
+  /**
+   * 지금 화면을 그대로 뜬다. 목록에 넣지 않는다.
+   *
+   * 저장(`save`)과 프로젝트 저장이 같은 값을 보게 하려고 한 자리에 둔다.
+   */
+  const capture = async (name?: string): Promise<Viewpoint | null> => {
     const view = await camera.getView();
     // World가 없으면 되살릴 화면도 없다.
     if (view === null) return null;
 
-    const id = newId();
-    const viewpoint: Viewpoint = {
-      id,
+    return {
+      id: newId(),
       name:
         name?.trim() === undefined || name.trim().length === 0
           ? `시점 ${String(viewpoints.size + 1)}`
@@ -80,16 +84,24 @@ export const createViewpointComponent = (options: ViewpointComponentOptions): Ap
       hiddenModels: [...hiddenModels],
       sections: [...(await section.describe())],
     };
-
-    viewpoints.set(id, viewpoint);
-    await publishState();
-    return { id, name: viewpoint.name };
   };
 
-  const restore = async (id: string): Promise<boolean> => {
-    const viewpoint = viewpoints.get(id);
-    if (viewpoint === undefined) return false;
+  const save = async (name?: string): Promise<{ id: string; name: string } | null> => {
+    const viewpoint = await capture(name);
+    if (viewpoint === null) return null;
 
+    viewpoints.set(viewpoint.id, viewpoint);
+    await publishState();
+    return { id: viewpoint.id, name: viewpoint.name };
+  };
+
+  /**
+   * 받은 화면을 되살린다.
+   *
+   * 자기가 직접 화면을 고치지 않고 각 슬라이스에 Command를 보낸다. 그래야 되살린 뒤의
+   * 상태도 그 슬라이스가 알고 있는 것과 어긋나지 않는다.
+   */
+  const apply = async (viewpoint: Viewpoint): Promise<boolean> => {
     const app = requireContext();
     await camera.setView(viewpoint.camera);
 
@@ -106,6 +118,12 @@ export const createViewpointComponent = (options: ViewpointComponentOptions): Ap
 
     await app.commands.dispatch('viewer/restore-sections', { planes: viewpoint.sections });
     return true;
+  };
+
+  const restore = async (id: string): Promise<boolean> => {
+    const viewpoint = viewpoints.get(id);
+    if (viewpoint === undefined) return false;
+    return apply(viewpoint);
   };
 
   const remove = async (id: string): Promise<boolean> => {
@@ -146,6 +164,12 @@ export const createViewpointComponent = (options: ViewpointComponentOptions): Ap
         }));
         app.commands.register('viewer/delete-viewpoint', async ({ id }) => ({
           deleted: await remove(id),
+        }));
+        app.commands.register('viewer/capture-viewpoint', async () => ({
+          viewpoint: await capture(),
+        }));
+        app.commands.register('viewer/apply-viewpoint', async ({ viewpoint }) => ({
+          restored: await apply(viewpoint),
         }));
         registered = true;
       }

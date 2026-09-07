@@ -91,6 +91,71 @@ public static class ShellMessages
             ["schedule"] = JsonNode.Parse(scheduleJson),
         }.ToJsonString();
 
+    /// <summary>
+    /// 지금 상태를 달라고 묻는다 (ADR-0013).
+    /// </summary>
+    /// <remarks>
+    /// 답에는 이 <paramref name="requestId"/>가 그대로 실려 온다. 저장이 겹치면 어느 답이
+    /// 어느 물음의 것인지 알아야 오래된 상태를 새 파일에 쓰는 일이 없다.
+    /// </remarks>
+    public static string StateRequested(string requestId) =>
+        new JsonObject
+        {
+            ["kind"] = "shell/state-requested",
+            ["requestId"] = requestId,
+        }.ToJsonString();
+
+    /// <summary>연 프로젝트를 웹에 올린다. 모델은 <c>shell/model-opened</c>로 따로 간다.</summary>
+    /// <param name="unbound">찾지 못한 모델의 <c>modelRef</c>들. 웹이 표시에 쓴다.</param>
+    public static string ProjectOpened(
+        string? scheduleJson,
+        string? viewerStateJson,
+        IReadOnlyList<string> unbound
+    )
+    {
+        var unboundArray = new JsonArray();
+        foreach (var modelRef in unbound)
+        {
+            unboundArray.Add(modelRef);
+        }
+
+        return new JsonObject
+        {
+            ["kind"] = "shell/project-opened",
+            ["schedule"] = ParseOrNull(scheduleJson),
+            ["viewerState"] = ParseOrNull(viewerStateJson),
+            ["unbound"] = unboundArray,
+        }.ToJsonString();
+    }
+
+    /// <summary>프로젝트를 닫았다. 웹은 비운 상태로 돌아간다.</summary>
+    public static string ProjectClosed() =>
+        new JsonObject { ["kind"] = "shell/project-closed" }.ToJsonString();
+
+    /// <summary>
+    /// 저장한 문자열을 JSON으로 되돌린다.
+    /// </summary>
+    /// <remarks>
+    /// 셸은 일정을 열어 보지 않는다. 다만 다리에는 문자열이 아니라 값으로 실어야 웹이
+    /// 다시 파싱하지 않는다. 모양이 깨졌으면 없는 것으로 보낸다 — 셸이 판정할 일이 아니다.
+    /// </remarks>
+    private static JsonNode? ParseOrNull(string? json)
+    {
+        if (string.IsNullOrWhiteSpace(json))
+        {
+            return null;
+        }
+
+        try
+        {
+            return JsonNode.Parse(json);
+        }
+        catch (System.Text.Json.JsonException)
+        {
+            return null;
+        }
+    }
+
     /// <summary>웹이 보낸 줄을 읽는다. 모르는 모양이면 <c>null</c>이다.</summary>
     public static (string Kind, JsonObject Payload)? Parse(string json)
     {

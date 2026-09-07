@@ -128,4 +128,61 @@ public sealed class ShellMessagesTests
         Assert.Null(ShellMessages.Parse("{ 깨졌다"));
         Assert.Null(ShellMessages.Parse("""{"noKind":1}"""));
     }
+
+    [Fact]
+    public void 지금_상태를_물을_때_requestId를_싣는다()
+    {
+        // 저장이 겹치면 어느 답이 어느 물음의 것인지 알아야 한다 (ADR-0013).
+        using var parsed = JsonDocument.Parse(ShellMessages.StateRequested("a1"));
+
+        Assert.Equal("shell/state-requested", parsed.RootElement.GetProperty("kind").GetString());
+        Assert.Equal("a1", parsed.RootElement.GetProperty("requestId").GetString());
+    }
+
+    [Fact]
+    public void 연_프로젝트를_값으로_싣는다()
+    {
+        var message = ShellMessages.ProjectOpened(
+            """{"scheduleId":"s1","tasks":[]}""",
+            """{"camera":{"position":[1,2,3]}}""",
+            ["설비.ifc"]
+        );
+
+        using var parsed = JsonDocument.Parse(message);
+        var root = parsed.RootElement;
+
+        Assert.Equal("shell/project-opened", root.GetProperty("kind").GetString());
+        // 문자열이 아니라 값으로 실어야 웹이 다시 파싱하지 않는다.
+        Assert.Equal("s1", root.GetProperty("schedule").GetProperty("scheduleId").GetString());
+        Assert.Equal(JsonValueKind.Object, root.GetProperty("viewerState").ValueKind);
+        Assert.Equal("설비.ifc", root.GetProperty("unbound")[0].GetString());
+    }
+
+    [Fact]
+    public void 일정이_없는_프로젝트도_보낸다()
+    {
+        using var parsed = JsonDocument.Parse(ShellMessages.ProjectOpened(null, null, []));
+        var root = parsed.RootElement;
+
+        Assert.Equal(JsonValueKind.Null, root.GetProperty("schedule").ValueKind);
+        Assert.Equal(JsonValueKind.Null, root.GetProperty("viewerState").ValueKind);
+        Assert.Equal(0, root.GetProperty("unbound").GetArrayLength());
+    }
+
+    [Fact]
+    public void 깨진_일정은_없는_것으로_보낸다()
+    {
+        // 셸은 일정을 열어 보지 않는다. 판정할 자리가 아니다 (ADR-0013).
+        using var parsed = JsonDocument.Parse(ShellMessages.ProjectOpened("{ 깨졌다", null, []));
+
+        Assert.Equal(JsonValueKind.Null, parsed.RootElement.GetProperty("schedule").ValueKind);
+    }
+
+    [Fact]
+    public void 프로젝트를_닫았다고_알린다()
+    {
+        using var parsed = JsonDocument.Parse(ShellMessages.ProjectClosed());
+
+        Assert.Equal("shell/project-closed", parsed.RootElement.GetProperty("kind").GetString());
+    }
 }
