@@ -1,7 +1,10 @@
-import type { AppComponent, AppContext, Unsubscribe } from '@bim4d/contracts';
+import type { AppComponent, AppContext, ModelId, Unsubscribe } from '@bim4d/contracts';
 
 import '../scheduler/schedulerEvents.js';
 import '../viewer/model/modelEvents.js';
+import '../viewer/viewpoint/viewpointEvents.js';
+
+import type { Viewpoint } from '../viewer/viewpoint/viewpointComponent.js';
 
 /**
  * 데스크톱 셸이 붙어 있을 때만 사는 다리.
@@ -61,6 +64,12 @@ const parseMessage = (data: unknown): Record<string, unknown> | null => {
 
 const textOf = (value: unknown): string | null => (typeof value === 'string' ? value : null);
 
+/** 셸이 준 화면 상태. 우리가 준 것이 되돌아오는 것이라 모양은 믿되 없을 수는 있다. */
+const viewpointOf = (value: unknown): Viewpoint | null => {
+  const record = asRecord(value);
+  return record === null || asRecord(record['camera']) === null ? null : (value as Viewpoint);
+};
+
 export const createShellBridgeComponent = (options: ShellBridgeOptions = {}): AppComponent => {
   const readBytes = options.readBytes ?? defaultReadBytes;
 
@@ -68,6 +77,8 @@ export const createShellBridgeComponent = (options: ShellBridgeOptions = {}): Ap
   let host: ShellHost | null = null;
   let subscriptions: Unsubscribe[] = [];
   let listening = false;
+  /** 프로젝트를 닫을 때 내리려고 들고 있는 목록. 다른 Component의 상태를 들여다보지 않는다. */
+  const loadedModels = new Set<ModelId>();
 
   const tell = (kind: string, fields: Record<string, unknown>): void => {
     host?.postMessage(JSON.stringify({ kind, ...fields }));
@@ -102,6 +113,71 @@ export const createShellBridgeComponent = (options: ShellBridgeOptions = {}): Ap
     if (!result.ok) tell('web/error', { message: result.error.message, code: result.error.code });
   };
 
+  /**
+   * 셸이 "지금 상태를 달라"고 물었다.
+   *
+   * 프로젝트를 저장하는 쪽은 셸이고 일정과 화면은 여기 있다. 답에는 물음의 `requestId`를
+   * 그대로 실어 보낸다 — 저장이 겹치면 어느 답이 어느 물음의 것인지 셸이 알아야 한다
+   * (ADR-0013).
+   *
+   * 일정이 없으면 없다고 답한다. 답을 아예 안 보내면 셸이 마냥 기다린다.
+   */
+  const sendState = async (message: Record<string, unknown>): Promise<void> => {
+    if (context === null) return;
+    const requestId = textOf(message['requestId']);
+    if (requestId === null) return;
+
+    const app = context;
+    let schedule: string | null = null;
+    let viewerState: Viewpoint | null = null;
+
+    const exported = await app.commands.dispatch('scheduler/export-schedule', { format: 'json' });
+    if (exported.ok) {
+      schedule = exported.value.files[0]?.content ?? null;
+    }
+
+    const captured = await app.commands.dispatch('viewer/capture-viewpoint', {});
+    if (captured.ok) {
+      viewerState = captured.value.viewpoint;
+    }
+
+    tell('web/state', { requestId, schedule, viewerState });
+  };
+
+  /** 셸이 연 프로젝트를 올린다. 모델은 `shell/model-opened`로 따로 온다. */
+  const openProject = async (message: Record<string, unknown>): Promise<void> => {
+    if (context === null) return;
+    const app = context;
+
+    const schedule = message['schedule'];
+    if (schedule !== undefined && schedule !== null) {
+      // 검증은 도메인의 parseSchedule이 한다. 셸은 옮기기만 한다.
+      const loaded = await app.commands.dispatch('scheduler/load-schedule', { source: schedule });
+      if (!loaded.ok) {
+        tell('web/error', { message: loaded.error.message, code: loaded.error.code });
+      }
+    }
+
+    const viewpoint = viewpointOf(message['viewerState']);
+    if (viewpoint !== null) {
+      // 모델이 아직 안 올라왔으면 되살릴 것이 없다. 실패해도 프로젝트는 열린 것이다.
+      await app.commands.dispatch('viewer/apply-viewpoint', { viewpoint });
+    }
+  };
+
+  /** 프로젝트를 닫았다. 열린 모델과 일정을 비워 처음 상태로 돌아간다. */
+  const closeProject = async (): Promise<void> => {
+    if (context === null) return;
+    const app = context;
+
+    for (const modelId of [...loadedModels]) {
+      await app.commands.dispatch('viewer/unload-model', { modelId });
+    }
+    loadedModels.clear();
+
+    await app.commands.dispatch('scheduler/clear-schedule', {});
+  };
+
   const onMessage = (event: { readonly data: unknown }): void => {
     const message = parseMessage(event.data);
     const kind = message === null ? null : textOf(message['kind']);
@@ -113,6 +189,18 @@ export const createShellBridgeComponent = (options: ShellBridgeOptions = {}): Ap
     }
     if (kind === 'shell/schedule-opened') {
       void openSchedule(message);
+      return;
+    }
+    if (kind === 'shell/state-requested') {
+      void sendState(message);
+      return;
+    }
+    if (kind === 'shell/project-opened') {
+      void openProject(message);
+      return;
+    }
+    if (kind === 'shell/project-closed') {
+      void closeProject();
     }
   };
 
@@ -151,7 +239,11 @@ export const createShellBridgeComponent = (options: ShellBridgeOptions = {}): Ap
           tell('web/error', { message: payload.reason, code: payload.code });
         }),
         app.events.subscribe('model/loaded', ({ payload }) => {
+          loadedModels.add(payload.modelId);
           tell('web/log', { level: 'info', message: `모델을 열었다: ${payload.displayName}` });
+        }),
+        app.events.subscribe('model/unloaded', ({ payload }) => {
+          loadedModels.delete(payload.modelId);
         }),
       ];
 
@@ -167,6 +259,7 @@ export const createShellBridgeComponent = (options: ShellBridgeOptions = {}): Ap
 
     dispose: () => {
       detach();
+      loadedModels.clear();
       host = null;
       context = null;
       return Promise.resolve();

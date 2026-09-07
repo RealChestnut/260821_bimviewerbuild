@@ -445,3 +445,39 @@ describe('createSchedulerComponent — 정리', () => {
     expect(await repository.get()).toBeNull();
   });
 });
+
+describe('createSchedulerComponent — 비우기 (ADR-0013)', () => {
+  it('열린 일정을 비운다', async () => {
+    const context = createTestContext();
+    await startComponent(context);
+    await context.commands.dispatch('scheduler/load-schedule', { source });
+
+    const result = await context.commands.dispatch('scheduler/clear-schedule', {});
+
+    expect(result.ok && result.value.cleared).toBe(true);
+    await expect(repository.get()).resolves.toBeNull();
+  });
+
+  it('비운 사실을 화면에 알린다', async () => {
+    // 표가 옛 일정을 그대로 보이면 사용자가 무엇을 보고 있는지 알 수 없다.
+    const context = createTestContext();
+    await startComponent(context);
+    await context.commands.dispatch('scheduler/load-schedule', { source });
+    const changes = listenChanges(context);
+
+    await context.commands.dispatch('scheduler/clear-schedule', {});
+
+    expect(changes).toHaveLength(1);
+    expect(changes[0]?.tasks).toEqual([]);
+    expect(changes[0]?.warnings).toEqual([]);
+  });
+
+  it('열린 일정이 없어도 실패하지 않는다', async () => {
+    const context = createTestContext();
+    await startComponent(context);
+
+    const result = await context.commands.dispatch('scheduler/clear-schedule', {});
+
+    expect(result.ok && result.value.cleared).toBe(false);
+  });
+});

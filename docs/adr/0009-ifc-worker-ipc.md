@@ -163,5 +163,5 @@ Phase 7에서는 **개발용 실행 조건만 고정한다.**
 
 - [x] 마스터 계획 16절 Follow-up을 이 ADR로 대체했음을 `AGENTS.md` 1.4절 해소 표에 적는다
 - [x] 마스터 계획 7절 저장소 구조에 `packages/ifc-worker-client/`를 더한다
-- [ ] Phase 9에서 Python 런타임 동봉 방식을 정한다 (embeddable / PyInstaller)
+- [x] Phase 9에서 Python 런타임 동봉 방식을 정한다 (embeddable / PyInstaller) — ADR-0011이 임베더블로 정했다
 - [ ] 검증 게이트(reject / warn)는 `AGENTS.md` 1.4절에 미결정으로 남긴다. `inspect`는 사실만 돌려준다

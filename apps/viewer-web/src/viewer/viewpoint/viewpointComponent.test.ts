@@ -274,3 +274,71 @@ describe('createViewpointComponent', () => {
     ]);
   });
 });
+
+describe('createViewpointComponent — 프로젝트 저장이 쓰는 길 (ADR-0013)', () => {
+  it('지금 화면을 뜬다', async () => {
+    const harness = await setup();
+    await harness.setVisibility([wallA], [], ['model-2' as ModelId]);
+    harness.section.planes = [plane(3)];
+
+    const result = await harness.context.commands.dispatch('viewer/capture-viewpoint', {});
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.viewpoint).toMatchObject({
+      camera: view(12),
+      hidden: [wallA],
+      hiddenModels: ['model-2'],
+      sections: [plane(3)],
+    });
+    await harness.dispose();
+  });
+
+  it('뜬 것은 목록에 넣지 않는다', async () => {
+    // 사용자가 이름 붙여 저장한 시점과 "지금 화면"은 다른 것이다.
+    const harness = await setup();
+    harness.events.length = 0;
+
+    await harness.context.commands.dispatch('viewer/capture-viewpoint', {});
+
+    expect(harness.events).toEqual([]);
+    await harness.dispose();
+  });
+
+  it('World가 없으면 뜰 화면도 없다', async () => {
+    const harness = await setup();
+    harness.camera.current = null;
+
+    const result = await harness.context.commands.dispatch('viewer/capture-viewpoint', {});
+
+    expect(result.ok && result.value.viewpoint).toBeNull();
+    await harness.dispose();
+  });
+
+  it('받은 화면을 목록에 없어도 되살린다', async () => {
+    // 프로젝트에서 온 화면은 이 세션의 목록에 없다.
+    const harness = await setup();
+    harness.dispatched.length = 0;
+
+    const result = await harness.context.commands.dispatch('viewer/apply-viewpoint', {
+      viewpoint: {
+        id: '어디에도 없는 id',
+        name: '프로젝트에서 온 화면',
+        camera: view(30),
+        hidden: [wallB],
+        isolated: [],
+        hiddenModels: [],
+        sections: [plane(7)],
+      },
+    });
+
+    expect(result.ok && result.value.restored).toBe(true);
+    expect(harness.camera.applied).toEqual([view(30)]);
+    expect(harness.dispatched).toEqual([
+      { name: 'show-all', input: {} },
+      { name: 'hide-products', input: { products: [wallB] } },
+      { name: 'restore-sections', input: { planes: [plane(7)] } },
+    ]);
+    await harness.dispose();
+  });
+});

@@ -246,3 +246,207 @@ describe('createShellBridgeComponent — 정리', () => {
     await expect(bridge.dispose()).resolves.toBeUndefined();
   });
 });
+
+describe('createShellBridgeComponent — 프로젝트 (ADR-0013)', () => {
+  /** 저장할 때 셸이 물어보는 두 명령을 흉내 낸다. */
+  const captureStateSources = (
+    context: TestContext,
+    options: { schedule?: string | null; viewpoint?: unknown } = {},
+  ): { exports: number; captures: number } => {
+    const counts = { exports: 0, captures: 0 };
+
+    context.commands.register('scheduler/export-schedule', () => {
+      counts.exports += 1;
+      if (options.schedule === undefined) throw new Error('열려 있는 일정이 없다.');
+      return Promise.resolve({
+        files: [{ fileName: 'schedule.json', content: options.schedule ?? '' }],
+      });
+    });
+    context.commands.register('viewer/capture-viewpoint', () => {
+      counts.captures += 1;
+      return Promise.resolve({ viewpoint: (options.viewpoint ?? null) as never });
+    });
+
+    return counts;
+  };
+
+  it('물으면 지금 상태를 답한다', async () => {
+    const context = createTestContext();
+    captureStateSources(context, {
+      schedule: '{"scheduleId":"s1"}',
+      viewpoint: { id: 'v1', camera: { position: [1, 2, 3], target: [0, 0, 0] } },
+    });
+    const shell = createFakeHost();
+    await startBridge(context, shell.host);
+
+    shell.send({ kind: 'shell/state-requested', requestId: 'a1' });
+    await flush();
+
+    expect(shell.sent.at(-1)).toMatchObject({
+      kind: 'web/state',
+      requestId: 'a1',
+      schedule: '{"scheduleId":"s1"}',
+    });
+  });
+
+  it('물음의 requestId를 그대로 실어 답한다', async () => {
+    // 저장이 겹치면 어느 답이 어느 물음의 것인지 셸이 알아야 한다.
+    const context = createTestContext();
+    captureStateSources(context, { schedule: '{}' });
+    const shell = createFakeHost();
+    await startBridge(context, shell.host);
+
+    shell.send({ kind: 'shell/state-requested', requestId: 'first' });
+    shell.send({ kind: 'shell/state-requested', requestId: 'second' });
+    await flush();
+
+    const answers = shell.sent.filter((message) => message['kind'] === 'web/state');
+    expect(answers.map((message) => message['requestId'])).toEqual(['first', 'second']);
+  });
+
+  it('requestId가 없으면 답하지 않는다', async () => {
+    const context = createTestContext();
+    captureStateSources(context, { schedule: '{}' });
+    const shell = createFakeHost();
+    await startBridge(context, shell.host);
+
+    shell.send({ kind: 'shell/state-requested' });
+    await flush();
+
+    expect(shell.sent.filter((message) => message['kind'] === 'web/state')).toEqual([]);
+  });
+
+  it('일정이 없어도 답한다', async () => {
+    // 답을 아예 안 보내면 셸이 마냥 기다린다.
+    const context = createTestContext();
+    captureStateSources(context);
+    const shell = createFakeHost();
+    await startBridge(context, shell.host);
+
+    shell.send({ kind: 'shell/state-requested', requestId: 'a1' });
+    await flush();
+
+    expect(shell.sent.at(-1)).toMatchObject({
+      kind: 'web/state',
+      requestId: 'a1',
+      schedule: null,
+      viewerState: null,
+    });
+  });
+
+  it('프로젝트를 열면 일정과 화면을 올린다', async () => {
+    const context = createTestContext();
+    const loaded: unknown[] = [];
+    const applied: unknown[] = [];
+    context.commands.register('scheduler/load-schedule', ({ source }) => {
+      loaded.push(source);
+      return Promise.resolve({ scheduleId: 's1', taskCount: 2 });
+    });
+    context.commands.register('viewer/apply-viewpoint', ({ viewpoint }) => {
+      applied.push(viewpoint);
+      return Promise.resolve({ restored: true });
+    });
+    const shell = createFakeHost();
+    await startBridge(context, shell.host);
+
+    shell.send({
+      kind: 'shell/project-opened',
+      schedule: { scheduleId: 's1', schemaVersion: 3 },
+      viewerState: { id: 'v1', camera: { position: [1, 2, 3], target: [0, 0, 0] } },
+    });
+    await flush();
+
+    expect(loaded).toHaveLength(1);
+    expect(applied).toHaveLength(1);
+  });
+
+  it('화면 상태가 없는 프로젝트도 연다', async () => {
+    const context = createTestContext();
+    const loaded: unknown[] = [];
+    const applied: unknown[] = [];
+    context.commands.register('scheduler/load-schedule', ({ source }) => {
+      loaded.push(source);
+      return Promise.resolve({ scheduleId: 's1', taskCount: 0 });
+    });
+    context.commands.register('viewer/apply-viewpoint', ({ viewpoint }) => {
+      applied.push(viewpoint);
+      return Promise.resolve({ restored: true });
+    });
+    const shell = createFakeHost();
+    await startBridge(context, shell.host);
+
+    shell.send({ kind: 'shell/project-opened', schedule: { scheduleId: 's1' } });
+    await flush();
+
+    expect(loaded).toHaveLength(1);
+    expect(applied).toEqual([]);
+  });
+
+  it('일정을 읽지 못하면 셸에 알린다', async () => {
+    const context = createTestContext();
+    context.commands.register('scheduler/load-schedule', () => {
+      throw new Error('일정이 아니다');
+    });
+    const shell = createFakeHost();
+    await startBridge(context, shell.host);
+
+    shell.send({ kind: 'shell/project-opened', schedule: { 이건: '모양이 아니다' } });
+    await flush();
+
+    expect(shell.sent.at(-1)).toMatchObject({ kind: 'web/error' });
+  });
+
+  it('프로젝트를 닫으면 모델을 내리고 일정을 비운다', async () => {
+    const context = createTestContext();
+    const unloaded: ModelId[] = [];
+    let cleared = 0;
+    context.commands.register('viewer/unload-model', ({ modelId }) => {
+      unloaded.push(modelId);
+      return Promise.resolve({ removed: true });
+    });
+    context.commands.register('scheduler/clear-schedule', () => {
+      cleared += 1;
+      return Promise.resolve({ cleared: true });
+    });
+    const shell = createFakeHost();
+    await startBridge(context, shell.host);
+
+    await context.events.publish('model/loaded', {
+      modelId: 'm1' as ModelId,
+      displayName: 'a.ifc',
+      schema: 'IFC4',
+      fingerprint: '9f2b',
+    });
+    shell.send({ kind: 'shell/project-closed' });
+    await flush();
+
+    expect(unloaded).toEqual(['m1']);
+    expect(cleared).toBe(1);
+  });
+
+  it('내린 모델은 다시 내리지 않는다', async () => {
+    const context = createTestContext();
+    const unloaded: ModelId[] = [];
+    context.commands.register('viewer/unload-model', ({ modelId }) => {
+      unloaded.push(modelId);
+      return Promise.resolve({ removed: true });
+    });
+    context.commands.register('scheduler/clear-schedule', () =>
+      Promise.resolve({ cleared: false }),
+    );
+    const shell = createFakeHost();
+    await startBridge(context, shell.host);
+
+    await context.events.publish('model/loaded', {
+      modelId: 'm1' as ModelId,
+      displayName: 'a.ifc',
+      schema: 'IFC4',
+      fingerprint: '9f2b',
+    });
+    await context.events.publish('model/unloaded', { modelId: 'm1' as ModelId });
+    shell.send({ kind: 'shell/project-closed' });
+    await flush();
+
+    expect(unloaded).toEqual([]);
+  });
+});
