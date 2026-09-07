@@ -131,6 +131,16 @@ def pip_args(requirements: Path, target: Path, wheel_dir: Path | None = None) ->
     return args
 
 
+def requirements_for(service_root: Path) -> Path:
+    """어느 파일로 깔지 고른다.
+
+    잠금 파일이 있으면 그것이다. `requirements.txt`는 `ifcopenshell`만 고정하므로 이행
+    의존이 그때의 최신으로 들어와, 같은 커밋에서 만든 설치본이 서로 달라진다 (ADR-0011).
+    """
+    locked = service_root / "requirements.lock.txt"
+    return locked if locked.exists() else service_root / "requirements.txt"
+
+
 def missing_paths(tree: Layout) -> list[Path]:
     """다 만들어졌는지 본다. 없는 것을 그대로 돌려준다.
 
@@ -330,7 +340,7 @@ def main(argv: list[str] | None = None) -> int:
 
     tree = build(
         arguments.out,
-        requirements=service_root / "requirements.txt",
+        requirements=requirements_for(service_root),
         worker_package=service_root / "ifc_worker",
         embed_zip=arguments.embed_zip,
         wheel_dir=arguments.wheel_dir,

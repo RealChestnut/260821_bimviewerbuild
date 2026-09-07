@@ -38,13 +38,13 @@ pnpm build            # 뷰어 자산을 먼저 만든다
 pnpm shell:publish    # 설치본 폴더 하나를 만든다
 ```
 
-`apps/desktop/artifacts/publish`에 폴더 하나가 생긴다. 셋을 모은 것이다.
+`apps/desktop/artifacts/publish`에 폴더 하나가 생긴다. 셋을 모은 것이며 합쳐 301 MB다.
 
 | 무엇 | 어디서                                                    | 크기   |
 | ---- | --------------------------------------------------------- | ------ |
-| 셸   | `dotnet publish -r win-x64 --self-contained`              | 134 MB |
-| 웹   | `apps/viewer-web/dist` → `web/`                           | 33 MB  |
-| 워커 | 임베더블 Python과 `ifc_worker` → `python/`, `ifc-worker/` | 151 MB |
+| 셸   | `dotnet publish -r win-x64 --self-contained`              | 135 MB |
+| 웹   | `apps/viewer-web/dist` → `web/` (소스 맵 제외)            | 14 MB  |
+| 워커 | 임베더블 Python과 `ifc_worker` → `python/`, `ifc-worker/` | 152 MB |
 
 .NET도 Python도 깔지 않은 Windows에서 뜬다. 만든 뒤 `--self-check`로 실제로 띄워 워커까지
 닿는지 보며, 통과하지 못하면 게시가 실패한다.
@@ -58,7 +58,7 @@ pnpm shell:publish    # 설치본 폴더 하나를 만든다
 pnpm shell:installer   # 설치본 폴더를 Inno Setup으로 싼다
 ```
 
-`apps/desktop/artifacts/installer/Bim4dViewer-Setup-<버전>.exe`가 나온다. 318 MB 폴더가 81 MB
+`apps/desktop/artifacts/installer/Bim4dViewer-Setup-<버전>.exe`가 나온다. 301 MB 폴더가 80 MB
 파일 하나가 된다. 정본은 [`docs/adr/0012-installer.md`](../../docs/adr/0012-installer.md)다.
 
 Inno Setup이 필요하다. `winget install JRSoftware.InnoSetup`으로 깔거나 `--iscc`로 자리를 준다.

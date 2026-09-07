@@ -9,7 +9,7 @@ from pathlib import Path
 import pytest
 
 from make_installer import iscc_args, installer_path, read_version
-from publish import RUNTIME_IDENTIFIER, dotnet_publish_args, missing_after_publish
+from publish import RUNTIME_IDENTIFIER, copy_web, dotnet_publish_args, missing_after_publish
 
 
 class TestDotnetPublishArgs:
@@ -129,3 +129,34 @@ class TestIsccArgs:
         )
 
         assert not any(arg.startswith("/DBootstrapper=") for arg in args)
+
+
+class TestCopyWeb:
+    def test_소스_맵은_담지_않는다(self, tmp_path: Path) -> None:
+        # 20 MB를 모든 사용자에게 물리면서 devtools를 여는 사람만 쓴다 (ADR-0011).
+        dist = tmp_path / "dist"
+        (dist / "assets").mkdir(parents=True)
+        (dist / "index.html").write_text("", encoding="utf-8")
+        (dist / "assets" / "index.js").write_text("", encoding="utf-8")
+        (dist / "assets" / "index.js.map").write_text("", encoding="utf-8")
+
+        out = tmp_path / "publish"
+        out.mkdir()
+        copy_web(dist, out)
+
+        assert (out / "web" / "assets" / "index.js").exists()
+        assert not (out / "web" / "assets" / "index.js.map").exists()
+
+    def test_나머지는_그대로_담는다(self, tmp_path: Path) -> None:
+        dist = tmp_path / "dist"
+        (dist / "vendor" / "web-ifc").mkdir(parents=True)
+        (dist / "index.html").write_text("", encoding="utf-8")
+        (dist / "vendor" / "web-ifc" / "web-ifc.wasm").write_bytes(b"")
+
+        out = tmp_path / "publish"
+        out.mkdir()
+        copy_web(dist, out)
+
+        # 오프라인 vendor 자산이 빠지면 뷰어가 뜨지 않는다 (ADR-0004).
+        assert (out / "web" / "vendor" / "web-ifc" / "web-ifc.wasm").exists()
+        assert (out / "web" / "index.html").exists()

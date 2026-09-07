@@ -53,4 +53,4 @@ TypeScript는 **5.9.3**으로 고정한다. 최신은 7.0.2이지만 typescript-
 ## 후속 작업
 
 - [ ] typescript-eslint가 TypeScript 6 이상을 지원하면 TypeScript 버전 재검토
-- [ ] Phase 2에서 That Open으로 실제 모델을 적재한 뒤 조합 재확인
+- [x] Phase 2에서 That Open으로 실제 모델을 적재한 뒤 조합 재확인 — 실프로젝트 IFC 128.5 MB까지 확인했다 (`tests/performance/README.md`)

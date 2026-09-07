@@ -19,6 +19,7 @@ from tools.build_runtime import (
     missing_paths,
     pip_args,
     pth_lines,
+    requirements_for,
     use_utf8,
 )
 
@@ -167,3 +168,20 @@ class TestUseUtf8:
         monkeypatch.setattr("tools.build_runtime.sys.stderr", object())
 
         use_utf8()
+
+
+class TestRequirementsFor:
+    """어느 파일로 깔지 고른다 (ADR-0011)."""
+
+    def test_잠금_파일이_있으면_그것을_쓴다(self, tmp_path: Path) -> None:
+        # requirements.txt는 ifcopenshell만 고정하므로 이행 의존이 그때의 최신으로 들어온다.
+        # 실제로 몇 시간 사이에 numpy가 2.5.2에서 2.5.3으로 바뀌었다.
+        (tmp_path / "requirements.txt").write_text("ifcopenshell==0.8.5", encoding="utf-8")
+        (tmp_path / "requirements.lock.txt").write_text("numpy==2.5.3", encoding="utf-8")
+
+        assert requirements_for(tmp_path).name == "requirements.lock.txt"
+
+    def test_잠금_파일이_없으면_requirements를_쓴다(self, tmp_path: Path) -> None:
+        (tmp_path / "requirements.txt").write_text("ifcopenshell==0.8.5", encoding="utf-8")
+
+        assert requirements_for(tmp_path).name == "requirements.txt"

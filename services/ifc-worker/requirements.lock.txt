@@ -1,0 +1,15 @@
+# 설치본에 들어갈 wheel 버전. 손으로 고치지 않는다 (ADR-0011).
+#
+# 만드는 법:
+#     python services/ifc-worker/tools/lock_requirements.py
+#
+# `requirements.txt`가 ifcopenshell만 고정하므로 이행 의존은 그때의 최신이 들어온다.
+# 그러면 같은 커밋에서 만든 설치본이 서로 다르다. 이 파일이 그것을 막는다.
+ifcopenshell==0.8.5
+isodate==0.7.2
+lark==1.3.1
+numpy==2.5.3
+python-dateutil==2.9.0.post0
+shapely==2.1.2
+six==1.17.0
+typing_extensions==4.16.0

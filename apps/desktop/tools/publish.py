@@ -102,15 +102,22 @@ def missing_after_publish(out: Path) -> list[Path]:
     return [path for path in required if not path.exists()]
 
 
+#: 설치본에 담지 않는 것. 소스 맵은 devtools를 열 때만 쓸모가 있고 사용자는 열지 않는다.
+WEB_EXCLUDED = ("*.map",)
+
+
 def copy_web(dist: Path, out: Path) -> None:
     """빌드한 뷰어 자산을 `web/`으로 옮긴다.
 
     이름은 셸이 먼저 보는 그 이름이다 (ADR-0011). 폴더째 `app.local`로 매핑된다 (ADR-0010).
+
+    소스 맵은 빼고 담는다. 20 MB를 모든 사용자에게 물리면서 devtools를 여는 사람만
+    쓴다. 우리가 디버깅할 때는 개발 빌드를 쓴다.
     """
     destination = out / "web"
     if destination.exists():
         shutil.rmtree(destination)
-    shutil.copytree(dist, destination)
+    shutil.copytree(dist, destination, ignore=shutil.ignore_patterns(*WEB_EXCLUDED))
 
 
 def size_of(root: Path) -> int:
