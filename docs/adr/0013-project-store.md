@@ -1,0 +1,215 @@
+# ADR-0013: 프로젝트는 셸이 여닫는 SQLite 파일 하나다
+
+- 상태: 채택
+- 날짜: 2026-09-07
+- 관련 문서: `docs/DEVELOPMENT_MASTER_PLAN.md` 2.1절, 4.6절, 6.2절, 15절, 16절 Follow-up · ADR-0006 · ADR-0008 · ADR-0009 · ADR-0010 · `AGENTS.md` 2.1절, 3절
+- 해소 대상: 마스터 계획 16절 Follow-up "프로젝트 저장 형식과 SQLite 스키마는 별도 ADR로 확정한다"
+
+## 맥락
+
+15절 수용 기준의 마지막 줄이 아직 안 된다.
+
+```gherkin
+When 프로젝트를 닫고 다시 열면
+Then 모델 참조, Task, 연결 및 Viewer 상태가 복원된다.
+```
+
+지금 앱을 닫으면 연 모델, Task, 연결, 화면 상태가 전부 사라진다. 일정 JSON/CSV 내보내기는 있지만 그것은 일정 파일이지 프로젝트가 아니다 — 화면 상태가 없고, 사용자가 IFC와 일정 파일을 따로 챙겨야 하며, 셸의 최근 프로젝트 목록이 가리킬 대상이 없다.
+
+정해야 할 것이 다섯이다. 저장 형식, 누가 쓰나, 모델 경로를 어떻게 적나, 못 찾았을 때 어떻게 하나, 없어진 모델의 연결을 어떻게 보이나.
+
+제약이 있다.
+
+- **원본 IFC는 읽기 전용이다** (`AGENTS.md` 2.1절). 프로젝트에 IFC를 담지 않는다.
+- **웹은 브라우저라 파일 시스템을 못 쓴다** (ADR-0010). 파일을 여닫는 쪽은 셸이다.
+- **ADR-0008이 이미 절반을 풀었다.** 열려 있는 모델과 일정을 fingerprint로 묶는 규칙과, 교체를 감지했을 때 자동으로 지우지 않는다는 원칙이 있다. 이 ADR은 그것을 **파일 경로 차원으로 넓히는 일**이다.
+
+## 결정
+
+### 형식은 SQLite 단일 파일, 확장자는 `.bim4d`
+
+확장자는 코드 전반이 이미 쓰는 이름을 따랐다 — `@bim4d/*` 패키지 스코프, `Bim4d.Desktop` 어셈블리, `%APPDATA%\Bim4dViewer`. 이름이 여럿이면 사용자가 파일과 프로그램을 잇지 못한다. 남이 쓰는 확장자를 뺏지 않는다는 ADR-0012의 원칙도 그대로다 — 우리 고유 이름이라 `.ifc`처럼 남의 것을 가져가는 문제가 없다.
+
+마스터 계획 16절이 적은 대로다. 이유는 하나로 충분하다 — **쓰다 죽어도 반만 쓰인 파일이 남지 않는다.** JSON 통짜 쓰기는 임시 파일과 교체로 막을 수 있지만, 트랜잭션은 그것을 공짜로 준다. Task가 수만 개가 되어도 통째로 읽고 쓰지 않는다.
+
+### 파일을 여닫는 쪽은 셸이다
+
+```text
+사용자 ─▸ 셸(C#) ─── SQLite 파일
+              │
+              └──▸ 웹(WebView2) ─ 메모리의 일정·화면 상태
+```
+
+웹은 지금처럼 브라우저 앱으로 남는다. `pnpm dev`로 띄운 웹에는 프로젝트 메뉴가 없다 — 셸 다리가 없으면 아무것도 하지 않는다는 Phase 8의 규칙 그대로다.
+
+### 다리에 물음–대답을 더한다 (ADR-0010 확장)
+
+지금 다리는 한 방향 통보뿐이다. 저장하려면 셸이 웹에게 **지금 상태를 달라**고 물어야 한다.
+
+| 방향 | kind | 내용 |
+| --- | --- | --- |
+| 셸 → 웹 | `shell/state-requested` | `{ requestId }` |
+| 웹 → 셸 | `web/state` | `{ requestId, schedule, viewerState }` |
+| 셸 → 웹 | `shell/project-opened` | `{ schedule, viewerState, unbound }` |
+| 셸 → 웹 | `shell/project-closed` | `{}` — 웹은 비운 상태로 돌아간다 |
+
+`requestId`가 있어야 답이 어느 물음의 것인지 안다. 저장 중에 사용자가 또 저장을 누를 수 있다.
+
+### `ViewerState`는 Viewpoint의 모양을 그대로 쓴다
+
+Phase 3이 만든 `Viewpoint`가 이미 화면 상태 전부다 — 카메라, 숨김, 격리, 숨긴 모델, 단면. 새 타입을 만들지 않고 이름 없는 Viewpoint 하나로 저장한다.
+
+```ts
+interface Viewpoint {
+  camera: CameraView;          // position, target
+  hidden: ProductKey[];
+  isolated: ProductKey[];
+  hiddenModels: ModelId[];
+  sections: SectionPlaneState[];
+}
+```
+
+### 스키마
+
+```sql
+CREATE TABLE meta (
+  key   TEXT PRIMARY KEY,
+  value TEXT NOT NULL
+);
+-- schemaVersion, appVersion, savedAt, projectName
+
+CREATE TABLE models (
+  model_ref     TEXT PRIMARY KEY,   -- 일정의 modelRef. 연결의 키다 (ADR-0008)
+  absolute_path TEXT NOT NULL,
+  relative_path TEXT,               -- 프로젝트 파일 기준. 같은 드라이브가 아니면 없다
+  fingerprint   TEXT,               -- SHA-256 소문자 hex 64자. 모르면 없다
+  schema        TEXT                -- IFC2X3 / IFC4 …
+);
+
+CREATE TABLE tasks (
+  task_id        TEXT PRIMARY KEY,
+  name           TEXT NOT NULL,
+  parent_task_id TEXT REFERENCES tasks(task_id),
+  start_ms       INTEGER,           -- epoch milliseconds. 정해지지 않았으면 NULL (ADR-0005)
+  finish_ms      INTEGER,
+  operation      TEXT NOT NULL
+);
+
+CREATE TABLE dependencies (
+  predecessor_id TEXT NOT NULL REFERENCES tasks(task_id),
+  successor_id   TEXT NOT NULL REFERENCES tasks(task_id),
+  type           TEXT NOT NULL,     -- ADR-0006의 4종
+  lag_days       INTEGER NOT NULL,
+  PRIMARY KEY (predecessor_id, successor_id)
+);
+
+CREATE TABLE assignments (
+  task_id           TEXT NOT NULL REFERENCES tasks(task_id),
+  model_ref         TEXT NOT NULL,  -- models에 없어도 된다 (ADR-0008)
+  product_global_id TEXT NOT NULL,
+  operation         TEXT NOT NULL,
+  PRIMARY KEY (task_id, model_ref, product_global_id)
+);
+
+CREATE TABLE viewer_state (
+  id   INTEGER PRIMARY KEY CHECK (id = 1),
+  json TEXT NOT NULL                -- Viewpoint 하나
+);
+```
+
+시간이 정해지지 않은 Task는 `NULL`이다. 0으로 대체하지 않는다 — ADR-0002의 경계 규칙이 "모르는 것을 아는 값으로 바꾸지 않는다"로 정한 자리다.
+
+`viewer_state`만 JSON 덩어리다. 질의할 일이 없고, 화면 기능이 늘 때마다 열을 더하는 것보다 통째로 두는 편이 낫다. 나머지는 열로 편다 — Task와 연결은 세고 걸러야 한다.
+
+**`assignments`가 `models`를 참조하지 않는다.** ADR-0008이 정한 대로 `model_ref`는 논리 이름이며, 표에 없는 이름도 연결에 쓰일 수 있다.
+
+### 스키마 버전과 마이그레이션
+
+`meta.schemaVersion`으로 센다. **읽고 나면 항상 최신이다.** 낮은 버전은 열 때 올리고, 내보내기는 언제나 최신으로 쓴다. 소비자는 버전을 분기하지 않는다 — ADR-0006과 ADR-0008이 쓴 방식 그대로다.
+
+앞으로만 간다. 낮춰 쓰기는 하지 않는다. 새 버전으로 연 파일을 옛 앱이 열면 "이 프로젝트는 더 새로운 버전이 만들었다"고 말하고 멈춘다. 조용히 열어 모르는 데이터를 잃는 것보다 낫다.
+
+### 모델 경로는 절대와 상대를 함께 적는다
+
+찾는 순서는 셋이다.
+
+1. **절대 경로.** 적힌 그 자리에 있으면 그것을 연다
+2. **상대 경로.** 프로젝트 파일이 있는 폴더 기준으로 다시 찾는다. 프로젝트와 IFC를 폴더째 옮겼거나 다른 PC에서 열 때 여기서 걸린다
+3. **못 찾았다.** 사용자에게 묻는다
+
+상대 경로는 프로젝트 파일과 같은 드라이브에 있을 때만 적는다. 드라이브가 다르면 상대 경로가 의미를 잃는다.
+
+찾은 파일의 fingerprint가 적힌 것과 다르면 **연결하되 알린다.** ADR-0008의 `schedule.warn.model-replaced`와 같은 자리다. 자동으로 fingerprint를 갱신하지 않는다.
+
+### 못 찾은 모델은 사용자가 다시 지목한다
+
+프로젝트를 열 때 못 찾은 모델이 있으면 목록을 보이고 찾아보기로 새 경로를 받는다.
+
+- **지목한 파일의 fingerprint를 확인한다.** 다르면 "다른 파일이다"라고 말하고, 그래도 쓸지 사용자가 정한다
+- **건너뛸 수 있다.** 그 모델은 미바인딩으로 열린다
+- **일부만 없어도 연다.** 모델 셋 중 하나가 네트워크 드라이브에 있다는 이유로 일정 편집까지 막지 않는다
+- **지목한 새 경로는 저장할 때 기록된다.** 열 때마다 다시 묻지 않는다
+
+**연결은 지우지 않는다.** 네트워크 드라이브가 잠깐 안 붙은 날 프로젝트를 열었다가 몇 주치 연결이 사라지는 일을 만들지 않는다.
+
+### 없어진 모델의 Task와 연결은 남기되 표시한다
+
+Task는 그대로 보인다. 미바인딩 연결은 흐리게 그리고 배지를 단다. 몇 개가 끊긴 상태인지 한눈에 보이고, 모델을 다시 붙이면 되살아난다.
+
+숨기지 않는 이유는 하나다 — 보이지 않으면 사용자가 다시 만들고, 중복 연결이 생긴다.
+
+### 저장은 사용자가 누른다
+
+`Ctrl+S`다. 자동 저장은 하지 않는다. 자동 저장은 "실수를 되돌릴 수 없게" 만들고, 되돌리기(undo)가 아직 없다.
+
+저장하지 않은 변경이 있으면 창 제목에 표시하고, 닫을 때 묻는다.
+
+## 대안
+
+| 대안 | 장점 | 단점 | 채택하지 않은 이유 |
+| ---- | ---- | ---- | ------------------ |
+| JSON 파일 하나 | 사람이 읽고 git에 올린다. Schedule v3 직렬화를 그대로 탄다 | 쓰다 죽으면 파일이 깨진다(임시 파일+교체로 막아야 한다). 커지면 통째로 읽고 쓴다 | 마스터 계획 16절이 SQLite로 적었고, 트랜잭션이 그 문제를 공짜로 준다 |
+| 압축 폴더(zip) | 섬네일·첨부까지 담을 수 있다 | 쓰기가 전체 재압축이다 | 지금 담을 것이 그것뿐이라 얻는 것이 없다 |
+| 프로젝트에 IFC 원본을 담는다 | 경로가 깨질 일이 없다 | 수백 MB가 프로젝트마다 복제된다. 원본 보호 규칙과 충돌한다 | `AGENTS.md` 2.1절 |
+| 절대 경로만 적는다 | 단순하고 예측 가능하다 | 폴더를 옮기거나 다른 PC에서 열 때마다 다시 지목해야 한다 | 상대 경로 한 열을 더하는 비용이 그보다 싸다 |
+| 상대 경로만 적는다 | 옮기기 쉽다 | 공용 모델 서버를 가리키는 쓰기가 어렵다 | 둘 다 적으면 둘 다 된다 |
+| 못 찾으면 안 연다 | 반쪽 상태가 없다 | 모델 하나 때문에 일정 편집까지 막힌다 | 일정은 모델 없이도 손볼 수 있다 |
+| 못 찾은 모델의 연결을 지운다 | 데이터가 깨끗하다 | 드라이브가 잠깐 안 붙은 날 몇 주치가 사라진다 | 되돌릴 수 없는 일을 조용히 하지 않는다 (ADR-0008) |
+| 미바인딩 연결을 숨긴다 | 화면이 깨끗하다 | 사용자가 다시 만들어 중복이 생긴다 | 끊긴 것은 보여야 고친다 |
+| 웹이 SQLite를 쓴다 (wasm) | 셸 없이도 저장된다 | 브라우저는 사용자가 고른 폴더에 파일을 못 쓴다. 다리를 우회하는 두 번째 저장 경로가 생긴다 | 파일은 셸이 맡는다 (ADR-0010) |
+| 자동 저장 | 잃을 일이 없다 | 되돌리기가 없는 상태에서 실수를 굳힌다 | undo가 생기면 다시 본다 |
+
+## 결과
+
+**가능해지는 것**
+
+- 15절 수용 기준의 마지막 줄이 통과한다
+- 셸의 최근 프로젝트 목록(Phase 8이 이미 만든 것)이 가리킬 대상이 생긴다
+- 프로젝트와 IFC를 폴더째 옮기거나 다른 PC에서 열어도 동작한다
+
+**포기하는 것**
+
+- 프로젝트 파일을 사람이 텍스트로 읽거나 git으로 병합하지 못한다. 필요하면 일정 JSON/CSV 내보내기가 그 자리를 맡는다
+- 브라우저만으로는 프로젝트를 여닫지 못한다. `pnpm dev`는 지금처럼 일정 파일로 일한다
+
+**영향 받는 경로와 계약**
+
+| 무엇 | 어떻게 |
+| --- | --- |
+| `apps/desktop/src/Bim4d.Desktop.Core` | `ProjectStore`가 새로 생긴다. SQLite 읽기·쓰기·마이그레이션·경로 해석 |
+| `apps/viewer-web/src/shell/shellBridgeComponent.ts` | `shell/state-requested`, `web/state`, `shell/project-opened`, `shell/project-closed` |
+| ADR-0010의 다리 계약 | 한 방향 통보에 물음–대답이 더해진다 |
+| `packages/contracts` | `ViewerState`(= Viewpoint)가 계약으로 올라간다 |
+| ADR-0008의 바인딩 규칙 | 바뀌지 않는다. 파일을 여는 단계가 앞에 붙을 뿐이다 |
+
+## 후속 작업
+
+- [x] `AGENTS.md` 1.4절 해소 표에 프로젝트 저장 형식 행 추가
+- [ ] `ProjectStore`를 `Bim4d.Desktop.Core`에 두고 창 없이 시험한다 — 열기·저장·마이그레이션·경로 해석 세 경우(절대·상대·못 찾음)
+- [ ] 다리의 물음–대답을 웹 쪽 시험으로 덮는다 (`requestId` 짝 맞추기 포함)
+- [ ] 못 찾은 모델을 다시 지목하는 화면
+- [ ] 미바인딩 연결의 화면 표시
+- [ ] 저장하지 않은 변경 표시와 닫을 때 묻기
+- [ ] 캘린더(`Calendars`)는 6.2절 구조에 있으나 아직 기능이 없다. 도입할 때 표를 더한다
+- [ ] 되돌리기(undo)가 생기면 자동 저장을 다시 본다
+- [ ] 배포 전에 `.bim4d`를 쓰는 다른 소프트웨어가 있는지 검색한다. 있으면 그때 바꾼다 — 사용자 PC에 그 확장자로 저장된 파일이 생긴 뒤에는 비싸다
