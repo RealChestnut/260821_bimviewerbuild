@@ -4,13 +4,28 @@
         xmlns:wv2="clr-namespace:Microsoft.Web.WebView2.Wpf;assembly=Microsoft.Web.WebView2.Wpf"
         Title="BIM 4D Viewer" Height="900" Width="1600"
         WindowStartupLocation="CenterScreen">
+    <!--
+        InputBindings에 Binding을 쓰면 조용히 아무 일도 일어나지 않는다. 시각 트리 밖이라
+        DataContext가 닿지 않는다. 표준 명령은 단축키를 이미 들고 있으므로 그것을 쓴다.
+    -->
+    <Window.CommandBindings>
+        <CommandBinding Command="ApplicationCommands.New" Executed="OnNewProjectCommand" />
+        <CommandBinding Command="ApplicationCommands.Open" Executed="OnOpenProjectCommand" />
+        <CommandBinding Command="ApplicationCommands.Save" Executed="OnSaveProjectCommand" />
+    </Window.CommandBindings>
+
     <DockPanel>
         <Menu DockPanel.Dock="Top">
             <MenuItem Header="파일(_F)">
-                <MenuItem x:Name="OpenModelMenuItem" Header="IFC 열기(_O)…" Click="OnOpenModel" />
-                <MenuItem x:Name="ImportScheduleMenuItem" Header="IFC에서 일정 가져오기(_I)…" Click="OnImportSchedule" />
+                <MenuItem Header="새 프로젝트(_N)" Click="OnNewProject" InputGestureText="Ctrl+N" />
+                <MenuItem Header="프로젝트 열기(_P)…" Click="OnOpenProject" InputGestureText="Ctrl+O" />
+                <MenuItem Header="프로젝트 저장(_S)" Click="OnSaveProject" InputGestureText="Ctrl+S" />
+                <MenuItem Header="다른 이름으로 저장(_A)…" Click="OnSaveProjectAs" />
                 <Separator />
                 <MenuItem x:Name="RecentMenuItem" Header="최근 프로젝트(_R)" />
+                <Separator />
+                <MenuItem x:Name="OpenModelMenuItem" Header="IFC 열기(_O)…" Click="OnOpenModel" />
+                <MenuItem x:Name="ImportScheduleMenuItem" Header="IFC에서 일정 가져오기(_I)…" Click="OnImportSchedule" />
                 <Separator />
                 <MenuItem Header="끝내기(_X)" Click="OnExit" />
             </MenuItem>

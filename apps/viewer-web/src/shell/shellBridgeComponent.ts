@@ -79,6 +79,12 @@ export const createShellBridgeComponent = (options: ShellBridgeOptions = {}): Ap
   let listening = false;
   /** 프로젝트를 닫을 때 내리려고 들고 있는 목록. 다른 Component의 상태를 들여다보지 않는다. */
   const loadedModels = new Set<ModelId>();
+  /** 프로젝트가 기다리는 모델의 이름. 다 올라와야 화면 상태를 되살린다. */
+  let awaitedModels = new Set<string>();
+  /** 모델을 기다리는 동안 들고 있는 화면 상태. */
+  let pendingViewpoint: Viewpoint | null = null;
+  /** 마지막으로 본 Task 수. 셸이 요약으로 적는다. */
+  let taskCount = 0;
 
   const tell = (kind: string, fields: Record<string, unknown>): void => {
     host?.postMessage(JSON.stringify({ kind, ...fields }));
@@ -128,12 +134,15 @@ export const createShellBridgeComponent = (options: ShellBridgeOptions = {}): Ap
     if (requestId === null) return;
 
     const app = context;
-    let schedule: string | null = null;
+    let schedule: unknown = null;
     let viewerState: Viewpoint | null = null;
 
     const exported = await app.commands.dispatch('scheduler/export-schedule', { format: 'json' });
     if (exported.ok) {
-      schedule = exported.value.files[0]?.content ?? null;
+      const content = exported.value.files[0]?.content;
+      // 값으로 보낸다. 문자열로 보내면 셸이 그것을 다시 JSON으로 감싸 이중으로 적힌다.
+      // 셸이 보내는 `shell/project-opened`도 값이므로 양쪽 모양이 같아진다.
+      schedule = content === undefined ? null : (JSON.parse(content) as unknown);
     }
 
     const captured = await app.commands.dispatch('viewer/capture-viewpoint', {});
@@ -141,13 +150,44 @@ export const createShellBridgeComponent = (options: ShellBridgeOptions = {}): Ap
       viewerState = captured.value.viewpoint;
     }
 
-    tell('web/state', { requestId, schedule, viewerState });
+    // Task 수는 셸이 최근 목록에 보이려고 쓴다. 셸이 일정을 열어 보지 않게 여기서 센다.
+    tell('web/state', { requestId, schedule, viewerState, taskCount });
   };
 
-  /** 셸이 연 프로젝트를 올린다. 모델은 `shell/model-opened`로 따로 온다. */
+  /**
+   * 기다리던 모델이 다 올라왔으면 화면 상태를 되살린다.
+   *
+   * 숨김과 격리는 부재를 가리키므로 모델이 없으면 되살릴 것이 없다. 그래서 기다린다.
+   */
+  const applyPendingViewpoint = async (): Promise<void> => {
+    if (context === null || pendingViewpoint === null || awaitedModels.size > 0) return;
+
+    const viewpoint = pendingViewpoint;
+    pendingViewpoint = null;
+    await context.commands.dispatch('viewer/apply-viewpoint', { viewpoint });
+  };
+
+  const stopAwaiting = (displayName: string): void => {
+    if (awaitedModels.delete(displayName)) {
+      void applyPendingViewpoint();
+    }
+  };
+
+  /**
+   * 셸이 연 프로젝트를 올린다. 모델은 `shell/model-opened`로 따로 온다.
+   *
+   * 화면 상태는 기다리는 모델이 다 올라온 뒤에 되살린다. 먼저 되살리면 아직 없는 부재를
+   * 숨기라는 말이 되어 아무 일도 일어나지 않는다 (ADR-0013).
+   */
   const openProject = async (message: Record<string, unknown>): Promise<void> => {
     if (context === null) return;
     const app = context;
+
+    const expected = message['models'];
+    awaitedModels = new Set(
+      Array.isArray(expected) ? expected.filter((name): name is string => typeof name === 'string') : [],
+    );
+    pendingViewpoint = viewpointOf(message['viewerState']);
 
     const schedule = message['schedule'];
     if (schedule !== undefined && schedule !== null) {
@@ -158,11 +198,8 @@ export const createShellBridgeComponent = (options: ShellBridgeOptions = {}): Ap
       }
     }
 
-    const viewpoint = viewpointOf(message['viewerState']);
-    if (viewpoint !== null) {
-      // 모델이 아직 안 올라왔으면 되살릴 것이 없다. 실패해도 프로젝트는 열린 것이다.
-      await app.commands.dispatch('viewer/apply-viewpoint', { viewpoint });
-    }
+    // 기다릴 모델이 없으면 지금 되살린다.
+    await applyPendingViewpoint();
   };
 
   /** 프로젝트를 닫았다. 열린 모델과 일정을 비워 처음 상태로 돌아간다. */
@@ -174,6 +211,8 @@ export const createShellBridgeComponent = (options: ShellBridgeOptions = {}): Ap
       await app.commands.dispatch('viewer/unload-model', { modelId });
     }
     loadedModels.clear();
+    awaitedModels.clear();
+    pendingViewpoint = null;
 
     await app.commands.dispatch('scheduler/clear-schedule', {});
   };
@@ -233,13 +272,19 @@ export const createShellBridgeComponent = (options: ShellBridgeOptions = {}): Ap
       subscriptions = [
         // 셸이 웹의 기록을 자기 로그에 함께 남긴다. 프로세스 셋을 잇는 유일한 실이다.
         app.events.subscribe('model/load-failed', ({ payload }) => {
+          // 오지 않을 모델을 기다리면 화면 상태가 영영 되살아나지 않는다.
+          stopAwaiting(payload.displayName);
           tell('web/error', { message: `${payload.displayName}: ${payload.reason}` });
         }),
         app.events.subscribe('scheduler/load-failed', ({ payload }) => {
           tell('web/error', { message: payload.reason, code: payload.code });
         }),
+        app.events.subscribe('scheduler/schedule-changed', ({ payload }) => {
+          taskCount = payload.tasks.length;
+        }),
         app.events.subscribe('model/loaded', ({ payload }) => {
           loadedModels.add(payload.modelId);
+          stopAwaiting(payload.displayName);
           tell('web/log', { level: 'info', message: `모델을 열었다: ${payload.displayName}` });
         }),
         app.events.subscribe('model/unloaded', ({ payload }) => {
@@ -260,6 +305,8 @@ export const createShellBridgeComponent = (options: ShellBridgeOptions = {}): Ap
     dispose: () => {
       detach();
       loadedModels.clear();
+      awaitedModels.clear();
+      pendingViewpoint = null;
       host = null;
       context = null;
       return Promise.resolve();

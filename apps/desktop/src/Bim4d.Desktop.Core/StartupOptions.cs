@@ -12,6 +12,15 @@ public sealed record StartupOptions
     /// <summary>뜨자마자 열 IFC. 없으면 빈 창으로 시작한다.</summary>
     public string? OpenPath { get; init; }
 
+    /// <summary>
+    /// 뜨자마자 열 프로젝트.
+    /// </summary>
+    /// <remarks>
+    /// 사람이 메뉴를 누르지 않고도 프로젝트를 여는 길이다. 나중에 `.bim4d` 파일 연결이
+    /// 붙을 자리이기도 하다 (ADR-0012, ADR-0013).
+    /// </remarks>
+    public string? OpenProjectPath { get; init; }
+
     /// <summary>연 뒤 이만큼 지나면 스스로 끝낸다. 자동 시험이 쓰는 길이다.</summary>
     public TimeSpan? ExitAfter { get; init; }
 
@@ -44,6 +53,7 @@ public sealed record StartupOptions
     public static StartupOptions Parse(IReadOnlyList<string> arguments)
     {
         string? openPath = null;
+        string? openProjectPath = null;
         TimeSpan? exitAfter = null;
         var selfCheck = false;
 
@@ -64,15 +74,28 @@ public sealed record StartupOptions
                     index += 1;
                     break;
 
+                case "--open-project" when next is not null:
+                    openProjectPath = next;
+                    index += 1;
+                    break;
+
                 case "--self-check":
                     selfCheck = true;
                     break;
 
                 default:
                     // 옵션이 아니면 열 파일로 본다. 파일 연결과 끌어다 놓기가 그렇게 준다.
+                    // 확장자로 프로젝트와 모델을 가른다.
                     if (!current.StartsWith('-'))
                     {
-                        openPath ??= current;
+                        if (current.EndsWith(ProjectStore.Extension, StringComparison.OrdinalIgnoreCase))
+                        {
+                            openProjectPath ??= current;
+                        }
+                        else
+                        {
+                            openPath ??= current;
+                        }
                     }
                     break;
             }
@@ -81,6 +104,7 @@ public sealed record StartupOptions
         return new StartupOptions
         {
             OpenPath = openPath,
+            OpenProjectPath = openProjectPath,
             ExitAfter = exitAfter,
             SelfCheck = selfCheck,
         };
