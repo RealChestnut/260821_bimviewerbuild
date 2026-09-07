@@ -8,7 +8,12 @@
  * 보관소에서 읽는다.
  */
 
-import type { ScheduleCsvBundle, ScheduleCsvFile, ScheduleEdit } from '@bim4d/domain';
+import type {
+  ScheduleCsvBundle,
+  ScheduleCsvFile,
+  ScheduleEdit,
+  UnboundModelRef,
+} from '@bim4d/domain';
 import type { DependencyType, GlobalId, TaskId, TaskOperation } from '@bim4d/contracts';
 
 /**
@@ -102,6 +107,13 @@ declare module '@bim4d/contracts' {
        * 묶기는 했다. 연결을 지키는 것이 목적이고 바뀐 사실은 따로 알린다 (ADR-0008).
        */
       readonly replacedRefs: readonly string[];
+      /**
+       * 묶일 모델이 없는 이름과 그 이름에 걸린 연결 수.
+       *
+       * 연결은 그대로 있고 가리킬 부재만 없다. 화면이 보여야 사용자가 다시 만들어 중복을
+       * 내지 않는다 (ADR-0013).
+       */
+      readonly unboundRefs: readonly UnboundModelRef[];
     };
   }
 

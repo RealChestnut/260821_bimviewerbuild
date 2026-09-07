@@ -1,4 +1,4 @@
-import type { ScheduleCsvBundle, ScheduleCsvFile } from '@bim4d/domain';
+import type { ScheduleCsvBundle, ScheduleCsvFile, UnboundModelRef } from '@bim4d/domain';
 import type { AppComponent, AppContext, Unsubscribe } from '@bim4d/contracts';
 
 import '../scheduler/schedulerEvents.js';
@@ -15,6 +15,8 @@ export interface SchedulerPanelOptions {
   readonly warningListSelector: string;
   /** 모델이 바뀌었다는 알림을 그릴 자리. */
   readonly replacementListSelector: string;
+  /** 묶일 모델이 없는 이름을 그릴 자리 (ADR-0013). */
+  readonly unboundListSelector: string;
   /** 미연결 부재를 3D에서 고르는 버튼. */
   readonly selectUnassignedSelector: string;
   readonly statusSelector: string;
@@ -85,6 +87,7 @@ export const createSchedulerPanel = (options: SchedulerPanelOptions): AppCompone
   let nameText: HTMLElement | null = null;
   let warningList: HTMLElement | null = null;
   let replacementList: HTMLElement | null = null;
+  let unboundList: HTMLElement | null = null;
   let selectUnassignedButton: HTMLElement | null = null;
   let statusText: HTMLElement | null = null;
   let exportJsonButton: HTMLElement | null = null;
@@ -168,6 +171,20 @@ export const createSchedulerPanel = (options: SchedulerPanelOptions): AppCompone
           : `미연결 부재 ${String(count)}개를 3D에서 골랐다.`,
       );
     })();
+  };
+
+  /**
+   * 묶일 모델이 없는 이름 하나.
+   *
+   * 숨기지 않는다. 보이지 않으면 사용자가 연결을 다시 만들어 중복이 생긴다 (ADR-0013).
+   */
+  const createUnboundRow = (entry: UnboundModelRef): HTMLLIElement => {
+    const item = document.createElement('li');
+    item.dataset['testid'] = 'unbound-model';
+    item.dataset['modelRef'] = entry.modelRef;
+    item.dataset['assignments'] = String(entry.assignmentCount);
+    item.textContent = `${entry.modelRef} · 연결 ${String(entry.assignmentCount)}개`;
+    return item;
   };
 
   const createWarningRow = (warning: ScheduleWarningRow): HTMLLIElement => {
@@ -286,6 +303,7 @@ export const createSchedulerPanel = (options: SchedulerPanelOptions): AppCompone
         nameText = requireElement(options.nameSelector);
         warningList = requireElement(options.warningListSelector);
         replacementList = requireElement(options.replacementListSelector);
+        unboundList = requireElement(options.unboundListSelector);
         selectUnassignedButton = requireElement(options.selectUnassignedSelector);
         statusText = requireElement(options.statusSelector);
         exportJsonButton = requireElement(options.exportJsonSelector);
@@ -321,6 +339,7 @@ export const createSchedulerPanel = (options: SchedulerPanelOptions): AppCompone
         }),
         context.events.subscribe('scheduler/model-binding-changed', ({ payload }) => {
           replacementList?.replaceChildren(...payload.replacedRefs.map(createReplacementRow));
+          unboundList?.replaceChildren(...payload.unboundRefs.map(createUnboundRow));
         }),
         context.events.subscribe('scheduler/load-failed', ({ payload }) => {
           // 앞서 실린 일정은 그대로 둔다. 읽지 못한 파일 때문에 쓰던 것을 지우지 않는다.

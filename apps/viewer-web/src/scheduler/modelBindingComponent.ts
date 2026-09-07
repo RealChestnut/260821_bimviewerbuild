@@ -70,6 +70,7 @@ export const createModelBindingComponent = (
       await app.events.publish('scheduler/model-binding-changed', {
         boundCount: 0,
         replacedRefs: [],
+        unboundRefs: [],
       });
       return;
     }
@@ -81,6 +82,8 @@ export const createModelBindingComponent = (
       boundCount: result.bindings.size,
       // 이름은 같은데 파일 내용이 다른 것. 화면이 사용자에게 물어볼 대상이다.
       replacedRefs: result.replaced.map((entry) => entry.modelRef),
+      // 묶일 모델이 없는 것. 연결은 그대로 두고 몇 개가 끊겼는지만 알린다.
+      unboundRefs: result.unbound,
     });
 
     await recordFirstFingerprints(schedule.models, result.bindings);

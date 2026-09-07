@@ -97,6 +97,7 @@ const bootstrap = async (): Promise<void> => {
       nameSelector: '[data-testid="schedule-name"]',
       warningListSelector: '[data-testid="schedule-warnings"]',
       replacementListSelector: '[data-testid="model-replacements"]',
+      unboundListSelector: '[data-testid="unbound-models"]',
       selectUnassignedSelector: '[data-testid="select-unassigned"]',
       statusSelector: '[data-testid="schedule-status"]',
       exportJsonSelector: '[data-testid="schedule-export-json"]',
