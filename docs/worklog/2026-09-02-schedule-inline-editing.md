@@ -163,7 +163,7 @@ screenshot 기준선은 의도한 변경이므로 `--update-snapshots`로 갱신
 ## 7. 쓴 언어와 도구
 
 | 갈래 | 쓴 것 |
-| --- | --- |
+| ---- | ----- |
 | 언어 | TypeScript 5.9.3 (strict, `exactOptionalPropertyTypes`), HTML, CSS |
 | DOM | 라이브러리 없이 `document.createElement`. 프레임워크를 들이지 않았다 |
 | 단위 테스트 | Vitest 4 + jsdom (`// @vitest-environment jsdom`) |
